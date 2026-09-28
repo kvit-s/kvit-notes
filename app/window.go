@@ -269,6 +269,7 @@ func Open(ui *kvitui.UI, v *vault.Vault) (*Window, error) {
 		}
 	}
 	w.Editor.PasteRich = pasteRich
+	w.Editor.PasteImage = w.pasteImage
 	w.Editor.BlocksHTML = func(blocks []editor.Block, indexes []int) string {
 		return export.HTMLFromSelection(blocks, indexes, "", w.exportOptions())
 	}
@@ -333,6 +334,8 @@ func Open(ui *kvitui.UI, v *vault.Vault) (*Window, error) {
 	w.body = body
 	w.list.OnDrag = w.dragNote
 	w.list.OnDrop = w.dropNote
+	w.scopes.OnDrag = w.dragFolder
+	w.scopes.OnDrop = w.dropFolder
 	w.status = kvitui.NewStatusBar(ui)
 	w.status.OnFact = func(_, fact int) {
 		switch fact {
@@ -815,6 +818,54 @@ func (w *Window) dropNote(i int, where geom.Point) {
 		w.refreshScopes()
 		w.refreshList()
 		w.update()
+	})
+}
+
+// folderDropTarget is the parent a folder dragged to a point in the window
+// would move into: the folder under it in the sidebar (itself for a folder
+// row), "" for All Notes, and whether there is one.
+func (w *Window) folderDropTarget(where geom.Point) (int, string, bool) {
+	i := w.scopes.RowAt(w.scopes.PointFromRoot(where))
+	if i < 0 {
+		return -1, "", false
+	}
+	switch s := w.scopes.Rows[i].Scope; s.Kind {
+	case ScopeFolder:
+		return i, s.Path, true
+	case ScopeAll:
+		return i, "", true
+	}
+	return -1, "", false
+}
+
+// dragFolder shows where a dragged folder would go.
+func (w *Window) dragFolder(source string, where geom.Point) {
+	i, parent, _ := w.folderDropTarget(where)
+	if i >= 0 && source != "" && (parent == source || (parent != "" && strings.HasPrefix(parent, source+"/"))) {
+		i = -1
+	}
+	if i != w.scopes.Target {
+		w.scopes.Target = i
+		w.scopes.MarkForRedraw()
+	}
+}
+
+// dropFolder moves a dragged folder into the folder it was dropped on.
+func (w *Window) dropFolder(source string, where geom.Point) {
+	w.scopes.Target = -1
+	w.scopes.MarkForRedraw()
+	_, parent, ok := w.folderDropTarget(where)
+	if !ok || source == "" {
+		return
+	}
+	if parent == vault.Parent(source) {
+		return
+	}
+	if parent == source || (parent != "" && strings.HasPrefix(parent, source+"/")) {
+		return
+	}
+	w.relocateFolder(source, func() (string, error) { return w.Vault.MoveFolder(source, parent) }, func(to string) {
+		w.folderRenamed(source, to)
 	})
 }
 

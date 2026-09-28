@@ -265,10 +265,14 @@ kvit-ui-go's `platform` package for the tray.
 
 - [x] 3.1 Block selection: handle click, Shift+click, Ctrl+click, Ctrl+A twice,
   Escape, Ctrl+Shift+Up/Down. Evidence: `13_select`, `visual_13_select_*`
-- [~] 3.2 Reordering: drag by the handle with rows making room, one undo step,
-  Escape cancels, Alt+Up/Down for a selection. Evidence: `16_drag`, `14_ops`,
-  `visual_16_drag_*`. Missing: the animation of the moved row, dragging a
-  multi-block selection by one handle
+- [x] 3.2 Reordering: drag by the handle with rows making room, one undo step,
+  Escape cancels, Alt+Up/Down for a selection; dragging the handle of a
+  selected block moves the whole selection to the drop gap, one undo step
+  with the selection following it. Evidence: `16_drag`, `14_ops`,
+  `visual_16_drag_*`, `TestMoveBlocksToMovesARun`,
+  `TestMultiBlockDragMovesTheSelection`. The moved row takes its new position
+  directly without animating, as the surrounding rows do in Qt; see
+  "Differences" below
 - [x] 3.3 Indentation: Tab and Shift+Tab, on a selection too, up to four levels
 - [x] 3.4 Conversion: typed prefixes, the / menu, the block menu, Ctrl+0–4,
   Ctrl+T, Ctrl+Shift+T, as their own undo step. Evidence: `09_prefix`, `10_menu`,
@@ -276,15 +280,22 @@ kvit-ui-go's `platform` package for the tray.
 - [x] 3.5 Deletion: Backspace and Delete rules, Delete/Backspace on a
   selection, the gutter's ×, the block menu. Evidence: `TestEnterAndBackspace`
 - [x] 3.6 Duplication: Ctrl+D, below the original. Evidence: `14_ops`
-- [~] 3.7 Creation: Enter, "/", the gutter's +, the block menu from its
+- [x] 3.7 Creation: Enter, "/", the gutter's +, the block menu from its
   button, Shift+F10 and the Menu key, recently used kinds first. Evidence: `12_plus`,
   `10_menu`, `29_block_menu`; Ctrl+Enter on selected blocks makes a
   paragraph after them with the caret in it, the keyboard's way below a table
   or a board, "Copy as HTML" is in the block menu, and "Export…" opens the
   export dialog scoped to the blocks. Evidence:
   `TestCtrlEnterAfterSelectedBlocks`, `TestBlockMenuHasExport`,
-  `TestBlockExportOpensScopedDialog`. Missing: a caret in the space between
-  blocks before anything is typed (a paragraph is made at once)
+  `TestBlockExportOpensScopedDialog`. The blank space between two blocks takes
+  a caret of its own: pointing at the seam draws a line, clicking turns it
+  into a blinking caret, typing makes a paragraph holding it ("/" opens the
+  block menu, Enter leaves it empty), Up/Down moves it, Escape leaves for the
+  end of the block above, and Ctrl+V pastes there (flat text as paragraphs,
+  structured keeping its types, plain stripped). Evidence:
+  `TestGapCaretInsertsOnTyping`, `TestGapCaretKeys`,
+  `TestGapCaretMovesAndLeaves`, `TestGapCaretSlashOpensTheMenu`,
+  `TestGapCaretPaste`
 
 ## 4. Slash commands and the block menu
 
@@ -305,18 +316,24 @@ kvit-ui-go's `platform` package for the tray.
   its text and never round-trips through the HTML converter. Evidence: `15_xsel`,
   `TestHTMLOnTheClipboard`, `TestInternalFormatPastesAsText`
 - [x] 5.2 Cut, with the same formats. Evidence: `15_xsel`
-- [~] 5.3 Paste: text at the caret; Markdown with blank lines becomes
+- [x] 5.3 Paste: text at the caret; Markdown with blank lines becomes
   blocks, and so do several lines opening a code fence, which becomes the
   block the fence names (a character diagram in it tagged and straightened,
-  as when a note is opened, in the same undo step); text pasted into a code
+  as when a note is opened, in the same undo step); several flat lines become
+  a paragraph each (plain stripped to display text); text pasted into a code
   block goes through that step too; HTML becomes Markdown (the export
-  package's port of Qt's converter); Ctrl+Shift+V pastes plain text.
-  Evidence: `TestHTMLOnTheClipboard`, `TestPastedFenceBecomesItsBlock`,
-  `TestPasteIntoCodeBlockStraightensDiagram`,
-  `TestCtrlVStraightensADiagramPastedIntoCode`. Missing: images, URLs,
-  pasting after selected blocks, several lines of plain text becoming a
-  paragraph each, and taking a fence from the plain text when the clipboard
-  also holds HTML
+  package's port of Qt's converter), except a payload whose plain text opens
+  a fence uses that text so a copied fence does not arrive wrapped in a
+  second code block; a lone URL over words links them; pasting after selected
+  blocks inserts after them and selects the new blocks; a picture on the
+  clipboard saves into the vault's picture folder as an image block;
+  Ctrl+Shift+V pastes plain text. Evidence: `TestHTMLOnTheClipboard`,
+  `TestPastedFenceBecomesItsBlock`, `TestPasteIntoCodeBlockStraightensDiagram`,
+  `TestCtrlVStraightensADiagramPastedIntoCode`,
+  `TestPastedFlatLinesBecomeParagraphs`, `TestPastedURLLinksTheSelection`,
+  `TestPastedURLLinksThroughTheKeyboard`, `TestInsertAtInsertsBlocks`,
+  `TestPasteAfterSelectedBlocks`, `TestPastedImageInsertsAnImageBlock`,
+  `TestPastedPictureIsSavedAsAnImageBlock`, `TestFenceFromPlainTextBeatsHTML`
 - [~] 5.4 Drag and drop: blocks by their handle, Escape cancels. Missing:
   files, images and text from other applications
 
@@ -341,12 +358,14 @@ kvit-ui-go's `platform` package for the tray.
 
 ## 8. Document organisation
 
-- [~] 8.1 Folders: nested folders in the sidebar, opened and closed as
+- [x] 8.1 Folders: nested folders in the sidebar, opened and closed as
   `collection.json` records, their colours shown; new folder, rename, move to
-  the trash; notes moved by dragging them onto a folder. Evidence:
-  `TestTheWindowShowsTheVault`, `TestDragANoteOntoAFolder`,
+  the trash; notes moved by dragging them onto a folder, and folders moved by
+  dragging them onto another folder (or All Notes for the top, never into
+  themselves). Evidence: `TestTheWindowShowsTheVault`,
+  `TestDragANoteOntoAFolder`, `TestDragAFolderOntoAFolder`, `TestMoveFolder`,
   `TestCollectionStateRoundTrips`, and a colour chosen from the folder's
-  menu. Missing: dragging folders
+  menu
 - [x] 8.2 Tags: a note's tags from its front matter, added and removed in the
   tag strip with the vault's tags offered as they are typed, the vault's
   tags with counts in the sidebar, their colours shown, and the note list
@@ -630,3 +649,13 @@ kvit-ui-go's `platform` package for the tray.
   QQC2 bar leaves no visible mark in its own screenshot
   (`visual_31_code_04_long_line_scrolled`). The footer hint draws above it
   in both, so it stays readable where the two overlap.
+- **A dragged row takes its new position directly without animating.**
+  Qt's ListView animates the moved row while the surrounding rows take their
+  new positions at once; unison has no such transition, and headless tests
+  check the final order and the single undo step instead
+  (`TestMultiBlockDragMovesTheSelection`, `visual_16_drag_*`). Reduced motion
+  stills Qt's animation rather than removing the move.
+- **A press far below the last block makes a paragraph at once.** Within
+  reach of the last seam the press arms the gap caret as above; further down,
+  in the editor's tail space Qt has no equivalent of, the caret goes to a new
+  paragraph at the end, as the Go editor always did.

@@ -16,8 +16,10 @@ import (
 	"github.com/kvit-s/kvit-notes/vault"
 	kvitui "github.com/kvit-s/kvit-ui"
 	"github.com/richardwilkes/toolbox/v2/geom"
+	"github.com/richardwilkes/toolbox/v2/uti"
 	"github.com/richardwilkes/unison"
 	"github.com/richardwilkes/unison/accessibility"
+	"github.com/richardwilkes/unison/drag"
 	"github.com/richardwilkes/unison/enums/mod"
 )
 
@@ -433,6 +435,76 @@ func TestDragANoteOntoAFolder(t *testing.T) {
 	s.screen.MouseUp(to, unison.ButtonLeft, mod.None)
 	if !s.exists("Journal/Reading list.md") || s.exists("Reading list.md") {
 		t.Errorf("dropping the note on Journal should move it there")
+	}
+}
+
+// features.md 8.1: folders move by dragging them onto another folder.
+func TestDragAFolderOntoAFolder(t *testing.T) {
+	s := openVault(t, demo)
+	var from, to geom.Point
+	s.do(func() {
+		tops, heights := s.w.scopes.geometry()
+		for k, r := range s.w.scopes.Rows {
+			if r.Label == "Projects" {
+				from = s.screen.PanelPoint(s.w.scopes, geom.NewPoint(60, tops[k]+heights[k]/2))
+			}
+			if r.Label == "Journal" {
+				to = s.screen.PanelPoint(s.w.scopes, geom.NewPoint(60, tops[k]+heights[k]/2))
+			}
+		}
+	})
+	if from == (geom.Point{}) || to == (geom.Point{}) {
+		t.Fatal("the Projects and Journal rows should be shown")
+	}
+	s.screen.MouseDown(from, unison.ButtonLeft, mod.None)
+	for k := 1; k <= 5; k++ {
+		s.screen.MouseMove(from.Add(to.Sub(from).Mul(float32(k)/5)), mod.None)
+	}
+	var target int
+	s.do(func() { target = s.w.scopes.Target })
+	if target < 0 {
+		t.Errorf("the folder under a dragged folder should be marked")
+	}
+	s.shot("vault_04b_dragging_folder.png")
+	s.screen.MouseUp(to, unison.ButtonLeft, mod.None)
+	if !s.exists("Journal/Projects/Plan.md") || s.exists("Ideas/Projects/Plan.md") {
+		t.Errorf("dropping Projects on Journal should move it there")
+	}
+}
+
+// features.md 5.3: a picture on the clipboard pastes as an image block,
+// saved into the vault's picture folder.
+func TestPastedPictureIsSavedAsAnImageBlock(t *testing.T) {
+	s := openVault(t, demo)
+	var buf bytes.Buffer
+	img := image.NewRGBA(image.Rect(0, 0, 40, 20))
+	for x := range 40 {
+		for y := range 20 {
+			img.Set(x, y, color.RGBA{R: uint8(x * 6), G: 90, B: 160, A: 255})
+		}
+	}
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatal(err)
+	}
+	s.do(func() {
+		unison.ClipboardSetData(drag.Data{Type: uti.PNG, Data: buf.Bytes()})
+		s.w.Editor.FocusBlock(0, 0)
+	})
+	s.screen.KeyPress(unison.KeyV, mod.Control)
+	var kind editor.Kind
+	s.do(func() {
+		for _, b := range s.w.Editor.Doc.Blocks {
+			if b.Kind == editor.Image {
+				kind = b.Kind
+			}
+		}
+	})
+	if kind != editor.Image {
+		t.Fatalf("a pasted picture should become an image block")
+	}
+	matches, _ := filepath.Glob(filepath.Join(s.root, "assets", "*.png"))
+	if len(matches) != 1 {
+		t.Errorf("the picture should be saved into assets/: %v", matches)
 	}
 }
 

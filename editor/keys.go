@@ -55,6 +55,21 @@ func (e *Editor) handleKey(key unison.KeyCode, ctrl, shift, alt bool) bool {
 		return true
 	}
 
+	if e.gapArmed >= 0 {
+		if e.gapKey(key, ctrl, shift, alt, "") {
+			e.changed()
+			return true
+		}
+		// Typing reaches the seam through runeTyped, not here: a printable
+		// KeyDown (or AltGr as Ctrl+Alt) must not disarm before its rune
+		// arrives.
+		if (!ctrl && !alt) || (ctrl && alt) {
+			return false
+		}
+		// Any other shortcut ends the seam caret and runs normally below.
+		e.dismissGap()
+	}
+
 	// Shortcuts that act on the whole note.
 	switch {
 	case ctrl && key == unison.KeyZ && !shift:
@@ -66,6 +81,9 @@ func (e *Editor) handleKey(key unison.KeyCode, ctrl, shift, alt bool) bool {
 		e.afterStructural()
 		return true
 	case ctrl && key == unison.KeyV && !d.ReadOnly:
+		if len(e.blockSel) > 0 {
+			return e.blockSelectionKey(key, ctrl, shift, alt)
+		}
 		if shift {
 			if unison.ClipboardHasText() {
 				d.Paste(strings.ReplaceAll(unison.ClipboardGetText(), "\r\n", "\n"), true)
@@ -520,6 +538,63 @@ func (e *Editor) blockSelectionKey(key unison.KeyCode, ctrl, shift, alt bool) bo
 			d.DeleteBlocks(ids)
 			e.clearBlockSel()
 		}
+	case ctrl && key == unison.KeyV && !d.ReadOnly:
+		// Paste after the selection, selecting the new blocks.
+		if e.PasteImage != nil {
+			if path, ok := e.PasteImage(); ok {
+				last := d.Index(ids[len(ids)-1])
+				nb := NewBlock(Image, "![]("+path+")")
+				d.Edit("insert", func() {
+					d.Blocks = slices.Insert(d.Blocks, last+1, nb)
+				})
+				e.clearBlockSel()
+				e.blockSel[nb.ID] = true
+				break
+			}
+		}
+		if !unison.ClipboardHasText() {
+			break
+		}
+		last := d.Index(ids[len(ids)-1])
+		at := last + 1
+		if shift {
+			text := unison.ClipboardGetText()
+			if n := d.InsertPlainTextAt(at, text); n > 0 {
+				e.clearBlockSel()
+				for _, b := range d.Blocks[at : at+n] {
+					e.blockSel[b.ID] = true
+				}
+			}
+		} else {
+			text := unison.ClipboardGetText()
+			if PasteOpensAFence(text) {
+				if n := d.InsertMarkdownAt(at, text); n > 0 {
+					e.clearBlockSel()
+					for _, b := range d.Blocks[at : at+n] {
+						e.blockSel[b.ID] = true
+					}
+				}
+			} else if e.PasteRich != nil {
+				if md, ok := e.PasteRich(); ok {
+					if n := d.InsertMarkdownAt(at, md); n > 0 {
+						e.clearBlockSel()
+						for _, b := range d.Blocks[at : at+n] {
+							e.blockSel[b.ID] = true
+						}
+					}
+				} else if n := d.InsertMarkdownAt(at, text); n > 0 {
+					e.clearBlockSel()
+					for _, b := range d.Blocks[at : at+n] {
+						e.blockSel[b.ID] = true
+					}
+				}
+			} else if n := d.InsertMarkdownAt(at, text); n > 0 {
+				e.clearBlockSel()
+				for _, b := range d.Blocks[at : at+n] {
+					e.blockSel[b.ID] = true
+				}
+			}
+		}
 	case alt && (key == unison.KeyUp || key == unison.KeyDown):
 		d.Move(ids, direction(key))
 	case key == unison.KeyTab:
@@ -582,6 +657,14 @@ func (e *Editor) selectRange(from, to int64) {
 }
 
 func (e *Editor) runeTyped(ch rune) bool {
+	if e.gapArmed >= 0 && !e.Doc.ReadOnly {
+		if ch >= 0x20 && ch != 0x7f {
+			e.gapInsert(string(ch))
+			e.changed()
+			return true
+		}
+		return false
+	}
 	if e.caretInTableGrid() {
 		// The grid is showing, not the source: typing drops any rectangle
 		// instead of writing into the table's Markdown.
@@ -653,8 +736,20 @@ func (e *Editor) copyMarkdown(md string) {
 
 // pasteClipboard pastes what the clipboard holds: HTML turned into
 // Markdown when the application reads it, else the text. A copy carrying
-// the internal type pastes as its text, never through the converter.
+// the internal type pastes as its text, never through the converter. A
+// payload whose plain text opens a fence uses that text even when HTML is
+// present, so a copied fence does not arrive wrapped in a second code block.
 func (e *Editor) pasteClipboard() {
+	if e.PasteImage != nil {
+		if path, ok := e.PasteImage(); ok {
+			e.pasteImage(path)
+			return
+		}
+	}
+	if unison.ClipboardHasText() && PasteOpensAFence(unison.ClipboardGetText()) {
+		e.paste(unison.ClipboardGetText())
+		return
+	}
 	if e.PasteRich != nil {
 		if md, ok := e.PasteRich(); ok {
 			e.paste(md)
@@ -666,12 +761,41 @@ func (e *Editor) pasteClipboard() {
 	}
 }
 
+// pasteImage inserts a stored picture as an image block: converting the
+// caret's empty paragraph, else inserting below it, as Qt's insertImageBlock
+// does.
+func (e *Editor) pasteImage(stored string) {
+	d := e.Doc
+	if !d.Focused {
+		return
+	}
+	md := "![](" + stored + ")"
+	d.Edit("insert", func() {
+		b := d.CaretBlock()
+		if b != nil && b.Kind == Paragraph && b.Text == "" {
+			b.Kind, b.Text = Image, md
+			d.SetCaret(b.ID, 0)
+		} else if b != nil {
+			i := d.Index(b.ID)
+			nb := NewBlock(Image, md)
+			d.Blocks = slices.Insert(d.Blocks, i+1, nb)
+			d.SetCaret(nb.ID, 0)
+		}
+	})
+	e.afterStructural()
+}
+
 // paste inserts text from the clipboard at the caret: Markdown with blank
-// lines in it, or lines opening a code fence, becomes blocks (Doc.Paste).
+// lines in it, lines opening a code fence, or several flat lines becomes
+// blocks (Doc.Paste). A lone URL over words links them instead.
 func (e *Editor) paste(s string) {
 	d := e.Doc
 	s = strings.ReplaceAll(s, "\r\n", "\n")
 	if !d.Focused {
+		return
+	}
+	if IsLoneURL(s) && d.PasteLink(s) {
+		e.afterStructural()
 		return
 	}
 	d.Paste(s, false)

@@ -264,11 +264,13 @@ func (d *Doc) DeleteSelection() {
 func (d *Doc) InsertText(text string) { d.insert(text, false, false) }
 
 // Paste inserts pasted text at the caret, replacing any selection, as
-// InsertText does, with two more rules the Qt app applies to text arriving
-// from outside the note (the paste in EditableBlock.qml):
-//   - Into a text block, several lines that open a code fence become blocks
-//     even with no blank line among them, so the fence is read as one. A
-//     plain-text paste keeps its lines as text.
+// InsertText does, with the rules the Qt app applies to text arriving from
+// outside the note (the paste in EditableBlock.qml):
+//   - Into a text block, Markdown with blank lines becomes blocks, and so do
+//     several lines opening a code fence, so the fence is read as one.
+//     Several flat lines become a paragraph each, as Qt's in-block paste
+//     splices them. A plain-text paste does the same split, with inline
+//     formatting stripped from each line.
 //   - Into a code block, the block's text after the paste goes through the
 //     step a fence takes when a note is opened (textdiagram.Ingest): a
 //     character diagram in an untagged or `text` block is tagged `diagram`,
@@ -280,13 +282,41 @@ func (d *Doc) Paste(text string, plain bool) { d.insert(text, !plain, true) }
 // reOpensFence is a line of pasted text starting a code fence.
 var reOpensFence = regexp.MustCompile("(^|\n)[ \t]*(```|~~~)")
 
+// PasteOpensAFence reports whether pasted text opens a code fence, in which
+// case the plain text is the structure source even when the clipboard also
+// holds HTML (EditableBlock.qml pasteFromClipboard, BlockGapCursor.qml).
+func PasteOpensAFence(text string) bool { return reOpensFence.MatchString(text) }
+
+// reLoneURL is a bare URL and nothing else, what pasting over a text
+// selection turns into a link (src/platform/clipboardhelper.cpp).
+var reLoneURL = regexp.MustCompile(`(?i)\A(https?://|www\.)[^\s<>"]+\z`)
+
+// IsLoneURL reports whether s is a bare URL with nothing around it.
+func IsLoneURL(s string) bool { return reLoneURL.MatchString(strings.TrimSpace(s)) }
+
+// displayLine is the display text of one pasted plain-text line: its inline
+// markers removed, as Qt's displayTextFor does. Markers are hidden by
+// projecting with no reveal, keeping each span's content.
+func displayLine(s string) string {
+	r := []rune(s)
+	if len(r) == 0 {
+		return s
+	}
+	return string(project(r, parseInline(r), nil).Disp)
+}
+
 // insert is InsertText and Paste. fences reads several lines opening a
 // fence as blocks; ingest runs the fence step over a code block pasted into.
+// Flat multi-line text becomes a paragraph per line, as Qt's in-block paste
+// does; a plain paste strips each line first.
 func (d *Doc) insert(text string, fences, ingest bool) {
 	kind := "typing"
 	if d.HasSelection() || strings.Contains(text, "\n") || ingest && d.ingestChanges(text) {
 		kind = "insert"
 	}
+	// plain is whether this insert strips formatting: only Paste asks with
+	// fences false, which is Ctrl+Shift+V.
+	plain := ingest && !fences
 	d.Edit(kind, func() {
 		if d.HasSelection() {
 			d.deleteSelection()
@@ -298,6 +328,17 @@ func (d *Doc) insert(text string, fences, ingest bool) {
 		multi := strings.Contains(text, "\n")
 		if b.Kind.HasInline() && (strings.Contains(text, "\n\n") || fences && multi && reOpensFence.MatchString(text)) {
 			d.pasteBlocks(text)
+			return
+		}
+		if b.Kind.HasInline() && multi {
+			if plain {
+				lines := strings.Split(text, "\n")
+				for i := range lines {
+					lines[i] = displayLine(lines[i])
+				}
+				text = strings.Join(lines, "\n")
+			}
+			d.pasteLines(text)
 			return
 		}
 		r := runes(b.Text)
@@ -372,6 +413,99 @@ func (d *Doc) pasteBlocks(text string) {
 		last.Text += tail
 	}
 	d.SetCaret(id, off)
+}
+
+// pasteLines splices flat multi-line text at the caret, as Qt's in-block
+// paste does: the first line joins the text before the caret, each middle
+// line becomes a paragraph, and the last line joins the text after it.
+func (d *Doc) pasteLines(text string) {
+	i := d.Index(d.Caret.Block)
+	b := &d.Blocks[i]
+	r := runes(b.Text)
+	head, tail := string(r[:d.Caret.Off]), string(r[d.Caret.Off:])
+	lines := strings.Split(text, "\n")
+	b.Text = head + lines[0]
+	at := i + 1
+	for _, line := range lines[1 : len(lines)-1] {
+		d.Blocks = slices.Insert(d.Blocks, at, NewBlock(Paragraph, line))
+		at++
+	}
+	lastLine := lines[len(lines)-1]
+	d.Blocks = slices.Insert(d.Blocks, at, NewBlock(Paragraph, lastLine+tail))
+	nb := &d.Blocks[at]
+	d.SetCaret(nb.ID, len(runes(lastLine)))
+}
+
+// PasteLink replaces a single-block text selection with a link whose label
+// is the selected text and whose address is url, as pasting a lone URL over
+// words does in the Qt app. It reports whether there was such a selection.
+func (d *Doc) PasteLink(url string) bool {
+	if d.ReadOnly || !d.HasSelection() || d.CrossBlock() {
+		return false
+	}
+	b := d.CaretBlock()
+	if b == nil || !b.Kind.HasInline() || b.Kind == Code {
+		return false
+	}
+	a, c := d.SelRange()
+	if d.Index(a.Block) != d.Index(c.Block) {
+		return false
+	}
+	r := runes(b.Text)
+	label := string(r[a.Off:c.Off])
+	if label == "" || strings.Contains(label, "\n") {
+		return false
+	}
+	link := "[" + label + "](" + strings.TrimSpace(url) + ")"
+	d.Edit("insert", func() {
+		d.deleteSelection()
+		cur := d.CaretBlock()
+		if cur == nil {
+			return
+		}
+		cr := runes(cur.Text)
+		off := min(d.Caret.Off, len(cr))
+		cur.Text = string(cr[:off]) + link + string(cr[off:])
+		d.SetCaret(cur.ID, off+len(runes(link)))
+	})
+	return true
+}
+
+// InsertMarkdownAt inserts parsed Markdown blocks at index, as one undo
+// step, returning how many were inserted (DocumentSerializer::insertMarkdownAt).
+func (d *Doc) InsertMarkdownAt(index int, markdown string) int {
+	pasted := ParseMarkdown(markdown)
+	if len(pasted) == 0 {
+		return 0
+	}
+	index = max(0, min(index, len(d.Blocks)))
+	d.Edit("insert", func() {
+		d.Blocks = slices.Insert(d.Blocks, index, pasted...)
+		d.SetCaret(pasted[len(pasted)-1].ID, len(runes(pasted[len(pasted)-1].Text)))
+	})
+	return len(pasted)
+}
+
+// InsertPlainTextAt inserts each line of text as a paragraph at index, as
+// one undo step, returning how many were inserted
+// (DocumentSerializer::insertPlainTextAt). Each line is stripped to its
+// display text, as Qt's paste-plain does.
+func (d *Doc) InsertPlainTextAt(index int, text string) int {
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	lines := strings.Split(text, "\n")
+	if len(lines) == 1 && lines[0] == "" {
+		return 0
+	}
+	index = max(0, min(index, len(d.Blocks)))
+	blocks := make([]Block, 0, len(lines))
+	for _, line := range lines {
+		blocks = append(blocks, NewBlock(Paragraph, displayLine(line)))
+	}
+	d.Edit("insert", func() {
+		d.Blocks = slices.Insert(d.Blocks, index, blocks...)
+		d.SetCaret(blocks[len(blocks)-1].ID, len(runes(blocks[len(blocks)-1].Text)))
+	})
+	return len(blocks)
 }
 
 // SetCodeLanguage gives a code block a language from the language menu, as
@@ -678,6 +812,58 @@ func (d *Doc) Move(ids []int64, dir int) bool {
 				d.Blocks[i+1], d.Blocks[i] = d.Blocks[i], d.Blocks[i+1]
 			}
 		}
+	})
+	return true
+}
+
+// MoveBlocksTo moves the blocks at sorted indexes to the gap before
+// targetGap, as one undo step, preserving their order (BlockModel::
+// moveBlocksTo). targetGap counts in the list before the move. A gap inside
+// a contiguous dragged run moves nothing.
+func (d *Doc) MoveBlocksTo(indexes []int, targetGap int) bool {
+	if len(indexes) == 0 || targetGap < 0 || targetGap > len(d.Blocks) {
+		return false
+	}
+	idx := append([]int(nil), indexes...)
+	slices.Sort(idx)
+	uniq := idx[:0]
+	for _, i := range idx {
+		if i < 0 || i >= len(d.Blocks) {
+			return false
+		}
+		if len(uniq) == 0 || uniq[len(uniq)-1] != i {
+			uniq = append(uniq, i)
+		}
+	}
+	idx = uniq
+	contig := true
+	for k := 1; k < len(idx); k++ {
+		if idx[k] != idx[0]+k {
+			contig = false
+			break
+		}
+	}
+	before := 0
+	for _, i := range idx {
+		if i < targetGap {
+			before++
+		}
+	}
+	at := targetGap - before
+	if contig && at == idx[0] {
+		return false
+	}
+	moving := make([]Block, 0, len(idx))
+	for _, i := range idx {
+		moving = append(moving, d.Blocks[i])
+	}
+	d.Edit("move", func() {
+		// Remove from the end so earlier indexes stay valid.
+		for k := len(idx) - 1; k >= 0; k-- {
+			d.Blocks = slices.Delete(d.Blocks, idx[k], idx[k]+1)
+		}
+		at = max(0, min(at, len(d.Blocks)))
+		d.Blocks = slices.Insert(d.Blocks, at, moving...)
 	})
 	return true
 }

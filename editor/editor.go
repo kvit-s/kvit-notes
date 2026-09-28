@@ -78,6 +78,10 @@ type Editor struct {
 	// when there is none worth reading.
 	CopyRich  func(markdown string)
 	PasteRich func() (string, bool)
+	// PasteImage, when set, saves a clipboard picture into the vault and
+	// reports the stored path, as Qt's assetSink does. Nil keeps image data
+	// from being pasted, leaving the text path to run instead.
+	PasteImage func() (string, bool)
 	// BlocksHTML, when set, writes blocks as HTML for the block menu's
 	// Copy as, HTML.
 	BlocksHTML func(blocks []Block, indexes []int) string
@@ -153,6 +157,8 @@ type Editor struct {
 	blockSel    map[int64]bool // the blocks selected as whole blocks
 	blockAnchor int64          // where Shift extends a block selection from
 	selectAllN  int            // Ctrl+A presses in a row
+	gapArmed    int            // the armed seam above block gapArmed, count is below last, -1 off
+	gapHover    int            // the seam under the pointer, -1 for none
 
 	menu  *slashMenu
 	drag  *dragState
@@ -178,7 +184,7 @@ type cachedLayout struct {
 func New(ui *kvitui.UI, doc *Doc) *Editor {
 	e := &Editor{ui: ui, Doc: doc, Placeholder: "Type something...", layouts: map[int64]cachedLayout{},
 		blockSel: map[int64]bool{}, pictures: map[string]picture{}, grids: map[int64]cachedGrid{}, tableHold: map[int64]bool{}, tocHover: -1, queryHover: -1,
-		codeScroll: map[int64]float32{}}
+		codeScroll: map[int64]float32{}, gapArmed: -1, gapHover: -1}
 	e.Self = e
 	e.SetFocusable(true)
 	e.SetSizer(e.sizes)
@@ -232,6 +238,7 @@ func (e *Editor) SetDoc(doc *Doc) {
 	e.codeDrag = nil
 	e.closeMenu()
 	e.drag, e.msel = nil, nil
+	e.gapArmed, e.gapHover = -1, -1
 	e.changed()
 }
 
@@ -242,6 +249,7 @@ func (e *Editor) UI() *kvitui.UI { return e.ui }
 // editor the keyboard focus. Focusing a table shows its Markdown: the grid
 // is for the pointer, which makes a cell live.
 func (e *Editor) FocusBlock(i, off int) {
+	e.dismissGap()
 	e.clearBlockSel()
 	if e.hideTableField != nil {
 		hide := e.hideTableField
@@ -289,6 +297,7 @@ func (e *Editor) SelectedBlocks() []int64 {
 // SetBlockSelection selects whole blocks by id, as a handle click does, for
 // callers (such as the find bar's tests) that do not go through the pointer.
 func (e *Editor) SetBlockSelection(ids []int64) {
+	e.dismissGap()
 	clear(e.blockSel)
 	for _, id := range ids {
 		if e.Doc.Block(id) != nil {

@@ -66,9 +66,57 @@ func (e *Editor) draw(gc *unison.Canvas, dirty geom.Rect) {
 		}
 		e.drawRow(gc, i)
 	}
+	e.drawGap(gc)
 	if r, ok := e.caretRect(); ok && e.Focused() && !e.blinkOff && e.caretVisible(r) {
 		e.fill(gc, r, e.tok().TextPrimary)
 	}
+}
+
+// drawGap draws the seam caret: the faint line where a click would arm it,
+// the accent line where it is armed, blinking with the text caret, and the
+// drop indicator while a multi-block drag is over a seam.
+func (e *Editor) drawGap(gc *unison.Canvas) {
+	if e.drag != nil && e.drag.active && e.drag.multi && e.drag.gap >= 0 {
+		if y, ok := e.gapRect(e.drag.gap, 3); ok {
+			e.fill(gc, y, e.tok().Accent)
+		}
+		return
+	}
+	if e.Doc.ReadOnly || e.gapSuspended() {
+		return
+	}
+	if e.gapHover >= 0 && e.gapHover != e.gapArmed {
+		if y, ok := e.gapRect(e.gapHover, 2); ok {
+			gc.SaveWithOpacity(0.35)
+			e.fill(gc, y, e.tok().Accent)
+			gc.Restore()
+		}
+	}
+	if e.gapArmed >= 0 {
+		if y, ok := e.gapRect(e.gapArmed, 3); ok {
+			if e.blinkOff {
+				gc.SaveWithOpacity(0.4)
+				e.fill(gc, y, e.tok().Accent)
+				gc.Restore()
+			} else {
+				e.fill(gc, y, e.tok().Accent)
+			}
+		}
+	}
+}
+
+// gapRect is the seam line's rectangle in the editor's coordinates.
+func (e *Editor) gapRect(g int, h float32) (geom.Rect, bool) {
+	if g < 0 || g > len(e.Doc.Blocks) || len(e.Doc.Blocks) == 0 {
+		return geom.Rect{}, false
+	}
+	y := e.gapLineY(g) - e.px(h)/2
+	x := e.side() + e.px(gapLeftInset)
+	w := e.width() - 2*e.side() - e.px(gapLeftInset+gapRightInset)
+	if w <= 0 {
+		return geom.Rect{}, false
+	}
+	return geom.NewRect(x, y, w, e.px(h)), true
 }
 
 // caretVisible reports whether the caret shows: a code block clips it to

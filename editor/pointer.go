@@ -13,13 +13,19 @@ import (
 )
 
 // dragState is a press on a block's handle: a click selects the block, and
-// moving the pointer further than dragThreshold drags it.
+// moving the pointer further than dragThreshold drags it. A press on the
+// handle of a selected block drags the whole selection, showing a gap
+// indicator instead of live-moving one row (BlockDragController.qml).
 type dragState struct {
 	id      int64
 	start   geom.Point
 	active  bool
 	before  DocState
 	origIdx int
+	multi   bool
+	ids     []int64
+	indexes []int
+	gap     int
 }
 
 // mouseSel is a text selection being made by dragging.
@@ -106,6 +112,15 @@ func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Mo
 	e.closeMenu()
 	defer e.changed()
 	d := e.Doc
+	if g := e.gapAt(where); g >= 0 && button == unison.ButtonLeft && !d.ReadOnly {
+		e.placeGap(g)
+		return true
+	}
+	if e.gapArmed >= 0 {
+		// A press elsewhere ends the seam caret; normal handling places the
+		// caret where pressed.
+		e.dismissGap()
+	}
 	if e.tableSweep != nil {
 		// A press outside the swept grid drops the rectangle; a press in
 		// it re-anchors below.
@@ -130,7 +145,19 @@ func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Mo
 		case partMenu:
 			e.openBlockMenu(b.ID, e.gutterCellRect(i, partMenu))
 		case partHandle:
-			e.drag = &dragState{id: b.ID, start: where}
+			if len(e.blockSel) > 0 && e.blockSel[b.ID] {
+				ids := e.SelectedBlocks()
+				idx := make([]int, 0, len(ids))
+				for _, id := range ids {
+					idx = append(idx, d.Index(id))
+				}
+				e.drag = &dragState{id: b.ID, start: where, multi: true, ids: ids, indexes: idx, gap: -1}
+			} else {
+				// Clearing waits for the drag to activate (a single drag)
+				// or for the click to toggle or reselect, so Ctrl+click
+				// keeps adding to the selection.
+				e.drag = &dragState{id: b.ID, start: where}
+			}
 		case partCheck:
 			d.ToggleTodo(b.ID)
 		case partCopy:
@@ -317,14 +344,22 @@ func (e *Editor) mouseDrag(where geom.Point, _ int, _ mod.Modifiers) bool {
 		dv := where.Sub(e.drag.start)
 		limit := e.px(dragThreshold)
 		if !e.drag.active && dv.X*dv.X+dv.Y*dv.Y > limit*limit && !d.ReadOnly {
+			e.dismissGap()
+			e.gapHover = -1
 			e.drag.active = true
 			e.drag.before = d.Begin()
 			e.drag.origIdx = d.Index(e.drag.id)
 			d.Focused = false
-			e.clearBlockSel()
+			if !e.drag.multi {
+				e.clearBlockSel()
+			}
 		}
 		if e.drag.active {
-			e.dragStep(where.Y)
+			if e.drag.multi {
+				e.dragGapStep(where)
+			} else {
+				e.dragStep(where.Y)
+			}
 		}
 	case e.msel != nil:
 		// Dragging a selection past a code block's viewport scrolls it,
@@ -379,7 +414,12 @@ func (e *Editor) mouseUp(where geom.Point, _ int, mods mod.Modifiers) bool {
 		e.dropCard()
 	case e.drag != nil:
 		if e.drag.active {
-			if d.Index(e.drag.id) != e.drag.origIdx {
+			if e.drag.multi {
+				if e.drag.gap >= 0 {
+					d.MoveBlocksTo(e.drag.indexes, e.drag.gap)
+					// The selection follows the moved blocks by id.
+				}
+			} else if d.Index(e.drag.id) != e.drag.origIdx {
 				d.Commit("move", e.drag.before)
 			}
 		} else {
@@ -397,6 +437,11 @@ func (e *Editor) mouseUp(where geom.Point, _ int, mods mod.Modifiers) bool {
 }
 
 func (e *Editor) mouseMove(where geom.Point, _ mod.Modifiers) bool {
+	g := e.gapAt(where)
+	if g != e.gapHover {
+		e.gapHover = g
+		e.MarkForRedraw()
+	}
 	hover, part, entry := int64(0), partNone, -1
 	if i := e.rowAt(where); i >= 0 {
 		hover = e.Doc.Blocks[i].ID

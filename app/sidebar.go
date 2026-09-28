@@ -79,20 +79,29 @@ type ScopeList struct {
 	OnChoose func(Scope)
 	// OnToggle runs when a folder is opened or closed.
 	OnToggle func(folder string, expanded bool)
-	hover    int
-	focusRow int
-	// Target is the row a dragged note would be dropped on, or -1.
-	Target int
+	// OnDrag runs while a folder row is dragged, and OnDrop when it is let
+	// go, with the pointer in the window's root coordinates.
+	OnDrag, OnDrop func(folder string, where geom.Point)
+	hover          int
+	focusRow       int
+	// Target is the row a dragged note or folder would be dropped on, or -1.
+	Target        int
+	pressed       int
+	pressAt       geom.Point
+	pressedFolder string
+	dragging      bool
 }
 
 // NewScopeList returns an empty list.
 func NewScopeList(ui *kvitui.UI) *ScopeList {
-	l := &ScopeList{ui: ui, hover: -1, focusRow: -1, Target: -1}
+	l := &ScopeList{ui: ui, hover: -1, focusRow: -1, Target: -1, pressed: -1}
 	l.Self = l
 	l.SetFocusable(true)
 	l.SetSizer(l.sizes)
 	l.DrawCallback = l.draw
 	l.MouseDownCallback = l.mouseDown
+	l.MouseDragCallback = l.mouseDrag
+	l.MouseUpCallback = l.mouseUp
 	l.MouseMoveCallback = func(where geom.Point, _ mod.Modifiers) bool { l.setHover(l.rowAt(where)); return true }
 	l.MouseEnterCallback = l.MouseMoveCallback
 	l.MouseExitCallback = func() bool { l.setHover(-1); return true }
@@ -192,6 +201,33 @@ func (l *ScopeList) mouseDown(where geom.Point, button, _ int, _ mod.Modifiers) 
 		return true
 	}
 	l.choose(i)
+	l.pressed, l.pressAt, l.dragging = i, where, false
+	l.pressedFolder = ""
+	if r.Scope.Kind == ScopeFolder {
+		l.pressedFolder = r.Scope.Path
+	}
+	return true
+}
+
+func (l *ScopeList) mouseDrag(where geom.Point, _ int, _ mod.Modifiers) bool {
+	if l.pressed < 0 || l.pressedFolder == "" {
+		return false
+	}
+	d := where.Sub(l.pressAt)
+	if !l.dragging && d.X*d.X+d.Y*d.Y > l.px(dragStart)*l.px(dragStart) {
+		l.dragging = true
+	}
+	if l.dragging && l.OnDrag != nil {
+		l.OnDrag(l.pressedFolder, l.PointToRoot(where))
+	}
+	return true
+}
+
+func (l *ScopeList) mouseUp(where geom.Point, _ int, _ mod.Modifiers) bool {
+	if l.dragging && l.OnDrop != nil && l.pressedFolder != "" {
+		l.OnDrop(l.pressedFolder, l.PointToRoot(where))
+	}
+	l.pressed, l.dragging, l.pressedFolder = -1, false, ""
 	return true
 }
 

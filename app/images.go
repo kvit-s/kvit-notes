@@ -25,6 +25,7 @@ import (
 
 	"github.com/kvit-s/kvit-notes/vault"
 	"github.com/richardwilkes/toolbox/v2/geom"
+	"github.com/richardwilkes/toolbox/v2/uti"
 	"github.com/richardwilkes/unison"
 	"golang.org/x/image/draw"
 )
@@ -361,4 +362,91 @@ func safeSegment(value, fallback string) string {
 		return fallback
 	}
 	return out
+}
+
+// pasteImage saves a picture on the clipboard into the vault and reports
+// its stored path, as Qt's AssetStore::ingestClipboardImage does. It
+// reports false when the clipboard holds no picture, leaving the text paste
+// path to run instead.
+func (w *Window) pasteImage() (string, bool) {
+	for _, dt := range []*uti.DataType{uti.PNG, uti.JPEG, uti.GIF, uti.WEBP, uti.BMP, uti.TIFF} {
+		if !unison.ClipboardHasDataType(dt) {
+			continue
+		}
+		data := unison.ClipboardGetData(dt)
+		if len(data) == 0 {
+			continue
+		}
+		note := ""
+		if w.open != nil {
+			note = w.open.Path
+		}
+		if stored, err := w.ingestImageBytes(data, dt, note); err == nil {
+			return stored, true
+		}
+	}
+	// A generic image flavour (e.g. public.image from another app): try its
+	// bytes as a picture before giving up.
+	if unison.ClipboardHasDataType(uti.Image) {
+		if data := unison.ClipboardGetData(uti.Image); len(data) > 0 {
+			note := ""
+			if w.open != nil {
+				note = w.open.Path
+			}
+			if stored, err := w.ingestImageBytes(data, uti.PNG, note); err == nil {
+				return stored, true
+			}
+		}
+	}
+	return "", false
+}
+
+// ingestImageBytes adds clipboard picture bytes to the vault by Kvit's asset
+// rule, as ingestFile does for files: into the vault's picture folder as
+// "<note>-<yyyyMMdd-HHmmss>.<ext>", named after the note it is for. The
+// bytes must decode as a picture; SVG clipboard data is stored as-is.
+func (w *Window) ingestImageBytes(data []byte, dt *uti.DataType, note string) (string, error) {
+	ext := "png"
+	if dt != nil {
+		for _, e := range dt.Extensions {
+			if s := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(e)), "."); s != "" {
+				ext = s
+				break
+			}
+		}
+	}
+	if ext == "svg" || ext == "svgz" {
+		// SVG has no raster to decode; store the bytes when they parse.
+		if _, err := unison.NewSVGFromReader(bytes.NewReader(data)); err != nil {
+			return "", err
+		}
+		ext = "svg"
+	} else if _, _, err := image.Decode(bytes.NewReader(data)); err != nil {
+		// Not a still the stdlib reads (e.g. WebP, BMP): let unison try,
+		// as decodeImage does.
+		if _, err2 := unison.NewImageFromBytes(data, geom.NewPoint(1, 1)); err2 != nil {
+			return "", err
+		}
+		if ext == "jpe" || ext == "jif" || ext == "jfif" || ext == "jfi" {
+			ext = "jpg"
+		}
+	}
+	dir := filepath.Join(w.Vault.Root, filepath.FromSlash(w.Vault.ImageFolder()))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	ext = safeSegment(strings.ToLower(ext), "bin")
+	base := noteSlug(note) + "-" + time.Now().Format("20060102-150405")
+	name := base + "." + ext
+	for n := 1; ; n++ {
+		if _, err := os.Stat(filepath.Join(dir, name)); errors.Is(err, os.ErrNotExist) {
+			break
+		}
+		name = fmt.Sprintf("%s-%d.%s", base, n, ext)
+	}
+	target := filepath.Join(dir, name)
+	if err := os.WriteFile(target, data, 0o644); err != nil {
+		return "", err
+	}
+	return w.storedPath(target), nil
 }

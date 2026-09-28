@@ -106,6 +106,114 @@ func TestCtrlVStraightensADiagramPastedIntoCode(t *testing.T) {
 	})
 }
 
+// Pasting after a block selection inserts after it and selects the new
+// blocks; plain pastes strip to paragraphs.
+func TestPasteAfterSelectedBlocks(t *testing.T) {
+	s, e := openEditor(t, "first\n\nsecond\n")
+	s.Do(func() {
+		unison.ClipboardSetText("# Title\n\nbody")
+		e.SetBlockSelection([]int64{e.Doc.Blocks[0].ID})
+		e.RequestFocus()
+	})
+	s.Sync()
+	s.Screen.KeyPress(unison.KeyV, mod.Control)
+	s.Do(func() {
+		d := e.Doc
+		if len(d.Blocks) != 4 {
+			t.Fatalf("blocks: %s", texts(d))
+		}
+		if d.Blocks[1].Kind != Heading1 || d.Blocks[2].Kind != Paragraph {
+			t.Errorf("inserted: %s", texts(d))
+		}
+		if len(e.SelectedBlocks()) != 2 {
+			t.Errorf("the new blocks should be selected: %v", e.SelectedBlocks())
+		}
+	})
+	// Plain pastes after a selection strip to paragraphs.
+	s.Do(func() {
+		unison.ClipboardSetText("**bold**\nplain")
+		// reselect the first block; the paste above left the new blocks selected
+		e.SetBlockSelection([]int64{e.Doc.Blocks[0].ID})
+	})
+	s.Sync()
+	s.Screen.KeyPress(unison.KeyV, mod.Control|mod.Shift)
+	s.Do(func() {
+		if got := texts(e.Doc); got != "Paragraph:first | Paragraph:bold | Paragraph:plain | Heading 1:Title | Paragraph:body | Paragraph:second" {
+			t.Errorf("plain after selection: %s", got)
+		}
+	})
+}
+
+// Pasting a picture inserts an image block: converting an empty paragraph,
+// else inserting below the caret's block.
+func TestPastedImageInsertsAnImageBlock(t *testing.T) {
+	s, e := openEditor(t, "")
+	s.Do(func() {
+		e.PasteImage = func() (string, bool) { return "assets/pic.png", true }
+		e.FocusBlock(0, 0)
+	})
+	s.Sync()
+	s.Screen.KeyPress(unison.KeyV, mod.Control)
+	s.Do(func() {
+		if len(e.Doc.Blocks) != 1 || e.Doc.Blocks[0].Kind != Image {
+			t.Fatalf("empty becomes image: %s", texts(e.Doc))
+		}
+	})
+	s.Do(func() {
+		e.FocusBlock(0, 0)
+		e.Doc.Blocks[0].Kind, e.Doc.Blocks[0].Text = Paragraph, "words"
+		e.FocusBlock(0, 5)
+	})
+	s.Sync()
+	s.Screen.KeyPress(unison.KeyV, mod.Control)
+	s.Do(func() {
+		if got := texts(e.Doc); got != "Paragraph:words | Image:![](assets/pic.png)" {
+			t.Errorf("below text: %s", got)
+		}
+	})
+}
+
+// A fence in the plain text is the structure source even when HTML is also
+// present, so a copied fence does not arrive wrapped in a second code block.
+func TestFenceFromPlainTextBeatsHTML(t *testing.T) {
+	s, e := openEditor(t, "")
+	s.Do(func() {
+		fence := "```mermaid\nflowchart LR\n  A --> B\n```"
+		unison.ClipboardSetText(fence)
+		e.PasteRich = func() (string, bool) {
+			return "```\n" + fence + "\n```", true
+		}
+		e.FocusBlock(0, 0)
+	})
+	s.Sync()
+	s.Screen.KeyPress(unison.KeyV, mod.Control)
+	s.Do(func() {
+		b := e.Doc.Blocks[0]
+		if b.Kind != Code || b.Lang != "mermaid" || len(e.Doc.Blocks) != 1 {
+			t.Errorf("fence should win over HTML: %s", texts(e.Doc))
+		}
+	})
+}
+
+// Pasting a lone URL over words links them, through the keyboard.
+func TestPastedURLLinksThroughTheKeyboard(t *testing.T) {
+	s, e := openEditor(t, "say hello here")
+	s.Do(func() {
+		unison.ClipboardSetText("https://example.com")
+		e.FocusBlock(0, 4)
+		d := e.Doc
+		d.Anchor = Pos{d.Blocks[0].ID, 4}
+		d.Caret = Pos{d.Blocks[0].ID, 9}
+	})
+	s.Sync()
+	s.Screen.KeyPress(unison.KeyV, mod.Control)
+	s.Do(func() {
+		if got := e.Doc.Blocks[0].Text; got != "say [hello](https://example.com) here" {
+			t.Errorf("linked: %q", got)
+		}
+	})
+}
+
 // The language menu's "Text diagram" straightens the block's drawing, and
 // its "Plain code" tags the block `plain` (test_69h5).
 func TestLanguageMenuDeclaresAndOptsOut(t *testing.T) {

@@ -641,12 +641,105 @@ func TestPastedFenceBecomesItsBlock(t *testing.T) {
 		t.Errorf("paste in the middle of a paragraph: %s", got)
 	}
 
-	// A plain-text paste keeps its lines as text.
+	// A plain-text paste keeps a fence literal, one paragraph per line, never
+	// the code block the same text becomes structured.
 	p := newTestDoc("")
 	p.SetCaret(p.Blocks[0].ID, 0)
 	p.Paste("```\nx := 1\n```", true)
-	if len(p.Blocks) != 1 || p.Blocks[0].Kind != Paragraph {
-		t.Errorf("a plain paste became blocks: %s", texts(p))
+	if got := texts(p); got != "Paragraph:``` | Paragraph:x := 1 | Paragraph:```" {
+		t.Errorf("a plain fence paste: %s", got)
+	}
+}
+
+// Flat lines pasted into prose become a paragraph each, with the text after
+// the caret joining the last line.
+func TestPastedFlatLinesBecomeParagraphs(t *testing.T) {
+	d := newTestDoc("before after")
+	d.SetCaret(d.Blocks[0].ID, 7)
+	d.Paste("one\ntwo\nthree", false)
+	if got := texts(d); got != "Paragraph:before one | Paragraph:two | Paragraph:threeafter" {
+		t.Fatalf("flat paste: %s", got)
+	}
+	d.Undo()
+	if got := texts(d); got != "Paragraph:before after" {
+		t.Errorf("after one undo: %s", got)
+	}
+	// Plain pastes split too, stripping inline markers.
+	q := newTestDoc("")
+	q.SetCaret(q.Blocks[0].ID, 0)
+	q.Paste("**bold**\n*italic*", true)
+	if got := texts(q); got != "Paragraph:bold | Paragraph:italic" {
+		t.Errorf("plain flat paste: %s", got)
+	}
+}
+
+// Pasting a lone URL over words links them.
+func TestPastedURLLinksTheSelection(t *testing.T) {
+	d := newTestDoc("say hello here")
+	d.Anchor = Pos{d.Blocks[0].ID, 4}
+	d.Caret = Pos{d.Blocks[0].ID, 9}
+	d.Focused = true
+	if !d.PasteLink("https://example.com") {
+		t.Fatal("no link made")
+	}
+	if got := d.Blocks[0].Text; got != "say [hello](https://example.com) here" {
+		t.Errorf("linked: %q", got)
+	}
+	d.Undo()
+	if got := d.Blocks[0].Text; got != "say hello here" {
+		t.Errorf("after one undo: %q", got)
+	}
+	if IsLoneURL(" https://example.com ") != true || IsLoneURL("see https://example.com now") {
+		t.Errorf("lone URL check")
+	}
+	// No link across blocks, in code, or without a selection.
+	c := newTestDoc("```\ncode\n```")
+	c.Anchor = Pos{c.Blocks[0].ID, 0}
+	c.Caret = Pos{c.Blocks[0].ID, 4}
+	c.Focused = true
+	if c.PasteLink("https://example.com") {
+		t.Errorf("code should not link")
+	}
+}
+
+// Moving several blocks to a gap in one step, as a multi-block drag does.
+func TestMoveBlocksToMovesARun(t *testing.T) {
+	d := newTestDoc("one\n\ntwo\n\nthree\n\nfour")
+	if !d.MoveBlocksTo([]int{0, 1}, 4) {
+		t.Fatal("no move")
+	}
+	if got := texts(d); got != "Paragraph:three | Paragraph:four | Paragraph:one | Paragraph:two" {
+		t.Errorf("moved: %s", got)
+	}
+	d.Undo()
+	if got := texts(d); got != "Paragraph:one | Paragraph:two | Paragraph:three | Paragraph:four" {
+		t.Errorf("after one undo: %s", got)
+	}
+	if d.MoveBlocksTo([]int{0, 1}, 1) {
+		t.Errorf("a gap inside the run should be a no-op")
+	}
+}
+
+// Inserting Markdown or plain text after a block index, as pasting after a
+// block selection does.
+func TestInsertAtInsertsBlocks(t *testing.T) {
+	d := newTestDoc("first\n\nsecond")
+	if n := d.InsertMarkdownAt(1, "# Title\n\nbody"); n != 2 {
+		t.Fatalf("inserted %d", n)
+	}
+	if got := texts(d); got != "Paragraph:first | Heading 1:Title | Paragraph:body | Paragraph:second" {
+		t.Errorf("after insert: %s", got)
+	}
+	d.Undo()
+	if len(d.Blocks) != 2 {
+		t.Errorf("after one undo: %s", texts(d))
+	}
+	q := newTestDoc("first")
+	if n := q.InsertPlainTextAt(1, "**bold**\nplain"); n != 2 {
+		t.Fatalf("plain inserted %d", n)
+	}
+	if got := texts(q); got != "Paragraph:first | Paragraph:bold | Paragraph:plain" {
+		t.Errorf("plain insert strips: %s", got)
 	}
 }
 

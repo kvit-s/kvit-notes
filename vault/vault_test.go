@@ -304,6 +304,37 @@ func TestCreateRenameMoveAndTrash(t *testing.T) {
 	}
 }
 
+func TestMoveFolder(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "Ideas/Projects/Plan.md", "The plan.\n")
+	write(t, root, "Journal/.keep", "")
+	v, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer v.Close()
+	v.State.LastOpenNote = "Ideas/Projects/Plan.md"
+	to, err := v.MoveFolder("Ideas/Projects", "Journal")
+	if err != nil || to != "Journal/Projects" {
+		t.Fatalf("move folder: %v %q", err, to)
+	}
+	if v.Find("Journal/Projects/Plan.md") == nil || v.Find("Ideas/Projects/Plan.md") != nil {
+		t.Errorf("the note should follow its folder")
+	}
+	if v.State.LastOpenNote != "Journal/Projects/Plan.md" {
+		t.Errorf("the last open note should follow the move: %q", v.State.LastOpenNote)
+	}
+	if _, err := v.MoveFolder("Journal", "Journal/Projects"); err == nil {
+		t.Errorf("moving a folder into itself should be refused")
+	}
+	if _, err := v.MoveFolder("Journal", "Journal"); err == nil {
+		t.Errorf("moving a folder onto itself should be refused")
+	}
+	if to, err := v.MoveFolder("Journal/Projects", ""); err != nil || to != "Projects" {
+		t.Errorf("moving a folder to the top: %v %q", err, to)
+	}
+}
+
 // collection.json is written as the Qt app writes it, keeping the fields
 // this app does not use yet.
 func TestCollectionStateRoundTrips(t *testing.T) {

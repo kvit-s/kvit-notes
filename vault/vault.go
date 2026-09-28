@@ -556,6 +556,64 @@ func (v *Vault) RenameFolder(rel, name string) (string, error) {
 	return to, v.SaveState()
 }
 
+// MoveFolder moves a folder into another ("" for the top), carrying its
+// notes and folders with it, as dragging it there in the sidebar does.
+func (v *Vault) MoveFolder(rel, parent string) (string, error) {
+	if v.ReadOnly {
+		return "", ErrReadOnly
+	}
+	if rel == "" {
+		return "", ErrName
+	}
+	if parent == Parent(rel) {
+		return rel, nil
+	}
+	if parent == rel || (parent != "" && strings.HasPrefix(parent, rel+"/")) {
+		return "", errors.New("a folder cannot be moved into itself")
+	}
+	to := path.Join(parent, path.Base(rel))
+	if to == rel {
+		return rel, nil
+	}
+	if v.exists(to) && !strings.EqualFold(to, rel) {
+		return "", ErrExists
+	}
+	if err := os.Rename(v.abs(rel), v.abs(to)); err != nil {
+		return "", err
+	}
+	moved := func(p string) (string, bool) {
+		if p == rel {
+			return to, true
+		}
+		if rest, ok := strings.CutPrefix(p, rel+"/"); ok {
+			return to + "/" + rest, true
+		}
+		return p, false
+	}
+	for _, e := range v.Entries {
+		if p, ok := moved(e.Path); ok {
+			e.Path, e.Folder = p, Parent(p)
+		}
+	}
+	for i := range v.Folders {
+		if p, ok := moved(v.Folders[i].Path); ok {
+			v.Folders[i].Path, v.Folders[i].Name = p, path.Base(p)
+		}
+	}
+	for f, st := range v.State.Folders {
+		if p, ok := moved(f); ok {
+			delete(v.State.Folders, f)
+			v.State.Folders[p] = st
+		}
+	}
+	if p, ok := moved(v.State.LastOpenNote); ok {
+		v.State.LastOpenNote = p
+	}
+	v.sortEntries()
+	sort.Slice(v.Folders, func(a, b int) bool { return v.Folders[a].Path < v.Folders[b].Path })
+	return to, v.SaveState()
+}
+
 // TrashFolder moves a folder and everything in it to the trash.
 func (v *Vault) TrashFolder(rel string) error {
 	if v.ReadOnly {
