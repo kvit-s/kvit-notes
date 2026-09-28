@@ -20,6 +20,16 @@ import (
 	"github.com/richardwilkes/unison"
 )
 
+// RemotePolicy gates remote pictures and pages: nothing remote loads until
+// its origin is approved. The app implements it over its egress policy.
+type RemotePolicy interface {
+	IsAllowed(url string) bool
+	Allow(url string)
+	CanRequest(url string) bool
+	Refusal(url string) string
+	Origin(url string) string
+}
+
 // Editor is the block editor. Put it in a kvitui.Region to scroll it; it
 // takes the width it is given and is as tall as its note.
 type Editor struct {
@@ -84,6 +94,10 @@ type Editor struct {
 	LoadPreview func(address string)
 	OpenURL     func(address string)
 	previews    map[string]*Preview
+	// RemotePolicy, when set, gates remote pictures and pages: nothing remote
+	// loads until its origin is approved (opening a note is not consent).
+	// Nil draws every remote picture as not loaded.
+	RemotePolicy RemotePolicy
 	// Centered keeps the text to a column in the middle, as focus mode does,
 	// when the reader has set no width of their own.
 	Centered bool
@@ -91,8 +105,21 @@ type Editor struct {
 	// caret's line in the middle of the view and fades the other blocks
 	// (typewriter mode, features.md 16.2).
 	Typewriter *kvitui.Region
-	pictures   map[string]picture
-	grids      map[int64]cachedGrid
+	// tableActive is the one live cell: the grid cell being edited in
+	// place, or nil. Row -1 is the header row, 0.. the data rows.
+	tableActive *tableCellPos
+	tableSweep  *tableSweep
+	// tableHold keeps a table showing its grid while its caret is in it.
+	// The grid is for the pointer: keyboard entry (FocusBlock) shows the
+	// Markdown source instead and clears the hold.
+	tableHold      map[int64]bool
+	tableSort      map[int64]tableSortState
+	tableResize    *tableResizeState
+	tableField     *kvitui.Field
+	hideTableField func()
+	picker         *tablePicker
+	pictures       map[string]picture
+	grids          map[int64]cachedGrid
 	// DiagramMath, when set, typesets the $$…$$ labels of Mermaid diagrams
 	// (diagram.go); without it they are drawn as their source.
 	DiagramMath DiagramMath
@@ -144,7 +171,7 @@ type cachedLayout struct {
 // New returns an editor showing doc.
 func New(ui *kvitui.UI, doc *Doc) *Editor {
 	e := &Editor{ui: ui, Doc: doc, Placeholder: "Type something...", layouts: map[int64]cachedLayout{},
-		blockSel: map[int64]bool{}, pictures: map[string]picture{}, grids: map[int64]cachedGrid{}, tocHover: -1, queryHover: -1}
+		blockSel: map[int64]bool{}, pictures: map[string]picture{}, grids: map[int64]cachedGrid{}, tableHold: map[int64]bool{}, tocHover: -1, queryHover: -1}
 	e.Self = e
 	e.SetFocusable(true)
 	e.SetSizer(e.sizes)
@@ -177,6 +204,17 @@ func New(ui *kvitui.UI, doc *Doc) *Editor {
 
 // SetDoc replaces the note being edited.
 func (e *Editor) SetDoc(doc *Doc) {
+	if e.hideTableField != nil {
+		hide := e.hideTableField
+		e.hideTableField = nil
+		e.tableField = nil
+		hide()
+	}
+	e.tableActive = nil
+	e.tableSweep = nil
+	e.tableResize = nil
+	clear(e.tableHold)
+	e.closeTablePicker()
 	e.Doc = doc
 	clear(e.layouts)
 	clear(e.pictures)
@@ -192,9 +230,19 @@ func (e *Editor) SetDoc(doc *Doc) {
 func (e *Editor) UI() *kvitui.UI { return e.ui }
 
 // FocusBlock puts the caret in block i at a source offset and gives the
-// editor the keyboard focus.
+// editor the keyboard focus. Focusing a table shows its Markdown: the grid
+// is for the pointer, which makes a cell live.
 func (e *Editor) FocusBlock(i, off int) {
 	e.clearBlockSel()
+	if e.hideTableField != nil {
+		hide := e.hideTableField
+		e.hideTableField = nil
+		e.tableField = nil
+		hide()
+	}
+	e.tableActive = nil
+	e.tableSweep = nil
+	delete(e.tableHold, e.Doc.Blocks[i].ID)
 	e.Doc.SetCaret(e.Doc.Blocks[i].ID, off)
 	e.RequestFocus()
 	e.touched()
@@ -460,7 +508,11 @@ func (e *Editor) rowHeight(i int) float32 {
 		return e.px(dividerRow)
 	}
 	if g, ok := e.tableShowsGrid(i); ok {
-		return e.px(codeRowTop+codeRowBottom) + g.height
+		h := e.px(codeRowTop+codeRowBottom) + g.height
+		if e.tableCellIn(e.Doc.Blocks[i].ID) {
+			h += e.px(20)
+		}
+		return h
 	}
 	if e.tocShows(i) {
 		return e.tocHeight()

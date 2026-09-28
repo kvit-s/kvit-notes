@@ -29,6 +29,9 @@ type mouseSel struct {
 }
 
 func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Modifiers) bool {
+	if e.tableHeaderDoubleClick(where, button, clickCount) {
+		return true
+	}
 	if button == unison.ButtonRight {
 		// A right-click in text opens the text menu there, keeping a
 		// selection it lands in; elsewhere on a row, the block menu.
@@ -44,6 +47,12 @@ func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Mo
 		}
 		if e.diagramRightClick(i, where) {
 			return true
+		}
+		if g, ok := e.tableShowsGrid(i); ok {
+			if row, col, ok := e.tableCellAt(i, g, where); ok {
+				e.tableCellMenu(i, row, col, geom.NewRect(where.X, where.Y, 0, 0))
+				return true
+			}
 		}
 		at := geom.NewRect(where.X, where.Y, 0, 0)
 		if where.X >= e.bodyLeft() && e.Doc.Blocks[i].Kind.IsText() {
@@ -76,6 +85,15 @@ func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Mo
 	e.closeMenu()
 	defer e.changed()
 	d := e.Doc
+	if e.tableSweep != nil {
+		// A press outside the swept grid drops the rectangle; a press in
+		// it re-anchors below.
+		if i, part := e.partAt(where); part != partTableCell && part != partTableGrip {
+			e.clearTableSweep()
+		} else if i < 0 || e.Doc.Blocks[i].ID != e.tableSweep.blockID {
+			e.clearTableSweep()
+		}
+	}
 	if i, part := e.partAt(where); part >= partDiagramFit {
 		e.diagramClick(i, part, where, clickCount)
 		return true
@@ -116,6 +134,29 @@ func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Mo
 			if _, ref, ok := e.embedCard(i); ok && e.OpenURL != nil {
 				e.OpenURL(ref.Path)
 			}
+		case partPictureLoad:
+			if ref, ok, _ := e.pictureBlock(i); ok && e.RemotePolicy != nil {
+				e.RemotePolicy.Allow(ref.Path)
+				e.ForgetPicture(ref.Path)
+			}
+		case partTableCell:
+			if g, ok := e.tableShowsGrid(i); ok {
+				if row, col, ok := e.tableCellAt(i, g, where); ok {
+					if row == -1 && clickCount == 2 {
+						e.sortTableBy(i, col)
+					} else if !d.ReadOnly {
+						// Anchors a sweep; the release turns one cell
+						// into an edit, a drag keeps its rectangle.
+						e.beginTableSweep(i, row, col)
+					}
+				}
+			}
+		case partTableGrip:
+			if g, ok := e.tableShowsGrid(i); ok {
+				if col, ok := e.tableGripAt(i, g, where); ok {
+					e.tableResize = &tableResizeState{blockID: b.ID, col: col, startX: where.X, width: g.cols[col]}
+				}
+			}
 		case partQueryRow:
 			if k := e.queryRowAt(i, where); k >= 0 && e.OpenNote != nil {
 				e.OpenNote(e.queryResult(i).paths[k])
@@ -126,6 +167,15 @@ func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Mo
 			}
 		}
 		return true
+	}
+	if i := e.rowAt(where); i >= 0 && where.X >= e.bodyLeft() {
+		if g, ok := e.tableShowsGrid(i); ok {
+			// A press in a grid acts on it and never puts the caret in
+			// its Markdown.
+			if e.tableMouse(i, g, where, button, clickCount, mods) {
+				return true
+			}
+		}
 	}
 	if i := e.rowAt(where); i >= 0 && where.X >= e.bodyLeft() && e.boardShows(i) {
 		// A press on a board acts on it and never puts the caret in its
@@ -191,6 +241,18 @@ func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Mo
 func (e *Editor) mouseDrag(where geom.Point, _ int, _ mod.Modifiers) bool {
 	d := e.Doc
 	switch {
+	case e.tableResize != nil:
+		e.tableDragResize(where)
+		return true
+	case e.tableSweep != nil && e.tableSweep.sweeping:
+		if i := e.Doc.Index(e.tableSweep.blockID); i >= 0 {
+			if g, ok := e.gridFor(i); ok {
+				if row, col, ok := e.tableCellAt(i, g, where); ok {
+					e.extendTableSweep(i, row, col)
+				}
+			}
+		}
+		return true
 	case e.diagPan != nil:
 		e.diagramDrag(where)
 		return true
@@ -220,6 +282,18 @@ func (e *Editor) mouseDrag(where geom.Point, _ int, _ mod.Modifiers) bool {
 			d.Focused = true
 			e.touched()
 		}
+	case e.tableResize == nil && e.drag == nil && e.diagPan == nil && e.cardDrag == nil:
+		// A drag whose press never reached the grid (a live field's popup
+		// took it closing the field): anchor at the cell under the pointer
+		// so the drag still sweeps.
+		if i := e.rowAt(where); i >= 0 && i < len(e.Doc.Blocks) && e.Doc.Blocks[i].Kind == Table {
+			if g, ok := e.gridFor(i); ok {
+				if row, col, ok := e.tableCellAt(i, g, where); ok && !d.ReadOnly {
+					e.beginTableSweep(i, row, col)
+					e.extendTableSweep(i, row, col)
+				}
+			}
+		}
 	default:
 		return false
 	}
@@ -230,6 +304,15 @@ func (e *Editor) mouseDrag(where geom.Point, _ int, _ mod.Modifiers) bool {
 func (e *Editor) mouseUp(where geom.Point, _ int, mods mod.Modifiers) bool {
 	d := e.Doc
 	switch {
+	case e.tableResize != nil:
+		e.tableEndResize()
+	case e.tableSweep != nil && e.tableSweep.sweeping:
+		i := e.Doc.Index(e.tableSweep.blockID)
+		if i >= 0 {
+			e.finishTableSweep(i)
+		} else {
+			e.tableSweep = nil
+		}
 	case e.diagPan != nil:
 		e.diagramRelease(where)
 	case e.cardDrag != nil:
@@ -332,6 +415,15 @@ func (e *Editor) partAt(where geom.Point) (int, gutterPart) {
 		return i, partTocEntry
 	case e.queryShows(i) && e.queryRowAt(i, where) >= 0:
 		return i, partQueryRow
+	case b.Kind == Table:
+		if g, ok := e.tableShowsGrid(i); ok {
+			if _, ok := e.tableGripAt(i, g, where); ok {
+				return i, partTableGrip
+			}
+			if _, _, ok := e.tableCellAt(i, g, where); ok {
+				return i, partTableCell
+			}
+		}
 	case b.Kind == Image || b.Kind == Media:
 		if card, ref, ok := e.embedCard(i); ok {
 			title, load := e.embedParts(card)
@@ -340,6 +432,12 @@ func (e *Editor) partAt(where geom.Point) (int, gutterPart) {
 				return i, partEmbedLoad
 			case where.In(title):
 				return i, partEmbedOpen
+			}
+		} else if ref, ok, _ := e.pictureBlock(i); ok {
+			if _, needs := e.pictureNeedsApproval(ref); needs {
+				if where.In(e.pictureRect(i)) {
+					return i, partPictureLoad
+				}
 			}
 		}
 	case b.Kind == Callout:

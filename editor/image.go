@@ -135,31 +135,88 @@ type picture struct {
 	failed string
 }
 
+// picture is a picture loaded for drawing, or the reason there is none: when
+// needsApproval is set, a press on the card approves its origin and loads it.
+func (e *Editor) pictureNeedsApproval(ref ImageRef) (origin string, ok bool) {
+	if !ref.Remote {
+		return "", false
+	}
+	// Web pages are embed cards, whose Load preview is their consent.
+	if !imageExts[extensionOf(ref.Path)] && !ref.Media {
+		return "", false
+	}
+	if e.RemotePolicy == nil {
+		return "", false
+	}
+	if e.RemotePolicy.IsAllowed(ref.Path) {
+		return "", false
+	}
+	if !e.RemotePolicy.CanRequest(ref.Path) {
+		return "", false
+	}
+	return e.RemotePolicy.Origin(ref.Path), true
+}
+
 // pictureFor loads the picture of an image block through LoadImage, once.
+// Nothing remote loads until its origin is approved: a remote picture whose
+// origin is not approved draws as a card offering to load it.
 func (e *Editor) pictureFor(ref ImageRef) picture {
 	if p, ok := e.pictures[ref.Path]; ok {
 		return p
 	}
 	var p picture
 	switch {
+	case ref.Media && ref.Remote && e.RemotePolicy != nil && !e.RemotePolicy.IsAllowed(ref.Path):
+		if reason := e.RemotePolicy.Refusal(ref.Path); reason != "" {
+			p.failed = reason + ": " + ref.Path
+		} else if origin, ok := e.pictureNeedsApproval(ref); ok {
+			p.failed = "Load from " + origin
+		} else {
+			p.failed = "Media: " + path.Base(ref.Path)
+		}
 	case ref.Media:
 		p.failed = "Media: " + path.Base(ref.Path)
 	case ref.Remote && !imageExts[extensionOf(ref.Path)]:
 		p.failed = "Web page: " + ref.Path
-	case ref.Remote:
+	case ref.Remote && e.RemotePolicy != nil && !e.RemotePolicy.IsAllowed(ref.Path):
+		if reason := e.RemotePolicy.Refusal(ref.Path); reason != "" {
+			p.failed = reason + ": " + ref.Path
+		} else {
+			p.failed = "Load from " + e.RemotePolicy.Origin(ref.Path)
+		}
+	case ref.Remote && e.RemotePolicy == nil:
 		p.failed = "Picture from the web, not loaded: " + ref.Path
 	case e.LoadImage == nil:
 		p.failed = "Picture: " + ref.Path
 	default:
 		img, err := e.LoadImage(ref.Path)
 		if err != nil {
-			p.failed = "Picture not found: " + ref.Path
+			if ref.Remote {
+				p.failed = "Picture not found: " + ref.Path
+			} else {
+				p.failed = "Picture not found: " + ref.Path
+			}
 		} else {
 			p.img = img
 		}
 	}
 	e.pictures[ref.Path] = p
 	return p
+}
+
+// ClearPictures drops every cached picture, so a policy set after the first
+// layout is read.
+func (e *Editor) ClearPictures() {
+	clear(e.pictures)
+	e.generation++
+	e.changed()
+}
+
+// ForgetPicture drops a cached picture so an approval reloads it.
+func (e *Editor) ForgetPicture(path string) {
+	delete(e.pictures, path)
+	e.generation++
+	e.changed()
 }
 
 // pictureSize is the size an image block's picture, or its card, is drawn
@@ -206,6 +263,24 @@ func (e *Editor) pictureBlock(i int) (ImageRef, bool, bool) {
 		return ImageRef{}, false, true
 	}
 	return ref, true, e.Doc.Focused && e.Doc.Caret.Block == b.ID
+}
+
+// pictureRect is where an image block's picture or card is drawn, for the
+// Load press that approves a remote origin.
+func (e *Editor) pictureRect(i int) geom.Rect {
+	ref, ok, shows := e.pictureBlock(i)
+	if !ok {
+		return geom.Rect{}
+	}
+	w := e.textWidth(&e.Doc.Blocks[i])
+	size := e.pictureSize(ref, w)
+	o := e.textOrigin(i)
+	if shows {
+		if l := e.layout(i); l != nil {
+			return geom.NewRect(o.X, o.Y+l.height()+e.px(pictureGap), size.Width, size.Height)
+		}
+	}
+	return geom.NewRect(o.X, o.Y, size.Width, size.Height)
 }
 
 // pictureHeight is the height an image block adds below its line: the

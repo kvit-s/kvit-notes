@@ -83,14 +83,29 @@ func fetch(ctx context.Context, address string, limit int64) ([]byte, error) {
 }
 
 // loadPreview reads a page in the background and gives the editor what it
-// says.
+// says. Pressing Load preview approves the page's origin for later loads,
+// as in Kvit: the button is the consent. Nothing fetches without it unless
+// automatic loading is on, and an unfetchable address fails with its reason.
 func (w *Window) loadPreview(address string) {
 	ed := w.Editor
+	if w.egress != nil {
+		if reason := refusalReason(address); reason != "" {
+			ed.SetPreview(address, editor.Preview{Failed: reason + ": " + address})
+			return
+		}
+		if !w.egress.isAllowed(address) && !canRequestConsent(address) {
+			ed.SetPreview(address, editor.Preview{Failed: refusalReason(address) + ": " + address})
+			return
+		}
+		// The press is the consent: approve the origin for later loads.
+		w.egress.allowOrigin(address)
+		ed.ForgetPicture(address)
+	}
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), previewTimeout)
 		defer cancel()
 		var p editor.Preview
-		page, err := fetch(ctx, address, maxPage)
+		page, err := fetchGuarded(ctx, address, maxPage)
 		if err != nil {
 			p.Failed = "Could not load the preview: " + err.Error()
 		} else {
@@ -99,7 +114,7 @@ func (w *Window) loadPreview(address string) {
 			if image != "" {
 				if base, err := url.Parse(address); err == nil {
 					if ref, err := base.Parse(image); err == nil {
-						if data, err := fetch(ctx, ref.String(), maxPreviewPict); err == nil {
+						if data, err := fetchGuarded(ctx, ref.String(), maxPreviewPict); err == nil {
 							if img, err := unison.NewImageFromBytes(data, geom.NewPoint(1, 1)); err == nil {
 								p.Image = img
 							}

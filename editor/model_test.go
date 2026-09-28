@@ -348,12 +348,12 @@ func TestTablesAreReadAsKvitReadsThem(t *testing.T) {
 	if got := Serialize(blocks); got != src {
 		t.Errorf("a table must be saved as written:\n%q\nwant\n%q", got, src)
 	}
-	tb, ok := parseTable(blocks[0].Text)
-	if !ok || len(tb.header) != 2 || tb.header[1] != "B | c" || tb.align[0] != alignLeft || tb.align[1] != alignRight ||
-		len(tb.rows) != 2 || tb.rows[1][1] != "" {
-		t.Errorf("table: %+v %v", tb, ok)
+	tb := ParseTable(blocks[0].Text)
+	if !tb.Valid || len(tb.Headers) != 2 || tb.Headers[1] != "B | c" || tb.Alignments[0] != TableAlignLeft || tb.Alignments[1] != TableAlignRight ||
+		len(tb.Rows) != 2 || tb.Rows[1][1] != "" {
+		t.Errorf("table: %+v", tb)
 	}
-	if _, ok := parseTable("| just | pipes |\n| no delimiter |"); ok {
+	if ParseTable("| just | pipes |\n| no delimiter |").Valid {
 		t.Errorf("a table needs its delimiter row")
 	}
 }

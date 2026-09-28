@@ -131,6 +131,14 @@ type Window struct {
 	travelling    bool          // Back or Forward is opening a note
 	switcher      *kvitui.Popup // the quick switcher, while it is open
 	f6Step        int           // F6 pane cycling position
+
+	// Remote content and updates (features.md 10.3): opening a note is not
+	// consent, so nothing remote loads until its origin is approved.
+	egress    *egressPolicy
+	updates   *updateChecker
+	lastSaved time.Time   // when the open note was last saved
+	savedTick time.Time   // last status-line clock tick for the saved time
+	imgCache  *imageCache // decoded pictures, downscaled, over a budget
 }
 
 // Open opens a window over a vault.
@@ -140,6 +148,8 @@ func Open(ui *kvitui.UI, v *vault.Vault) (*Window, error) {
 		return nil, err
 	}
 	w := &Window{ui: ui, Win: win, Vault: v, prefs: newPrefs(ui)}
+	w.egress = newEgress(w.prefs)
+	w.updates = newUpdateChecker(w.prefs, appBaseVersion)
 
 	w.search = kvitui.NewSearchField(ui)
 	w.search.Placeholder = "Search all notes"
@@ -265,6 +275,15 @@ func Open(ui *kvitui.UI, v *vault.Vault) (*Window, error) {
 	w.Editor.OnLink = w.openLinkDialog
 	w.Editor.OnExport = w.openExportFor
 	w.Editor.LoadPreview = w.loadPreview
+	w.Editor.RemotePolicy = w.egress
+	w.updates.maybeCheck(func() {
+		// The check lands long after Open returns; update on the UI thread.
+		unison.InvokeTask(func() {
+			if w.Win.IsValid() {
+				w.update()
+			}
+		})
+	})
 	w.wireDiagrams()
 	w.Editor.OpenURL = func(address string) {
 		if err := unison.OpenBrowser(address); err != nil {
@@ -1089,6 +1108,7 @@ func (w *Window) saveNow() {
 		w.message = "Save failed: " + err.Error()
 	} else {
 		w.Editor.Doc.Dirty = false
+		w.lastSaved = time.Now()
 		w.journalAt = time.Time{}
 		w.Vault.ClearJournal(w.open.Path)
 		w.message = ""
@@ -1109,7 +1129,12 @@ func (w *Window) setTags(tags []string) {
 	w.refreshScopes()
 }
 
-// update shows the save state and the caret's place in the status line.
+// update shows the save state and the caret's place in the status line, in
+// the Qt app's order (qml/EditorStatusBar.qml): the save state with its dot,
+// the last-saved time, the caret's block, line and column, the block type,
+// the file path, the block count, and the word and character counts with the
+// writing goal. The passive update notice leads when a newer release is
+// found; a lone file offers its folder as a vault.
 func (w *Window) update() {
 	d := w.Editor.Doc
 	st := "Saved"
@@ -1121,19 +1146,34 @@ func (w *Window) update() {
 	case d.Dirty:
 		st = "Unsaved"
 	}
+	// The last-saved time qualifies the save state: "Saved" beside it means
+	// the last save, not the next one.
+	if st == "Saved" && !w.lastSaved.IsZero() {
+		st += " \u00b7 " + savedAgo(w.lastSaved, time.Now())
+	}
+	if w.updates != nil {
+		if notice := w.updates.updateAvailable(); notice != "" {
+			st = notice + " \u00b7 " + st
+		}
+	}
 	w.status.Activity = st
 	var facts []string
 	if b := d.CaretBlock(); b != nil && d.Focused {
 		i := d.Index(b.ID)
-		facts = append(facts, fmt.Sprintf("Block %d", i+1), b.Kind.String())
 		ln, col := w.Editor.CaretLineColumn()
-		facts = append(facts, fmt.Sprintf("Ln %d, Col %d", ln, col))
+		facts = append(facts, fmt.Sprintf("Block %d \u00b7 Ln %d, Col %d", i+1, ln, col), b.Kind.String())
 	}
 	switch {
 	case w.open != nil:
 		facts = append(facts, w.open.Path)
 	case w.trashed != nil:
 		facts = append(facts, "In the trash, read only")
+	default:
+		// Single-file mode's quiet upgrade path: a lone file with no vault
+		// offers its folder as one, never a popup.
+		if w.Vault == nil || w.open == nil {
+			facts = append(facts, "Create vault from this folder\u2026")
+		}
 	}
 	stats := d.Stats()
 	facts = append(facts, fmt.Sprintf("%d blocks", stats.Blocks), fmt.Sprintf("%d chars", stats.Chars))
@@ -1141,4 +1181,20 @@ func (w *Window) update() {
 	w.status.Groups = []kvitui.StatusGroup{{Facts: w.countFacts(stats)}}
 	w.toolbar.Update()
 	w.status.MarkForLayoutAndRedraw()
+}
+
+// savedAgo is the Qt status bar's last-saved time: relative, absolute on
+// hover ("just now", "N min ago", "hh:mm").
+func savedAgo(at, now time.Time) string {
+	if at.IsZero() {
+		return ""
+	}
+	secs := now.Sub(at).Seconds()
+	if secs < 60 {
+		return "just now"
+	}
+	if secs < 3600 {
+		return fmt.Sprintf("%d min ago", int(secs/60))
+	}
+	return at.Format("15:04")
 }

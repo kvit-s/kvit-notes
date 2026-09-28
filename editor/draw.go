@@ -430,8 +430,11 @@ const (
 	// button.
 	partEmbedOpen
 	partEmbedLoad
-	partLanguage // a code block's language, which opens the language menu
-	partQueryRow // a query block's row or card
+	partPictureLoad // a remote picture's card, approving its origin and loading it
+	partTableCell   // a table grid cell, making it live
+	partTableGrip   // a table column border, dragging its width
+	partLanguage    // a code block's language, which opens the language menu
+	partQueryRow    // a query block's row or card
 )
 
 // gutterCellRect is one of the gutter's four controls for row i: the

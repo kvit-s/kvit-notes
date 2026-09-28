@@ -4,7 +4,12 @@ package editor
 // the scenarios press gutter buttons and drag across text by these points,
 // as a person would, rather than calling the operations directly.
 
-import "github.com/richardwilkes/toolbox/v2/geom"
+import (
+	"strconv"
+	"strings"
+
+	"github.com/richardwilkes/toolbox/v2/geom"
+)
 
 // RowRect is block i's whole row, gutter included, in the editor's
 // coordinates.
@@ -27,8 +32,10 @@ func (e *Editor) CaretRect() (geom.Rect, bool) { return e.caretRect() }
 // PartRect is one of block i's controls in the editor's coordinates: the
 // gutter's "add", "handle", "delete" and "menu" (shown while the pointer is
 // on the row), a to-do's "check" box, a code block's "copy" button, and a
-// callout's "fold" arrow, "type", "title" and "color" dot, and an embed
-// card's "load" button and "open" title.
+// callout's "fold" arrow, "type", "title" and "color" dot, an embed
+// card's "load" button and "open" title, and a table's "cell" (or
+// "cell:<row>:<col>" for another data cell), "header" (or "header:<col>"
+// for another header column) and "grip".
 func (e *Editor) PartRect(i int, part string) geom.Rect {
 	switch part {
 	case "add":
@@ -55,11 +62,71 @@ func (e *Editor) PartRect(i int, part string) geom.Rect {
 			return load
 		}
 		return title
+	case "cell":
+		if g, ok := e.gridFor(i); ok && len(g.cols) > 0 && len(g.rowsH) > 1 {
+			return e.cellRect(i, g, 0, 0)
+		}
+		return geom.Rect{}
+	case "header":
+		if g, ok := e.gridFor(i); ok && len(g.cols) > 0 {
+			return e.cellRect(i, g, -1, 0)
+		}
+		return geom.Rect{}
+	case "grip":
+		if g, ok := e.gridFor(i); ok && len(g.cols) > 1 {
+			o := e.gridOrigin(i)
+			x := o.X + g.cols[0]
+			return geom.NewRect(x-4, o.Y, 8, min(g.rowsH[0], 24))
+		}
+		return geom.Rect{}
 	case "fold", "type", "title", "color":
 		chevron, icon, title, dot := e.calloutParts(i)
 		return map[string]geom.Rect{"fold": chevron, "type": icon, "title": title, "color": dot}[part]
 	}
+	if col, ok := headerColumn(part); ok {
+		if g, ok := e.gridFor(i); ok && col >= 0 && col < len(g.cols) {
+			return e.cellRect(i, g, -1, col)
+		}
+		return geom.Rect{}
+	}
+	if row, col, ok := tableCellPart(part); ok {
+		if g, ok := e.gridFor(i); ok && col >= 0 && col < len(g.cols) && row+1 >= 0 && row+1 < len(g.rowsH) {
+			return e.cellRect(i, g, row, col)
+		}
+		return geom.Rect{}
+	}
 	return geom.Rect{}
+}
+
+// tableCellPart parses "cell:<row>:<col>" for a data cell beyond (0,0).
+func tableCellPart(part string) (row, col int, ok bool) {
+	rest, found := strings.CutPrefix(part, "cell:")
+	if !found {
+		return 0, 0, false
+	}
+	rs, cs, _ := strings.Cut(rest, ":")
+	r, err := strconv.Atoi(rs)
+	if err != nil || r < 0 {
+		return 0, 0, false
+	}
+	c, err := strconv.Atoi(cs)
+	if err != nil || c < 0 {
+		return 0, 0, false
+	}
+	return r, c, true
+}
+
+// headerColumn parses "header:<col>" for a header cell beyond the first.
+func headerColumn(part string) (int, bool) {
+	col, found := strings.CutPrefix(part, "header:")
+	if !found {
+		return 0, false
+	}
+	n, err := strconv.Atoi(col)
+	if err != nil || n < 0 {
+		return 0, false
+	}
+	return n, true
 }
 
 // UndoSteps is how many steps Undo can take back.

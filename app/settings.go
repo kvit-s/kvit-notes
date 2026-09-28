@@ -248,12 +248,15 @@ func typographySettings(ui *kvitui.UI, relayout func()) *unison.Panel {
 		reset)
 }
 
-// generalSettings is the General section. The Qt app's also has remote
-// content and the update check; this one has the tray, and is shown only
-// where the desktop has a notification area, as the Qt app shows its tray
-// setting.
+// generalSettings is the General section: the tray (shown only where the
+// desktop has a notification area, as the Qt app shows its tray setting),
+// remote content (off by default: opening a note is not consent) and the
+// opt-out daily update check. Keys follow the Qt app: the tray and auto-save
+// wait are the Go app's own, network.* and updates.* are shared.
 func generalSettings(ui *kvitui.UI) *unison.Panel {
 	p := newPrefs(ui)
+	eg := newEgress(p)
+	up := newUpdateChecker(p, appBaseVersion)
 	keep := kvitui.NewCheck(ui, "Keep running in the tray when the window is closed")
 	keep.Checked = p.bool(closeToTrayKey, false)
 	keep.OnChange = func(on bool) { p.set(closeToTrayKey, on) }
@@ -264,8 +267,48 @@ func generalSettings(ui *kvitui.UI) *unison.Panel {
 		wait.Value = minSaveInterval
 	}
 	wait.OnChange = func(v int) { p.set("save.interval", v) }
+	auto := kvitui.NewCheck(ui, "Load remote content automatically")
+	auto.Checked = eg.autoLoad()
+	autoNote := kvitui.NewLabel(ui, "Off: a picture, preview or page from the web loads only after its site is allowed, per site. On: any site loads without asking. A note is an untrusted document, so automatic loading discloses the reader's address and reading time to whoever wrote it.")
+	autoNote.Ink, autoNote.Wrap = kvitui.InkTextSecondary, true
+	auto.OnChange = func(on bool) { eg.setAutoLoad(on) }
+	sites := kvitui.NewLabel(ui, allowedSitesLine(eg))
+	sites.Ink, sites.Wrap = kvitui.InkTextSecondary, true
+	forget := kvitui.NewButton(ui, "Forget allowed sites")
+	forget.OnClick = func() {
+		eg.forgetAllOrigins()
+		sites.Text = allowedSitesLine(eg)
+		sites.MarkForLayoutAndRedraw()
+	}
+	check := kvitui.NewCheck(ui, "Check for updates daily")
+	check.Checked = up.enabled()
+	checkNote := kvitui.NewLabel(ui, "One daily request for the newest release, no telemetry, no download. A newer release shows as a line in the status bar that opens its page.")
+	checkNote.Ink, checkNote.Wrap = kvitui.InkTextSecondary, true
+	check.OnChange = func(on bool) { up.setEnabled(on) }
 	return kvitui.Column(ui, kvitui.SizeSpace, settingRow(ui, "System tray", keep),
-		settingRow(ui, "Auto-save, in seconds after typing stops", wait))
+		settingRow(ui, "Auto-save, in seconds after typing stops", wait),
+		settingRow(ui, "Remote content", auto, autoNote, sites, forget),
+		settingRow(ui, "Updates", check, checkNote))
+}
+
+// allowedSitesLine names the approved origins for the settings page.
+func allowedSitesLine(eg *egressPolicy) string {
+	allowed := eg.allowedOrigins()
+	if len(allowed) == 0 {
+		return "No sites allowed."
+	}
+	return "Allowed sites: " + joinOrigins(allowed)
+}
+
+func joinOrigins(list []string) string {
+	out := ""
+	for i, s := range list {
+		if i > 0 {
+			out += ", "
+		}
+		out += s
+	}
+	return out
 }
 
 func vaultSettings(ui *kvitui.UI, v *vault.Vault, relayout func()) *unison.Panel {

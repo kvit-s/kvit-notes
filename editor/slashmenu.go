@@ -46,8 +46,8 @@ var menuItems = []menuItem{
 	{"Advanced", "Quote", "Block quotation", "❝", Quote, "blockquote", nil, 0},
 	{"Advanced", "Code", "Code block with syntax colouring", "<>", Code, "pre fence", nil, 0},
 	{"Advanced", "Divider", "Horizontal rule", "—", Divider, "hr rule line", nil, 0},
-	{"Advanced", "Table", "Grid of rows and columns", "▦", Table, "grid",
-		func(b *Block) { b.Text = "| Column 1 | Column 2 |\n| --- | --- |\n|  |  |" }, 2},
+	{"Advanced", "Table", "Grid of rows and columns", "▦", Table, "grid spreadsheet",
+		func(b *Block) {}, 0}, // No seed: the insert flow opens the grid picker (Qt containerkinds.cpp).
 	{"Advanced", "Callout", "Highlighted info/warning/tip box", "!", Callout, "callout admonition note info warning [!",
 		func(b *Block) { b.Lang = "info" }, 0},
 	{"Advanced", "Toggle", "Collapsible section", "▸", Callout, "toggle collapse fold details",
@@ -307,6 +307,12 @@ func (e *Editor) applyItem(id int64, it menuItem) {
 	d := e.Doc
 	b := d.Block(id)
 	if b == nil {
+		return
+	}
+	if it.kind == Table {
+		// No seed: the grid picker builds the starter Markdown from the
+		// size the reader chooses.
+		e.openTablePicker(id, func(cols, rows int) { e.convertToTable(id, cols, rows) })
 		return
 	}
 	d.Convert(id, it.kind)

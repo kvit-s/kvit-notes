@@ -47,6 +47,14 @@ func (e *Editor) handleKey(key unison.KeyCode, ctrl, shift, alt bool) bool {
 		return true
 	}
 
+	if e.tableSweepKey(key, ctrl, shift, alt) {
+		return true
+	}
+
+	if e.tableGridKeys(key, ctrl, shift, alt) {
+		return true
+	}
+
 	// Shortcuts that act on the whole note.
 	switch {
 	case ctrl && key == unison.KeyZ && !shift:
@@ -574,6 +582,18 @@ func (e *Editor) selectRange(from, to int64) {
 }
 
 func (e *Editor) runeTyped(ch rune) bool {
+	if e.caretInTableGrid() {
+		// The grid is showing, not the source: typing drops any rectangle
+		// instead of writing into the table's Markdown.
+		e.clearTableSweep()
+		return true
+	}
+	if e.HasTableSelection() {
+		// The grid is showing, not the source: typing drops the rectangle
+		// instead of writing into the table's Markdown.
+		e.clearTableSweep()
+		return true
+	}
 	if ch < 0x20 && ch != '\n' && ch != '\t' || ch == 0x7f {
 		return false
 	}

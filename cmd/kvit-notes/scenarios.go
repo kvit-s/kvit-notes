@@ -601,6 +601,68 @@ var scenarios = []scenario{
 		dr.expect(dr.popups() == 1, "the language menu should be open")
 		dr.key(unison.KeyEscape, mod.None)
 	}},
+	{"36_tables", "# Tables\n\n| Name | Role | Age |\n| :--- | :--- | ---: |\n| Alice | **Lead** | 30 |\n| Bob | Dev | 25 |\n| Carol | Design | 41 |", func(dr *driver) {
+		// Kvit's tests/tst_visual.qml test_36_tables: the grid rendered,
+		// one live cell, sorting by a header, and the grid-size picker.
+		dr.expect(dr.kind(1) == editor.Table, "the second block should be a table: %s", dr.blocks())
+		dr.clearFocus()
+		dr.shot("visual_36_tables_01_rendered.png")
+		// A press in a data cell makes it live for editing in place.
+		dr.click(dr.partCentre(1, "cell"), mod.None)
+		var live bool
+		var row, col int
+		dr.do(func() { _, row, col, live = dr.ed().TableCell() })
+		dr.expect(live && row == 0 && col == 0, "the press should make cell (0,0) live, got (%d,%d) live=%v", row, col, live)
+		dr.shot("visual_36_tables_02_cell_editing.png")
+		dr.key(unison.KeyEscape, mod.None)
+		dr.do(func() { _, _, _, live = dr.ed().TableCell() })
+		dr.expect(!live, "Escape should leave the cell")
+		// A double press on the Age header sorts by it, as one undo step.
+		var before, after int
+		dr.do(func() { before = dr.doc().UndoSteps() })
+		dr.screen.DoubleClick(dr.partCentre(1, "header:2"))
+		var sorted string
+		dr.do(func() {
+			sorted = dr.doc().Blocks[1].Text
+			after = dr.doc().UndoSteps()
+		})
+		dr.expect(strings.Index(sorted, "| Bob | Dev | 25 |") < strings.Index(sorted, "| Alice |"), "Age ascending should put Bob first: %q", sorted)
+		dr.expect(after == before+1, "sort should be one undo step (%d -> %d)", before, after)
+		dr.clearFocus()
+		dr.shot("visual_36_tables_03_sorted.png")
+		// A drag across cells sweeps its rectangle, which Escape drops.
+		dr.screen.Drag(dr.partCentre(1, "cell"), dr.partCentre(1, "cell:1:1"), 4)
+		var swept bool
+		dr.do(func() { swept = dr.ed().HasTableSelection() })
+		dr.expect(swept, "dragging across cells should sweep a rectangle")
+		dr.shot("visual_36_tables_03b_cell_selection.png")
+		dr.key(unison.KeyEscape, mod.None)
+		dr.do(func() { swept = dr.ed().HasTableSelection() })
+		dr.expect(!swept, "Escape should drop the rectangle")
+		// The grid-size picker off a new empty block.
+		dr.do(func() {
+			d := dr.doc()
+			nb := editor.NewBlock(editor.Paragraph, "")
+			d.Blocks = append(d.Blocks, nb)
+			dr.ed().Refresh()
+		})
+		dr.focus(dr.count()-1, 0)
+		dr.typ("/")
+		names, _ := dr.menu()
+		dr.expect(len(names) > 0 && dr.popups() == 1, "/ should open the menu")
+		dr.typ("table")
+		names, _ = dr.menu()
+		dr.expect(len(names) > 0 && names[0] == "Table", "\"table\" should put Table first: %v", names)
+		dr.key(unison.KeyReturn, mod.None)
+		var open bool
+		dr.do(func() { open = dr.ed().TablePickerOpen() })
+		dr.expect(open, "Enter on Table should open the grid picker")
+		dr.shot("visual_36_tables_04_grid_picker.png")
+		dr.key(unison.KeyEscape, mod.None)
+		dr.do(func() { open = dr.ed().TablePickerOpen() })
+		dr.expect(!open, "Escape should close the grid picker")
+		dr.clearFocus()
+	}},
 	{"38_kanban", "# Project board\n\n```kanban\n## To do\n- [ ] Design the API #backend 📅 2026-08-01\n  Sketch the endpoints and payloads\n- [ ] Write the spec #docs\n## In progress\n- [ ] Build the parser #backend #urgent\n## Done\n- [x] Set up CI #infra\n```\n", func(dr *driver) {
 		dr.clearFocus()
 		dr.shot("visual_38_kanban_01_board.png")

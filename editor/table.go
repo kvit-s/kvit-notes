@@ -1,107 +1,21 @@
 package editor
 
-// Tables (features.md 1.2.11): a run of lines starting with "|" is a table
-// block, kept as written. Away from the caret it is drawn as a grid, the
-// header row set apart, each cell's inline Markdown drawn and its column's
-// alignment kept (Kvit's src/content/tabledata.cpp reads the same pipe
-// table); with the caret in it, it shows its Markdown to edit, as a code
-// block does.
+// Tables (features.md 1.2.11, Kvit's TableBlock.qml and tabledata.cpp): a
+// run of lines starting with "|" is a table block, kept as written. It is
+// drawn as a grid, the header row set apart, each cell's inline Markdown
+// drawn and its column's alignment kept; a press in a cell makes it live
+// for editing in place. Column widths the reader drags live in the block's
+// own cols attribute, so they follow the file.
 
 import (
 	"math"
+	"strconv"
 	"strings"
 
 	"github.com/kvit-s/kvit-ui/text"
 	"github.com/richardwilkes/toolbox/v2/geom"
 	"github.com/richardwilkes/unison"
 )
-
-// Column alignments.
-const (
-	alignNone = iota
-	alignLeft
-	alignCenter
-	alignRight
-)
-
-// table is a pipe table read into cells.
-type table struct {
-	header []string
-	align  []int
-	rows   [][]string
-}
-
-// splitRow splits a table line into its cells at the pipes that are not
-// escaped, dropping the border pipes, as TableData::parse does.
-func splitRow(line string) []string {
-	line = strings.TrimSpace(line)
-	line = strings.TrimPrefix(line, "|")
-	if strings.HasSuffix(line, "|") && !strings.HasSuffix(line, `\|`) {
-		line = line[:len(line)-1]
-	}
-	var cells []string
-	var b strings.Builder
-	for i := 0; i < len(line); i++ {
-		if line[i] == '\\' && i+1 < len(line) && line[i+1] == '|' {
-			b.WriteByte('|')
-			i++
-			continue
-		}
-		if line[i] == '|' {
-			cells = append(cells, strings.TrimSpace(b.String()))
-			b.Reset()
-			continue
-		}
-		b.WriteByte(line[i])
-	}
-	return append(cells, strings.TrimSpace(b.String()))
-}
-
-func alignOf(delim string) int {
-	d := strings.TrimSpace(delim)
-	left, right := strings.HasPrefix(d, ":"), strings.HasSuffix(d, ":")
-	switch {
-	case left && right:
-		return alignCenter
-	case right:
-		return alignRight
-	case left:
-		return alignLeft
-	}
-	return alignNone
-}
-
-// parseTable reads a pipe table; ok is false when its second line is not a
-// delimiter row, which leaves the block drawn as its Markdown.
-func parseTable(src string) (t table, ok bool) {
-	lines := strings.Split(src, "\n")
-	if len(lines) < 2 {
-		return t, false
-	}
-	t.header = splitRow(lines[0])
-	delim := splitRow(lines[1])
-	for _, d := range delim {
-		if strings.Trim(strings.TrimSpace(d), ":-") != "" || !strings.Contains(d, "-") {
-			return t, false
-		}
-	}
-	for c := range t.header {
-		a := alignNone
-		if c < len(delim) {
-			a = alignOf(delim[c])
-		}
-		t.align = append(t.align, a)
-	}
-	for _, l := range lines[2:] {
-		cells := splitRow(l)
-		// Rows are squared up to the header's width, as Kvit squares them.
-		for len(cells) < len(t.header) {
-			cells = append(cells, "")
-		}
-		t.rows = append(t.rows, cells[:len(t.header)])
-	}
-	return t, true
-}
 
 // The grid in design pixels: the padding in each cell and the narrowest a
 // column is made.
@@ -119,7 +33,7 @@ type grid struct {
 	rowsH  []float32
 	cells  [][]*text.Layout // [row][col], the header first
 	projs  [][]projection   // what each cell draws, for its typeset math
-	align  []int
+	align  []TableAlign
 	height float32
 }
 
@@ -147,14 +61,19 @@ func (e *Editor) cellText(src string, header bool, width float32) (*text.Layout,
 func (e *Editor) gridFor(i int) (*grid, bool) {
 	b := &e.Doc.Blocks[i]
 	width := e.textWidth(b)
-	key := layoutKey{text: b.Text, kind: b.Kind, width: width, caret: -2, generation: e.generation}
+	key := layoutKey{text: b.Text, attrs: b.Attrs, kind: b.Kind, width: width, caret: -2, generation: e.generation}
+	if e.tableResize != nil && e.tableResize.blockID == b.ID {
+		// A drag follows the pointer before anything is written, so the
+		// preview width joins the key.
+		key.width += e.tableResize.width
+	}
 	if c, ok := e.grids[b.ID]; ok && c.key == key {
 		return c.grid, c.grid != nil
 	}
-	t, ok := parseTable(b.Text)
+	t := ParseTable(b.Text)
 	var g *grid
-	if ok && len(t.header) > 0 {
-		g = e.layOutGrid(t, width)
+	if t.Valid && len(t.Headers) > 0 {
+		g = e.layOutGrid(t, width, storedTableWidths(b), e.resizeOverride(b.ID))
 	}
 	e.grids[b.ID] = cachedGrid{key, g}
 	return g, g != nil
@@ -165,9 +84,9 @@ type cachedGrid struct {
 	grid *grid
 }
 
-func (e *Editor) layOutGrid(t table, width float32) *grid {
-	n := len(t.header)
-	all := append([][]string{t.header}, t.rows...)
+func (e *Editor) layOutGrid(t PipeTable, width float32, stored []int, override map[int]float32) *grid {
+	n := len(t.Headers)
+	all := append([][]string{t.Headers}, t.Rows...)
 	pad := 2 * e.px(cellPadX)
 	natural := make([]float32, n)
 	for r, row := range all {
@@ -178,20 +97,48 @@ func (e *Editor) layOutGrid(t table, width float32) *grid {
 			natural[c] = max(natural[c], float32(math.Ceil(float64(w)))+1+pad, e.px(minColumn))
 		}
 	}
+
+	// A column the reader has sized keeps that width; the rest measure
+	// themselves from content. Only the dragged column is pinned: the rest
+	// stay automatic.
+	cols := make([]float32, n)
+	anyStored := false
+	for c := range cols {
+		if w, ok := override[c]; ok {
+			cols[c] = max(e.px(minColumn), w)
+			anyStored = true
+			continue
+		}
+		if c < len(stored) && stored[c] > 0 {
+			cols[c] = e.px(float32(stored[c]))
+			anyStored = true
+			continue
+		}
+		cols[c] = natural[c]
+	}
 	var sum float32
-	for _, w := range natural {
+	for _, w := range cols {
 		sum += w
 	}
-	cols := natural
-	if sum > width {
-		// Too wide: every column gives up room in proportion to its width,
-		// down to the narrowest, and its text wraps.
-		cols = make([]float32, n)
-		for c := range natural {
-			cols[c] = max(e.px(minColumn), natural[c]*width/sum)
+	if sum > width && sum > 0 {
+		// Widths sized in a wide window would run off a narrow one, so the
+		// row scales down together to fit. It never scales up: a table
+		// deliberately made narrow stays narrow.
+		scale := width / sum
+		for c := range cols {
+			cols[c] = max(e.px(minColumn), float32(math.Round(float64(cols[c]*scale))))
+		}
+		sum = 0
+		for _, w := range cols {
+			sum += w
 		}
 	}
-	g := &grid{cols: cols, align: t.align}
+	if !anyStored && n > 0 && sum < width {
+		// Unsized tables finish flush with the blocks around them: the
+		// last column takes the rounding difference.
+		cols[n-1] += width - sum
+	}
+	g := &grid{cols: cols, align: t.Alignments}
 	for r, row := range all {
 		var h float32
 		var cells []*text.Layout
@@ -212,14 +159,142 @@ func (e *Editor) layOutGrid(t table, width float32) *grid {
 	return g
 }
 
-// tableShowsGrid reports whether a table block is drawn as its grid: away
-// from the caret, and when it reads as a table.
+// tableShowsGrid reports whether a table block is drawn as its grid: when it
+// reads as a table, away from the caret, with a live cell in it (a press
+// in the grid keeps the grid while the cell is edited), or with a swept
+// rectangle in it.
 func (e *Editor) tableShowsGrid(i int) (*grid, bool) {
 	b := &e.Doc.Blocks[i]
-	if b.Kind != Table || (e.Doc.Focused && e.Doc.Caret.Block == b.ID) {
+	if b.Kind != Table {
 		return nil, false
 	}
+	if e.tableHold[b.ID] {
+		return e.gridFor(i)
+	}
+	if e.Doc.Focused && e.Doc.Caret.Block == b.ID && !e.tableCellIn(b.ID) {
+		if id, _, _, _, _, ok := e.TableSelection(); !ok || id != b.ID {
+			return nil, false
+		}
+	}
 	return e.gridFor(i)
+}
+
+// tableCellIn reports whether block id holds the live cell.
+func (e *Editor) tableCellIn(id int64) bool {
+	return e.tableActive != nil && e.tableActive.blockID == id
+}
+
+// gridOrigin is where a table block's grid starts: the code panel's text
+// origin, as drawGrid draws it.
+func (e *Editor) gridOrigin(i int) geom.Point {
+	return geom.NewPoint(e.bodyLeft()+e.px(codeInset), e.tops[i]+e.px(codeRowTop))
+}
+
+// cellRect is cell (row, col) of block i's grid: row -1 is the header, 0..
+// the data rows.
+func (e *Editor) cellRect(i int, g *grid, row, col int) geom.Rect {
+	o := e.gridOrigin(i)
+	x := o.X
+	for c := 0; c < col && c < len(g.cols); c++ {
+		x += g.cols[c]
+	}
+	y := o.Y
+	r := row + 1
+	for k := 0; k < r && k < len(g.rowsH); k++ {
+		y += g.rowsH[k]
+	}
+	var w, h float32
+	if col >= 0 && col < len(g.cols) {
+		w = g.cols[col]
+	}
+	if r >= 0 && r < len(g.rowsH) {
+		h = g.rowsH[r]
+	}
+	return geom.NewRect(x, y, w, h)
+}
+
+// tableCellAt is the cell of block i's grid under where, in the editor's
+// coordinates: row -1 for the header, 0.. for data rows, and its column.
+func (e *Editor) tableCellAt(i int, g *grid, where geom.Point) (row, col int, ok bool) {
+	o := e.gridOrigin(i)
+	rel := where.Sub(o)
+	if rel.X < 0 || rel.Y < 0 {
+		return 0, 0, false
+	}
+	x := float32(0)
+	col = -1
+	for c, w := range g.cols {
+		if rel.X < x+w {
+			col = c
+			break
+		}
+		x += w
+	}
+	if col < 0 {
+		return 0, 0, false
+	}
+	y := float32(0)
+	for r, h := range g.rowsH {
+		if rel.Y < y+h {
+			return r - 1, col, true
+		}
+		y += h
+	}
+	return 0, 0, false
+}
+
+// storedTableWidths reads the dragged column widths from the block's own
+// cols attribute: design pixels in column order, 0 for a column that still
+// measures itself.
+func storedTableWidths(b *Block) []int {
+	raw, ok := b.Attr("cols")
+	if !ok || raw == "" {
+		return nil
+	}
+	var out []int
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			out = append(out, 0)
+			continue
+		}
+		n, err := strconv.Atoi(part)
+		if err != nil || n <= 0 {
+			out = append(out, 0)
+			continue
+		}
+		out = append(out, max(minColumn, n))
+	}
+	return out
+}
+
+// formatTableWidths writes a width list back: a zero becomes an empty slot
+// for a column that measures itself; an all-zero list drops the key, so a
+// table with no sized columns is plain Markdown again.
+func formatTableWidths(widths []int) (string, bool) {
+	parts := make([]string, len(widths))
+	any := false
+	for i, w := range widths {
+		if w > 0 {
+			parts[i] = strconv.Itoa(w)
+			any = true
+		} else {
+			parts[i] = ""
+		}
+	}
+	if !any {
+		return "", false
+	}
+	return strings.Join(parts, ","), true
+}
+
+// resizeOverride reports a drag preview for block id: the dragged column's
+// width, so the grid follows the pointer before anything is written.
+func (e *Editor) resizeOverride(id int64) map[int]float32 {
+	if e.tableResize != nil && e.tableResize.blockID == id {
+		return map[int]float32{e.tableResize.col: e.tableResize.width}
+	}
+	return nil
 }
 
 func (e *Editor) drawGrid(gc *unison.Canvas, i int, g *grid) {
@@ -230,17 +305,21 @@ func (e *Editor) drawGrid(gc *unison.Canvas, i int, g *grid) {
 		total += w
 	}
 	e.fill(gc, geom.NewRect(o.X, o.Y, total, g.rowsH[0]), t.ChipBackground)
+	id := e.Doc.Blocks[i].ID
 	y := o.Y
 	for r, h := range g.rowsH {
 		x := o.X
 		for c, w := range g.cols {
+			if e.TableCellSelected(id, r-1, c) {
+				e.fill(gc, geom.NewRect(x, y, w, h), t.SelectionTint)
+			}
 			l := g.cells[r][c]
 			lw, _ := l.Size()
 			tx := x + e.px(cellPadX)
 			switch g.align[c] {
-			case alignCenter:
+			case TableAlignCenter:
 				tx = x + (w-lw)/2
-			case alignRight:
+			case TableAlignRight:
 				tx = x + w - e.px(cellPadX) - lw
 			}
 			l.Draw(gc, tx, y+e.px(cellPadY))
@@ -265,4 +344,5 @@ func (e *Editor) drawGrid(gc *unison.Canvas, i int, g *grid) {
 			x += g.cols[c]
 		}
 	}
+	e.drawTableDecor(gc, i, g, o, total)
 }

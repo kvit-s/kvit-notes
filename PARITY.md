@@ -56,10 +56,39 @@ kvit-ui-go's `platform` package for the tray.
   - [x] 1.2.10 Callout: Kvit's six types and any other, the header's fold
     arrow, type menu, title (edited in place) and colour dot, the "color"
     attribute. Evidence: `35_callouts`, `visual_35_callouts_*`, `TestCalloutsRoundTrip`
-  - [~] 1.2.11 Table: drawn as a grid away from the caret, its Markdown with
-    the caret in it; column alignment; inline formats in cells. Evidence:
-    `TestTablesAreReadAsKvitReadsThem`. Missing: editing cells in the grid,
-    sorting, the grid picker, column widths
+  - [x] 1.2.11 Table: drawn as a grid (the header set apart, column
+    alignment, inline formats and math in cells); a press makes a cell live
+    for editing in place (Enter moves down the column, Tab walks the grid
+    and adds a row past the last cell, Shift+Enter breaks the line as
+    `<br>` so the row stays one line of the file, Ctrl+Enter leaves for a
+    new block below, Escape leaves the cell, the arrows cross at the edges);
+    a double press on a header sorts by it, again going the other way, with
+    ▲ or ▼ and one undo step; the right-click menu inserts and deletes rows
+    and columns, sorts, aligns and resets widths; a dragged border pins that
+    column in the block's `cols` attribute; the / menu and Insert open the
+    grid picker (3×3 first, arrows, Enter, Escape). Evidence: `36_tables`,
+    `visual_36_tables_01_rendered`, `visual_36_tables_02_cell_editing`,
+    `visual_36_tables_03_sorted`, `visual_36_tables_04_grid_picker`,
+    `36b_table_math` (`visual_36_tables_05_inline_math`),
+    `TestTablesAreReadAsKvitReadsThem`, the `tabledata` tests (Qt's
+    `test_tabledata.cpp` ported), `TestTablePressMakesCellLive`,
+    `TestTableCellCommitAndUndo`, `TestTableEscapeLeavesCell`,
+    `TestTableTabWalksAndAddsRow`,
+    `TestTableEnterMovesDownAndCtrlEnterLeaves`,
+    `TestTableShiftEnterBreaksLine`, `TestTableArrowsMoveBetweenCells`,
+    `TestTableSortTogglesAndMarks`, `TestTableHeaderDoubleClickSorts`,
+    `TestTableStructureOps`, `TestTableColumnWidths`,
+    `TestTablePickerInserts`, `TestTableCellMath`. Dragging from one cell
+    to another sweeps its rectangle (one cell stays an ordinary press):
+    Ctrl+C copies it as a table of its own, under its columns' headers,
+    Ctrl+X copies and empties it, Backspace or Delete empties it, Escape or
+    a press elsewhere drops it, and the right-click menu copies and clears
+    it; a selection and a live cell are exclusive. Evidence: `36_tables`
+    (`visual_36_tables_03b_cell_selection`), `TestTableSweepSelectsRectangle`,
+    `TestTableSweepCopy`, `TestTableSweepCut`,
+    `TestTableSweepDeleteAndEscape`, `TestTableSweepMenu`,
+    `TestTableSweepEndsLiveCell`. Missing: the + Row / + Column buttons
+    under a live cell (the right-click menu has the same actions)
   - [~] 1.2.12 Task board: the `kanban` fence drawn as columns and cards
     (labels, due dates, descriptions with their `$…$` math typeset), ticking
     a card, adding cards and editing them in place: a press on a card's text
@@ -370,9 +399,14 @@ kvit-ui-go's `platform` package for the tray.
   menus have the Qt app's access keys (Alt+F, Alt+V, Alt+I for the toolbar's
   menus, a line's letter inside a menu). Evidence: `TestMenuAccessKeys`,
   `TestF6CyclesPanes`
-- [~] 9.7 Status bar: block, kind, line and column, path, counts, save state, the word count
-  opening the statistics and the writing goal; hidden from View. Evidence:
-  `TestStatusShowsLineAndColumn`. Missing: the Qt layout of the bar
+- [x] 9.7 Status bar: block, kind, line and column, path, counts, save state with its
+  last-saved time, the word count opening the statistics and the writing goal;
+  hidden from View. In the Qt app's order (qml/EditorStatusBar.qml): the save
+  state with its dot and time (just now, N min ago, hh:mm), Block N \u00b7 Ln X,
+  Col Y, the block type, the file path, the block count, and the word and
+  character counts with the goal; the passive update notice leads when a newer
+  release is found, and a lone file offers its folder as a vault. Evidence:
+  `TestStatusShowsLineAndColumn`, `TestStatusFollowsQtOrderWithSavedTimeAndUpdateNotice`
 
 ## 10. Themes and appearance
 
@@ -380,21 +414,37 @@ kvit-ui-go's `platform` package for the tray.
 - [x] 10.2 Typography: family, base size, line height, block spacing, the
   maximum content width (centred) and the code family, from kvit-ui's
   typography settings. Evidence: `TestSettingsChangeTheEditor`
-- [~] 10.3 Customisation: the settings dialog's Appearance (theme, accent and
+- [x] 10.3 Customisation: the settings dialog's Appearance (theme, accent and
   highlight colours, interface size, motion), Typography (with a list of the
-  installed fonts beside the family field), General (the tray,
-  where there is one, and the auto-save wait in seconds) and This vault (the site and picture folders in
-  `.kvit/settings.json`). The Go app keeps
-  its own settings file, which starts as a copy of the Qt app's. Evidence:
-  `TestSettingsChangeTheEditor`, `TestPictureFolders`, `TestInstalledFontsListed`.
-  Missing: remote content and updates
+  installed fonts beside the family field), General (the tray where there is
+  one, the auto-save wait in seconds, remote content and the daily update
+  check) and This vault (the site and picture folders in
+  `.kvit/settings.json`). The Go app keeps its own settings file, which starts
+  as a copy of the Qt app's. Remote content follows the Qt keys
+  (`network.autoLoadRemoteContent`, off by default, with per-origin approval in
+  `network.allowedOrigins`): opening a note is not consent, a remote picture
+  offers Load from its origin, Load preview approves its page's origin, an
+  unfetchable address fails with its reason, redirects ask again except the
+  same-site hop, and special-use addresses never connect. The update check is
+  the Qt one (`updates.checkEnabled`, opt-out daily, `updates.lastCheck`): one
+  daily read of the releases feed, no telemetry, no download, a passive
+  status-bar notice opening its page, never a popup. Evidence:
+  `TestSettingsChangeTheEditor`, `TestPictureFolders`, `TestInstalledFontsListed`,
+  `TestOriginOf`, `TestEgressPolicyDefaultsToClosed`,
+  `TestEgressPolicyPerOriginConsent`, `TestSameSiteRedirect`,
+  `TestAddressIsBlocked`, `TestUpdateCheckIsOptOutDailyAndPassive`,
+  `TestCompareVersions`, `TestParseLatestPayload`,
+  `TestRemotePictureNeedsApprovalThenLoads`
 
 ## 11. Performance
 
 - [x] 11.1 Only the rows in view are drawn; rows are measured once and cached. Evidence:
   `kvit-notes --bench`: 1,237 blocks open in 0.12 s, a wheel notch takes
   1.3–1.4 ms and a keystroke 3.2–3.7 ms, drawing included
-- [ ] 11.2 Image optimisation
+- [x] 11.2 Image optimisation: pictures load lazily when drawn, are downscaled
+  to the display width (1400 px) on load, and decoded pictures are kept over a
+  64 MB budget, oldest first. Evidence: `TestLargePicturesAreDownscaledOnLoad`,
+  `TestImageCacheEvictsOverBudget`
 - [x] 11.3 Responsive editing, by the same measurement
 - [~] 11.4 Targets: the Go figures are within the Qt targets above; memory in
   daily use not yet measured
@@ -560,3 +610,12 @@ kvit-ui-go's `platform` package for the tray.
   methods are not a requirement of the Go apps (the owner's decision of
   2026-09-26), so `30_input_method_text` checks only the text an input method
   commits.
+- **Unsized table columns fill differently.** Kvit shares the width by
+  content weight (each column at least 92 px); the Go grid measures each
+  column from its content and gives the last column the slack, so a
+  right-aligned last column shows a wide empty run
+  (`visual_36_tables_01_rendered`). Dragged widths are kept as Kvit keeps
+  them, in the block's `cols` attribute.
+- **Storyboard 36's live cell has no + Row / + Column buttons** under the
+  grid; the right-click menu has the same actions
+  (`visual_36_tables_02_cell_editing`).

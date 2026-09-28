@@ -149,11 +149,20 @@ func TestTheToolbarChangesAndInsertsBlocks(t *testing.T) {
 	}
 	s.press("+ Insert")
 	s.press("Table")
+	// Inserting a table opens the grid-size picker, as Kvit's picker does;
+	// Enter takes its 3x3 default.
+	s.screen.KeyPress(unison.KeyReturn, mod.None)
 	var blocks []editor.Block
 	s.do(func() { blocks = s.w.Editor.Doc.Blocks })
 	if len(blocks) != 3 || blocks[1].Kind != editor.Table {
 		t.Fatalf("a table should follow the first block: %v", blocks)
 	}
+	s.do(func() {
+		tb := editor.ParseTable(blocks[1].Text)
+		if !tb.Valid || tb.ColumnCount() != 3 || tb.RowCount() != 3 {
+			t.Fatalf("the picked 3x3 grid: %+v %q", tb, blocks[1].Text)
+		}
+	})
 	s.press("Align center")
 	s.do(func() { blocks = s.w.Editor.Doc.Blocks })
 	if a, _ := blocks[1].Attr("align"); a != "center" {
@@ -1057,12 +1066,43 @@ func TestRecentSearches(t *testing.T) {
 }
 
 // features.md 9.7: the status line names the caret's line and column.
+func TestStatusFollowsQtOrderWithSavedTimeAndUpdateNotice(t *testing.T) {
+	s := openVault(t, notes{"A.md": "first line\nsecond line\n"})
+	s.do(func() { s.w.Editor.FocusBlock(0, 11) })
+	// Qt order: Block Ln Col, then kind, path, block and char counts.
+	var facts []string
+	s.do(func() { facts = s.w.status.Facts })
+	want := []string{"Block 1 \u00b7 Ln 2, Col 1", "Paragraph", "A.md", "1 blocks"}
+	for i, w := range want {
+		if i >= len(facts) || facts[i] != w {
+			t.Fatalf("facts in Qt order: %q, want start %q", facts, want)
+		}
+	}
+	// Saving stamps the last-saved time beside Saved.
+	s.do(func() {
+		s.w.Editor.Doc.Edit("test", func() { s.w.Editor.Doc.Blocks[0].Text += "!" })
+		s.w.saveNow()
+	})
+	var activity string
+	s.do(func() { activity = s.w.status.Activity })
+	if activity != "Saved \u00b7 just now" {
+		t.Errorf("save state with its time: %q", activity)
+	}
+	// A newer release leads as a passive notice.
+	s.do(func() { s.w.updates.noteUpdateAvailable("9.9.9", "https://example.com/r/9.9.9") })
+	s.do(func() { s.w.update() })
+	s.do(func() { activity = s.w.status.Activity })
+	if activity != "Update available: v9.9.9 \u00b7 Saved \u00b7 just now" {
+		t.Errorf("update notice leads: %q", activity)
+	}
+}
+
 func TestStatusShowsLineAndColumn(t *testing.T) {
 	s := openVault(t, notes{"A.md": "first line\nsecond line\n"})
 	s.do(func() { s.w.Editor.FocusBlock(0, 11) }) // start of "second"
 	var facts []string
 	s.do(func() { facts = s.w.status.Facts })
-	if !slices.Contains(facts, "Ln 2, Col 1") {
+	if !slices.Contains(facts, "Block 1 \u00b7 Ln 2, Col 1") {
 		t.Errorf("status facts: %q", facts)
 	}
 }
