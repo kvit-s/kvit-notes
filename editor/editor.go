@@ -510,7 +510,7 @@ func (e *Editor) rowHeight(i int) float32 {
 	if g, ok := e.tableShowsGrid(i); ok {
 		h := e.px(codeRowTop+codeRowBottom) + g.height
 		if e.tableCellIn(e.Doc.Blocks[i].ID) {
-			h += e.px(20)
+			h += e.px(20 + tableAddH + tableAddGap)
 		}
 		return h
 	}

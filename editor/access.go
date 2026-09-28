@@ -115,6 +115,25 @@ func (e *Editor) describeBlock(b *unison.AccessibilityBuilder, i int) accessibil
 			n.Actions = n.Actions.With(accessibility.Press)
 		})
 	}
+	if blk.Kind == Table && !d.ReadOnly {
+		if g, ok := e.gridFor(i); ok {
+			o := e.gridOrigin(i)
+			if rowR, colR, ok := e.tableAddRects(i, g, o); ok {
+				b.AddVirtualChildOf(id, partKey{blk.ID, partTableAddRow}, func(n *accessibility.Node) {
+					n.Role = role.Button
+					n.Name = "Add row"
+					n.Bounds = rowR
+					n.Actions = n.Actions.With(accessibility.Press)
+				})
+				b.AddVirtualChildOf(id, partKey{blk.ID, partTableAddCol}, func(n *accessibility.Node) {
+					n.Role = role.Button
+					n.Name = "Add column"
+					n.Bounds = colR
+					n.Actions = n.Actions.With(accessibility.Press)
+				})
+			}
+		}
+	}
 	return id
 }
 
@@ -326,6 +345,26 @@ func (e *Editor) PerformAccessibilityAction(req accessibility.ActionRequest) boo
 			e.clickHandle(pk.block, 0)
 		case partCopy:
 			unison.ClipboardSetText(d.Blocks[i].Text)
+		case partTableAddRow:
+			if !d.ReadOnly {
+				if t := ParseTable(d.Blocks[i].Text); t.Valid {
+					p := e.tableActive
+					e.insertTableRowAfter(i, len(t.Rows)-1)
+					if p != nil && p.blockID == d.Blocks[i].ID {
+						e.activateTableCell(i, p.row, p.col, false)
+					}
+				}
+			}
+		case partTableAddCol:
+			if !d.ReadOnly {
+				if t := ParseTable(d.Blocks[i].Text); t.Valid {
+					p := e.tableActive
+					e.insertTableColumnAfter(i, len(t.Headers)-1)
+					if p != nil && p.blockID == d.Blocks[i].ID {
+						e.activateTableCell(i, p.row, p.col, false)
+					}
+				}
+			}
 		}
 		e.changed()
 		return true

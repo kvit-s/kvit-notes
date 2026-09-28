@@ -702,9 +702,14 @@ func (e *Editor) tableHeaderDoubleClick(where geom.Point, button, clicks int) bo
 
 // beginTableSweep anchors a sweep where the press landed: not a selection
 // yet, until the pointer reaches another cell this is an ordinary press.
-// Any swept rectangle starts over, and the live cell's text is kept.
+// Any swept rectangle starts over, and the live cell's text is kept. A sweep
+// and a live cell are exclusive, so any live cell ends here: its field may
+// already be hidden by an outside press, in which case committing is a
+// no-op and the live cell still has to go.
 func (e *Editor) beginTableSweep(i, row, col int) {
 	e.commitTableField()
+	e.tableActive = nil
+	e.hideTableFieldFn()
 	e.tableHold[e.Doc.Blocks[i].ID] = true
 	e.tableSweep = &tableSweep{blockID: e.Doc.Blocks[i].ID,
 		anchorRow: row, anchorCol: col, focusRow: row, focusCol: col, sweeping: true}
@@ -1006,7 +1011,50 @@ func (e *Editor) tableEndResize() {
 	e.setTableColumnWidth(i, r.col, design)
 }
 
-// drawTableDecor draws the live cell, the sort mark, the grips and the hint.
+// The + Row / + Column controls under a grid with a live cell (Kvit's
+// TableBlock.qml tableAddControls): they show only while a cell is being
+// edited, as in Kvit, and do what the right-click menu's insert does.
+const (
+	tableAddH   = 22
+	tableAddGap = 6
+	tableAddPad = 8 // either side of a control's word
+)
+
+// tableAddRects is the + Row and + Column buttons under block i's grid, in
+// the editor's coordinates, or false when no cell is live.
+func (e *Editor) tableAddRects(i int, g *grid, o geom.Point) (rowR, colR geom.Rect, ok bool) {
+	if e.Doc.ReadOnly || !e.tableCellIn(e.Doc.Blocks[i].ID) {
+		return geom.Rect{}, geom.Rect{}, false
+	}
+	t := e.tok()
+	st := e.chrome(kvitui.RoleSmall, text.Regular, t.TextSecondary)
+	rw, _ := e.label("+ Row", st).Size()
+	cw, _ := e.label("+ Column", st).Size()
+	rw += 2 * e.px(tableAddPad)
+	cw += 2 * e.px(tableAddPad)
+	y := o.Y + g.height + e.px(4)
+	rowR = geom.NewRect(o.X, y, rw, e.px(tableAddH))
+	colR = geom.NewRect(rowR.Right()+e.px(tableAddGap), y, cw, e.px(tableAddH))
+	return rowR, colR, true
+}
+
+// tableAddAt is the add control under block i's grid at where.
+func (e *Editor) tableAddAt(i int, g *grid, where geom.Point) gutterPart {
+	o := e.gridOrigin(i)
+	rowR, colR, ok := e.tableAddRects(i, g, o)
+	if !ok {
+		return partNone
+	}
+	switch {
+	case where.In(rowR):
+		return partTableAddRow
+	case where.In(colR):
+		return partTableAddCol
+	}
+	return partNone
+}
+
+// drawTableDecor draws the live cell, the add controls, the sort mark, the grips and the hint.
 func (e *Editor) drawTableDecor(gc *unison.Canvas, i int, g *grid, o geom.Point, total float32) {
 	t := e.tok()
 	id := e.Doc.Blocks[i].ID
@@ -1037,9 +1085,22 @@ func (e *Editor) drawTableDecor(gc *unison.Canvas, i int, g *grid, o geom.Point,
 		}
 	}
 	if e.tableCellIn(id) {
+		if rowR, colR, ok := e.tableAddRects(i, g, o); ok {
+			st := e.chrome(kvitui.RoleSmall, text.Regular, t.TextSecondary)
+			for _, b := range []struct {
+				r     geom.Rect
+				label string
+			}{{rowR, "+ Row"}, {colR, "+ Column"}} {
+				e.fillRound(gc, b.r, e.px(4), t.ChipBackground)
+				e.stroke(gc, b.r, e.px(4), e.px(1), t.Border)
+				l := e.label(b.label, st)
+				w, h := l.Size()
+				l.Draw(gc, b.r.X+(b.r.Width-w)/2, b.r.Y+(b.r.Height-h)/2)
+			}
+		}
 		if hint := e.tableHint(); hint != "" {
 			l := e.label(hint, e.chrome(kvitui.RoleSmall, text.Regular, t.TextFaint))
-			l.Draw(gc, o.X, o.Y+g.height+e.px(4))
+			l.Draw(gc, o.X, o.Y+g.height+e.px(4+tableAddH+tableAddGap))
 		}
 	}
 }

@@ -191,8 +191,11 @@ func (e *Editor) openTableField(i, row, col int, atStart bool) {
 			e.changed()
 		},
 		OnPressOutside: func() {
+			// The press still reaches the editor (Popup is not modal), which
+			// handles the + Row / + Column buttons under a live cell. Keep
+			// the live cell so that press sees it; any other outside press
+			// clears it in mouseDown as stale.
 			done(true, nil)
-			e.tableActive = nil
 			e.changed()
 		},
 		Place: func(bounds geom.Rect, size geom.Size) geom.Rect {

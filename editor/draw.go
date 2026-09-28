@@ -433,6 +433,8 @@ const (
 	partPictureLoad // a remote picture's card, approving its origin and loading it
 	partTableCell   // a table grid cell, making it live
 	partTableGrip   // a table column border, dragging its width
+	partTableAddRow // the + Row button under a live table
+	partTableAddCol // the + Column button under a live table
 	partLanguage    // a code block's language, which opens the language menu
 	partQueryRow    // a query block's row or card
 )

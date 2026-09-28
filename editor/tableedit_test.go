@@ -759,3 +759,64 @@ func TestTableSweepEndsLiveCell(t *testing.T) {
 		t.Fatalf("the ended edit keeps its text: %q", text)
 	}
 }
+
+func TestTableAddButtons(t *testing.T) {
+	s, e := openEditor(t, twoCellNote)
+	// With no live cell the buttons are gone.
+	s.Do(func() {
+		if r := e.PartRect(0, "addrow"); r.Width != 0 || r.Height != 0 {
+			t.Fatalf("addrow without a live cell: %+v", r)
+		}
+		if r := e.PartRect(0, "addcol"); r.Width != 0 || r.Height != 0 {
+			t.Fatalf("addcol without a live cell: %+v", r)
+		}
+	})
+	s.Do(func() { e.activateTableCell(0, 0, 0, false) })
+	s.Sync()
+	var rowP, colP geom.Point
+	s.Do(func() {
+		rowR := e.PartRect(0, "addrow")
+		colR := e.PartRect(0, "addcol")
+		if rowR.Width <= 0 || colR.Width <= 0 {
+			t.Fatalf("no add buttons: row %+v col %+v", rowR, colR)
+		}
+		if rowR.Y != colR.Y || rowR.Height != colR.Height {
+			t.Fatalf("the buttons share a row: %+v %+v", rowR, colR)
+		}
+		rowP = s.Screen.PanelPoint(e, rowR.Center())
+		colP = s.Screen.PanelPoint(e, colR.Center())
+	})
+	steps := 0
+	s.Do(func() { steps = e.Doc.UndoSteps() })
+	s.Screen.MouseDown(rowP, unison.ButtonLeft, mod.None)
+	s.Screen.MouseUp(rowP, unison.ButtonLeft, mod.None)
+	s.Sync()
+	s.Do(func() {
+		if tb := ParseTable(e.Doc.Blocks[0].Text); tb.RowCount() != 3 {
+			t.Fatalf("+ Row should append a row: %q", e.Doc.Blocks[0].Text)
+		}
+		if e.Doc.UndoSteps() != steps+1 {
+			t.Fatalf("+ Row should be one undo step")
+		}
+	})
+	s.Do(func() { e.Doc.Undo() })
+	s.Do(func() { e.activateTableCell(0, 0, 0, false) })
+	s.Sync()
+	s.Do(func() {
+		colR := e.PartRect(0, "addcol")
+		colP = s.Screen.PanelPoint(e, colR.Center())
+		steps = e.Doc.UndoSteps()
+	})
+	s.Screen.MouseDown(colP, unison.ButtonLeft, mod.None)
+	s.Screen.MouseUp(colP, unison.ButtonLeft, mod.None)
+	s.Sync()
+	s.Do(func() {
+		if tb := ParseTable(e.Doc.Blocks[0].Text); tb.ColumnCount() != 3 {
+			t.Fatalf("+ Column should append a column: %q", e.Doc.Blocks[0].Text)
+		}
+		if e.Doc.UndoSteps() != steps+1 {
+			t.Fatalf("+ Column should be one undo step")
+		}
+	})
+	s.CheckNamed()
+}

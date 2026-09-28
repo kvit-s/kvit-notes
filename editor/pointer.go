@@ -29,6 +29,27 @@ type mouseSel struct {
 }
 
 func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Modifiers) bool {
+	if e.tableActive != nil && e.tableField == nil {
+		// The live-cell field just closed on an outside press (its popup kept
+		// the live cell so a + Row / + Column press still sees it). Keep it
+		// for a press on the table's grid or its add buttons; any other press
+		// leaves the table, so drop it as stale.
+		keep := false
+		if idx := e.Doc.Index(e.tableActive.blockID); idx >= 0 {
+			if g, ok := e.tableShowsGrid(idx); ok {
+				if e.tableAddAt(idx, g, where) != partNone {
+					keep = true
+				} else if _, _, ok := e.tableCellAt(idx, g, where); ok {
+					keep = true
+				} else if _, ok := e.tableGripAt(idx, g, where); ok {
+					keep = true
+				}
+			}
+		}
+		if !keep {
+			e.tableActive = nil
+		}
+	}
 	if e.tableHeaderDoubleClick(where, button, clickCount) {
 		return true
 	}
@@ -155,6 +176,26 @@ func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Mo
 			if g, ok := e.tableShowsGrid(i); ok {
 				if col, ok := e.tableGripAt(i, g, where); ok {
 					e.tableResize = &tableResizeState{blockID: b.ID, col: col, startX: where.X, width: g.cols[col]}
+				}
+			}
+		case partTableAddRow:
+			if !d.ReadOnly {
+				if t := ParseTable(b.Text); t.Valid {
+					p := e.tableActive
+					e.insertTableRowAfter(i, len(t.Rows)-1)
+					if p != nil && p.blockID == b.ID {
+						e.activateTableCell(i, p.row, p.col, false)
+					}
+				}
+			}
+		case partTableAddCol:
+			if !d.ReadOnly {
+				if t := ParseTable(b.Text); t.Valid {
+					p := e.tableActive
+					e.insertTableColumnAfter(i, len(t.Headers)-1)
+					if p != nil && p.blockID == b.ID {
+						e.activateTableCell(i, p.row, p.col, false)
+					}
 				}
 			}
 		case partQueryRow:
@@ -417,6 +458,9 @@ func (e *Editor) partAt(where geom.Point) (int, gutterPart) {
 		return i, partQueryRow
 	case b.Kind == Table:
 		if g, ok := e.tableShowsGrid(i); ok {
+			if p := e.tableAddAt(i, g, where); p != partNone {
+				return i, p
+			}
 			if _, ok := e.tableGripAt(i, g, where); ok {
 				return i, partTableGrip
 			}

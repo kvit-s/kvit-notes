@@ -32,10 +32,10 @@ func (e *Editor) CaretRect() (geom.Rect, bool) { return e.caretRect() }
 // PartRect is one of block i's controls in the editor's coordinates: the
 // gutter's "add", "handle", "delete" and "menu" (shown while the pointer is
 // on the row), a to-do's "check" box, a code block's "copy" button, and a
-// callout's "fold" arrow, "type", "title" and "color" dot, an embed
 // card's "load" button and "open" title, and a table's "cell" (or
 // "cell:<row>:<col>" for another data cell), "header" (or "header:<col>"
-// for another header column) and "grip".
+// for another header column), "grip", and "addrow"/"addcol" (the + Row /
+// + Column buttons under a live cell).
 func (e *Editor) PartRect(i int, part string) geom.Rect {
 	switch part {
 	case "add":
@@ -77,6 +77,19 @@ func (e *Editor) PartRect(i int, part string) geom.Rect {
 			o := e.gridOrigin(i)
 			x := o.X + g.cols[0]
 			return geom.NewRect(x-4, o.Y, 8, min(g.rowsH[0], 24))
+		}
+		return geom.Rect{}
+	case "addrow", "addcol":
+		if g, ok := e.gridFor(i); ok {
+			o := e.gridOrigin(i)
+			rowR, colR, ok := e.tableAddRects(i, g, o)
+			if !ok {
+				return geom.Rect{}
+			}
+			if part == "addrow" {
+				return rowR
+			}
+			return colR
 		}
 		return geom.Rect{}
 	case "fold", "type", "title", "color":

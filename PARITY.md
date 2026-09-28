@@ -87,8 +87,10 @@ kvit-ui-go's `platform` package for the tray.
     (`visual_36_tables_03b_cell_selection`), `TestTableSweepSelectsRectangle`,
     `TestTableSweepCopy`, `TestTableSweepCut`,
     `TestTableSweepDeleteAndEscape`, `TestTableSweepMenu`,
-    `TestTableSweepEndsLiveCell`. Missing: the + Row / + Column buttons
-    under a live cell (the right-click menu has the same actions)
+    `TestTableSweepEndsLiveCell`. A live cell shows Kvit's + Row / + Column
+    buttons under the grid (one undo step each, the live cell kept for the
+    next edit, named to screen readers). Evidence: `visual_36_tables_02_cell_editing`,
+    `TestTableAddButtons`.
   - [~] 1.2.12 Task board: the `kanban` fence drawn as columns and cards
     (labels, due dates, descriptions with their `$…$` math typeset), ticking
     a card, adding cards and editing them in place: a press on a card's text
@@ -616,6 +618,3 @@ kvit-ui-go's `platform` package for the tray.
   right-aligned last column shows a wide empty run
   (`visual_36_tables_01_rendered`). Dragged widths are kept as Kvit keeps
   them, in the block's `cols` attribute.
-- **Storyboard 36's live cell has no + Row / + Column buttons** under the
-  grid; the right-click menu has the same actions
-  (`visual_36_tables_02_cell_editing`).
