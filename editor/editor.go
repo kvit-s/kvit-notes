@@ -227,6 +227,19 @@ func (e *Editor) SelectedBlocks() []int64 {
 	return ids
 }
 
+// SetBlockSelection selects whole blocks by id, as a handle click does, for
+// callers (such as the find bar's tests) that do not go through the pointer.
+func (e *Editor) SetBlockSelection(ids []int64) {
+	clear(e.blockSel)
+	for _, id := range ids {
+		if e.Doc.Block(id) != nil {
+			e.blockSel[id] = true
+		}
+	}
+	e.selectAllN = 0
+	e.changed()
+}
+
 func (e *Editor) clearBlockSel() {
 	clear(e.blockSel)
 	e.selectAllN = 0

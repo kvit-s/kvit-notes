@@ -6,7 +6,9 @@ package app
 // drawn in the note and the current one in its own colour; Enter and
 // Shift+Enter move between them, the count says where the current one is,
 // and the toggles are match case, whole word and regular expression, kept in
-// the settings. Replace changes the current match and moves to the next;
+// the settings. A block selection or a cross-block text selection arms the
+// in-selection domain, with an "In selection" toggle shown only then, which
+// is not persisted. Replace changes the current match and moves to the next;
 // All lists every change for a confirmation first. Escape closes the bar and
 // puts the caret at the current match. The search itself is the search
 // package's port of the Qt rules.
@@ -31,6 +33,7 @@ import (
 type finder struct {
 	w          *Window
 	panel      *unison.Panel
+	row1       *unison.Panel
 	replaceRow *unison.Panel
 	query      *kvitui.Field
 	repl       *kvitui.Field
@@ -43,6 +46,24 @@ type finder struct {
 	matches []search.Match
 	current int
 	invalid bool // the query is a regular expression that does not compile
+
+	// The in-selection domain, armed from the selection present when the
+	// bar opens (Qt's FindBar.open over DocumentSearch::setBlockDomain and
+	// setTextDomain). Block ids keep it valid across moves; text ends are
+	// Markdown offsets, mapped to display on each recompute. Nil block ids
+	// with a nil text range is no domain. inSelOn is the toggle's state:
+	// the matches are kept inside the domain only while it is on. The
+	// toggle is shown only while a domain is armed, and is not persisted.
+	domainBlocks []int64
+	domainText   *textDomainEnds
+	inSel        *kvitui.Button
+	inSelOn      bool
+}
+
+// textDomainEnds are one text selection's ends as Markdown offsets.
+type textDomainEnds struct {
+	startBlock, endBlock int64
+	startOff, endOff     int
 }
 
 // searchBlocks are the note's blocks as the search sees them: each one's
@@ -71,16 +92,34 @@ func spansOf(src string) []search.Span {
 	return out
 }
 
-// openFind shows the find bar, with the replace row when replace is set,
-// seeded with the selected text when it is on one line.
+// openFind shows the find bar, with the replace row when replace is set. A
+// block selection or a cross-block text selection arms the in-selection
+// domain, with the toggle on; otherwise the domain is cleared and the bar
+// is seeded with the selected text when it is on one line.
 func (w *Window) openFind(replace bool) {
 	if w.finder == nil {
 		w.finder = newFinder(w)
 	}
 	f := w.finder
-	if d := w.Editor.Doc; d.HasSelection() && !d.CrossBlock() {
-		if sel := editor.PlainText(d.SelectedMarkdown()); sel != "" && !strings.Contains(sel, "\n") {
-			f.query.SetText(sel)
+	d := w.Editor.Doc
+	switch {
+	case len(w.Editor.SelectedBlocks()) > 0:
+		f.domainBlocks = append([]int64(nil), w.Editor.SelectedBlocks()...)
+		f.domainText = nil
+		f.setInSel(true)
+	case d.HasSelection() && d.CrossBlock():
+		a, b := d.SelRange()
+		f.domainBlocks = nil
+		f.domainText = &textDomainEnds{startBlock: a.Block, endBlock: b.Block, startOff: a.Off, endOff: b.Off}
+		f.setInSel(true)
+	default:
+		f.domainBlocks = nil
+		f.domainText = nil
+		f.setInSel(false)
+		if d.HasSelection() && !d.CrossBlock() {
+			if sel := editor.PlainText(d.SelectedMarkdown()); sel != "" && !strings.Contains(sel, "\n") {
+				f.query.SetText(sel)
+			}
 		}
 	}
 	f.showReplace(replace)
@@ -92,6 +131,67 @@ func (w *Window) openFind(replace bool) {
 		f.query.Focus()
 		f.query.Edit().SelectAll()
 	})
+}
+
+// hasDomain reports whether an in-selection domain is armed, regardless of
+// the toggle.
+func (f *finder) hasDomain() bool {
+	return len(f.domainBlocks) > 0 || f.domainText != nil
+}
+
+// setInSel sets the toggle's state and shows the toggle only while a domain
+// is armed.
+func (f *finder) setInSel(on bool) {
+	f.inSelOn = on
+	if f.inSel != nil {
+		f.inSel.Checked = on
+		hidden := !f.hasDomain()
+		if f.inSel.Hidden != hidden {
+			f.inSel.Hidden = hidden
+			f.w.relayout()
+		} else {
+			f.inSel.MarkForRedraw()
+		}
+	}
+}
+
+// syncDomain resolves the armed domain against the current blocks and puts
+// it in the search options while the toggle is on. Ids that vanished prune
+// a block domain and clear a text domain, as Qt's recompute does.
+func (f *finder) syncDomain() {
+	d := f.w.Editor.Doc
+	if !f.inSelOn || !f.hasDomain() {
+		f.opts.Within = nil
+		return
+	}
+	if len(f.domainBlocks) > 0 {
+		var idx []int
+		for _, id := range f.domainBlocks {
+			if i := d.Index(id); i >= 0 {
+				idx = append(idx, i)
+			}
+		}
+		if len(idx) == 0 {
+			f.domainBlocks = nil
+			f.setInSel(false)
+			f.opts.Within = nil
+			return
+		}
+		f.opts.Within = search.InBlocks(idx...)
+		return
+	}
+	if t := f.domainText; t != nil {
+		ia, ib := d.Index(t.startBlock), d.Index(t.endBlock)
+		if ia < 0 || ib < 0 || ia >= len(f.blocks) || ib >= len(f.blocks) {
+			f.domainText = nil
+			f.setInSel(false)
+			f.opts.Within = nil
+			return
+		}
+		f.opts.Within = search.InText(ia, f.blocks[ia].DisplayPos(t.startOff), ib, f.blocks[ib].DisplayPos(t.endOff))
+		return
+	}
+	f.opts.Within = nil
 }
 
 func newFinder(w *Window) *finder {
@@ -133,6 +233,16 @@ func newFinder(w *Window) *finder {
 	word := toggle("ab", "Whole word", "find.wholeWord", &f.opts.WholeWord)
 	regex := toggle(".*", "Regular expression", "find.useRegex", &f.opts.Regex)
 	keep := toggle("AB", "Preserve case", "find.preserveCase", &f.opts.PreserveCase)
+	f.inSel = kvitui.NewButton(ui, "In selection")
+	f.inSel.Form = kvitui.ButtonFlat
+	f.inSel.Checkable = true
+	f.inSel.Explanation = "Only in the selection"
+	f.inSel.OnClick = func() {
+		f.inSelOn = f.inSel.Checked
+		f.syncDomain()
+		f.recompute(true)
+	}
+	f.inSel.Hidden = true
 	closeB := kvitui.NewIconButton(ui, "close", "Close (Escape)")
 	closeB.OnClick = f.close
 	replace := kvitui.NewButton(ui, "Replace")
@@ -162,7 +272,8 @@ func newFinder(w *Window) *finder {
 	keys(f.repl, func(bool) { f.replaceOne() })
 
 	width := func(p unison.Paneler, px int) unison.Paneler { return kvitui.Width(ui, kvitui.Px(px), p) }
-	row1 := kvitui.Row(ui, kvitui.SizeSpaceSnug, width(f.query, 190), width(f.count, 70), prev, next, caseB, word, regex, closeB)
+	row1 := kvitui.Row(ui, kvitui.SizeSpaceSnug, width(f.query, 190), width(f.count, 70), prev, next, caseB, word, regex, f.inSel, closeB)
+	f.row1 = row1
 	f.replaceRow = kvitui.Row(ui, kvitui.SizeSpaceSnug, width(f.repl, 190), replace, all, keep)
 	for _, p := range []*unison.Panel{row1, f.replaceRow} {
 		for _, c := range p.Children() {
@@ -209,10 +320,12 @@ func (f *finder) place(bounds geom.Rect, size geom.Size) geom.Rect {
 }
 
 // recompute searches the note again; fresh picks the match at or after
-// the caret as the current one, as a new query or option does.
+// the caret as the current one, as a new query or option does. The armed
+// in-selection domain is resolved first, so edits that move blocks keep it.
 func (f *finder) recompute(fresh bool) {
 	d := f.w.Editor.Doc
 	f.blocks = searchBlocks(d)
+	f.syncDomain()
 	texts := make([]string, len(f.blocks))
 	for i, b := range f.blocks {
 		texts[i] = b.Text()
@@ -341,13 +454,17 @@ func (f *finder) replaceAll() {
 }
 
 // close takes the bar and the matches away and puts the caret at the
-// current match.
+// current match. The armed domain goes with it, as Qt's close clears it.
 func (f *finder) close() {
 	w := f.w
 	if f.hide != nil {
 		f.hide()
 		f.hide = nil
 	}
+	f.domainBlocks = nil
+	f.domainText = nil
+	f.setInSel(false)
+	f.opts.Within = nil
 	w.Editor.SetMarks(nil)
 	if f.current >= 0 && f.current < len(f.matches) {
 		m := f.matches[f.current]

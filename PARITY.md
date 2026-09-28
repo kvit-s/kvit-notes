@@ -117,8 +117,9 @@ kvit-ui-go's `platform` package for the tray.
     the `mathcmd` and `mathtex` tests, the storyboards `39_math`,
     `49_inline_math`, `36b_table_math` and `62_math_canary`, and
     `kvit-notes --math-selftest` run from the Windows and Linux packages.
-    Missing: a screen reader hears an inline formula away from the caret as
-    U+FFFC, the object replacement character, rather than its TeX; the PDF
+    An inline formula away from the caret is heard as its TeX, with its
+    lines, runs, caret and selection mapped onto that text (evidence:
+    `TestInlineMathIsHeardAsItsTeX`). Missing: the PDF
     export draws no equation numbers; `[[` completion opens inside `$…$`,
     where the Qt app's does not. The macOS library is built and packaged but
     has not been loaded on a Mac
@@ -283,15 +284,16 @@ kvit-ui-go's `platform` package for the tray.
   `TestUndoMergesTyping`, `09_prefix`, `14_ops`, `16_drag`
 
 ## 7. Search and replace
-
-- [~] 7.1 Find: Ctrl+F, matches in what the reader sees (across markers),
+- [x] 7.1 Find: Ctrl+F, matches in what the reader sees (across markers),
   the current one in its own colour, Enter and Shift+Enter, match case,
   whole word, regular expressions, an invalid pattern said so; Escape puts
-  the caret at the match. Evidence: `TestFindAndReplace`. Missing: the "in
-  selection" toggle
+  the caret at the match. A block selection or a cross-block text selection
+  arms the "in selection" toggle, shown only then, which keeps the matches
+  inside it. Evidence: `TestFindAndReplace`, `TestFindInSelection`
 - [x] 7.2 Find and replace: Ctrl+H, Replace moving to the next match, All
-  with the list of changes first, preserve case, one undo step. Evidence:
-  `TestFindAndReplace`
+  with the list of changes first, preserve case, one undo step, and Replace
+  All inside the in-selection domain. Evidence:
+  `TestFindAndReplace`, `TestFindInSelection`
 
 ## 8. Document organisation
 
@@ -441,12 +443,12 @@ kvit-ui-go's `platform` package for the tray.
   caret and selection, and a screen reader can move the caret, select, replace
   text and tick a to-do; the gutter's controls are buttons. A diagram is an
   image named by what it shows, and a display equation a text holding its
-  TeX. Evidence: `TestBlocksAreEditableTextsNamedByKind`,
+  TeX; an inline formula away from the caret is heard as its TeX. Evidence: `TestBlocksAreEditableTextsNamedByKind`,
   `TestTheCaretsBlockReportsTextCaretAndRuns`, `TestScreenReaderActions`,
+  `TestInlineMathIsHeardAsItsTeX`,
   `TestGutterControlsAreButtons`, `TestDiagramTellsWhatItShows`, the check
   for unnamed controls after every scenario, and on Windows through UI
-  Automation with `./build.sh --win-check`. Missing: an inline formula away
-  from the caret is heard as U+FFFC rather than its TeX. Not yet heard
+  Automation with `./build.sh --win-check`. Not yet heard
   through NVDA, Narrator, VoiceOver or Orca
 - [x] 14.3 Visual accessibility: the high-contrast theme, and colours from the
   theme's tokens only. Evidence: `TestSourceRules`

@@ -365,6 +365,104 @@ func TestFindAndReplace(t *testing.T) {
 	}
 }
 
+// features.md 7.1-7.2: a block selection or a cross-block text selection
+// arms the in-selection domain, with the toggle on; turning it off searches
+// the whole note, and closing clears it (Qt's FindBar.open over
+// DocumentSearch::setBlockDomain and setTextDomain).
+func TestFindInSelection(t *testing.T) {
+	s := openVault(t, notes{"A.md": "fox one fox\n\nfox two fox\n\nfox three fox\n"})
+	count := func() string {
+		var c string
+		s.do(func() { _, c = s.w.FindOpen() })
+		return c
+	}
+	inSel := func() (hidden, checked bool) {
+		s.do(func() {
+			hidden, checked = s.w.finder.inSel.Hidden, s.w.finder.inSel.Checked
+		})
+		return hidden, checked
+	}
+	flipInSel := func() {
+		s.do(func() {
+			b := s.w.finder.inSel
+			b.Checked = !b.Checked
+			b.OnClick()
+		})
+	}
+	// A block selection arms a block domain: only its match counts, and
+	// Replace All touches only it.
+	s.do(func() {
+		d := s.w.Editor.Doc
+		s.w.Editor.SetBlockSelection([]int64{d.Blocks[2].ID})
+	})
+	s.screen.KeyPress(unison.KeyF, mod.Control)
+	s.do(func() { s.w.finder.query.SetText("fox") })
+	if got := count(); got != "1 of 2" {
+		t.Fatalf("only the selected block's matches should count: %q", got)
+	}
+	if hidden, checked := inSel(); hidden || !checked {
+		t.Fatalf("the toggle should show on, hidden=%v checked=%v", hidden, checked)
+	}
+	flipInSel()
+	if got := count(); got != "1 of 6" {
+		t.Fatalf("turning the toggle off should search the note: %q", got)
+	}
+	flipInSel()
+	if got := count(); got != "1 of 2" {
+		t.Fatalf("turning it back on should narrow again: %q", got)
+	}
+	s.screen.KeyPress(unison.KeyEscape, mod.None)
+	s.screen.KeyPress(unison.KeyH, mod.Control)
+	s.do(func() {
+		s.w.finder.query.SetText("fox")
+		s.w.finder.repl.SetText("cat")
+	})
+	s.do(func() { s.w.finder.replaceAll() })
+	s.press("Replace All")
+	s.screen.KeyPress(unison.KeyS, mod.Control)
+	if got := s.file("A.md"); got != "fox one fox\n\nfox two fox\n\ncat three cat\n" {
+		t.Fatalf("replace all should touch only the selected block: %q", got)
+	}
+	s.screen.KeyPress(unison.KeyEscape, mod.None)
+	// A cross-block text range arms a text domain: only matches inside it
+	// count, with the edges filtered.
+	s.do(func() {
+		d := s.w.Editor.Doc
+		s.w.Editor.SetBlockSelection(nil)
+		// From inside block 0 (after its first "fox ") through the end of
+		// block 1: block 0's later match plus block 1's two.
+		d.Anchor = editor.Pos{Block: d.Blocks[0].ID, Off: 4}
+		d.Caret = editor.Pos{Block: d.Blocks[1].ID, Off: len([]rune(d.Blocks[1].Text))}
+		d.Focused = true
+	})
+	s.screen.KeyPress(unison.KeyF, mod.Control)
+	s.do(func() { s.w.finder.query.SetText("fox") })
+	if got := count(); got != "1 of 3" {
+		t.Fatalf("only the range's matches should count: %q", got)
+	}
+	if hidden, checked := inSel(); hidden || !checked {
+		t.Fatalf("the toggle should show on for a text range, hidden=%v checked=%v", hidden, checked)
+	}
+	flipInSel()
+	if got := count(); got != "1 of 4" {
+		t.Fatalf("turning the toggle off should search the note: %q", got)
+	}
+	s.screen.KeyPress(unison.KeyEscape, mod.None)
+	// With no selection no domain is armed and the toggle hides.
+	s.do(func() {
+		d := s.w.Editor.Doc
+		d.SetCaret(d.Blocks[0].ID, 0)
+	})
+	s.screen.KeyPress(unison.KeyF, mod.Control)
+	if hidden, _ := inSel(); !hidden {
+		t.Fatalf("the toggle should hide with no selection")
+	}
+	if got := count(); got != "1 of 4" {
+		t.Fatalf("with no domain the whole note should count: %q", got)
+	}
+	s.screen.KeyPress(unison.KeyEscape, mod.None)
+}
+
 // features.md 8.4: the search field finds notes by their text and title,
 // lists the lines found, and opens a note at a line.
 func TestSearchAcrossNotes(t *testing.T) {

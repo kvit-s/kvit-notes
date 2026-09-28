@@ -2,8 +2,11 @@ package editor
 
 import (
 	"slices"
+	"strings"
+
 	"testing"
 
+	"github.com/kvit-s/kvit-notes/mathtex"
 	kvitui "github.com/kvit-s/kvit-ui"
 	"github.com/kvit-s/kvit-ui/uitest"
 	"github.com/richardwilkes/unison"
@@ -201,5 +204,89 @@ func TestGutterControlsAreButtons(t *testing.T) {
 	if n != 6 || !e.MenuOpen() {
 		t.Errorf("pressing Insert block below should add a block and open the / menu: %d blocks", n)
 	}
+	s.CheckNamed()
+}
+
+// A typeset inline formula is heard as its TeX, not as the placeholder it
+// is drawn as; its lines, runs and selection map onto that text, and a
+// screen reader's offsets reach the formula.
+func TestInlineMathIsHeardAsItsTeX(t *testing.T) {
+	if !mathtex.Available() {
+		t.Skip(mathtex.LoadError())
+	}
+	const src = "The relation $E = mc^2$ ties mass to energy."
+	s, e := openEditor(t, src)
+	var acc string
+	var lines int
+	s.Do(func() {
+		if d := placeholderIn(e, 0); d < 0 {
+			t.Fatalf("drawn %q has no placeholder", string(e.layout(0).proj.Disp))
+		}
+		info := e.textInfo(0)
+		acc = info.Text
+		lines = len(info.Lines)
+		if strings.ContainsRune(acc, mathPlaceholder) {
+			t.Fatalf("accessible text should not hold U+FFFC: %q", acc)
+		}
+		if !strings.Contains(acc, "$E = mc^2$") {
+			t.Fatalf("accessible text should hold the formula's source: %q", acc)
+		}
+		if got := len([]rune(acc)); info.Lines[0].End != got || len(info.Lines[0].Advances) != got+1 {
+			t.Fatalf("one line should tile the accessible text: %+v", info.Lines[0])
+		}
+		end := 0
+		for _, r := range info.Runs {
+			if r.Start != end {
+				t.Fatalf("runs should tile the text without gaps: %+v", info.Runs)
+			}
+			end = r.End
+		}
+		if end != len([]rune(acc)) {
+			t.Fatalf("runs should reach the end of the text: %+v", info.Runs)
+		}
+	})
+	// The node a screen reader is given holds the same text as its value.
+	var found bool
+	for _, n := range s.Tree().Nodes {
+		if n.Name == "Paragraph block" && n.Text != nil && n.Text.Text == acc {
+			found = true
+			if n.Value != acc {
+				t.Errorf("the node's value should be its accessible text: %q", n.Value)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("no paragraph node holds %q", acc)
+	}
+	// Moving the caret to the formula through its accessible offsets lands
+	// at the span, which reveals its source for editing.
+	idx := strings.Index(acc, "$E = mc^2$")
+	if idx < 0 {
+		t.Fatalf("no formula in %q", acc)
+	}
+	ar := []rune(acc)
+	aStart := len([]rune(acc[:idx]))
+	aEnd := aStart + len([]rune("$E = mc^2$"))
+	var n *accessibility.Node
+	for _, c := range s.Tree().Nodes {
+		if c.Name == "Paragraph block" && c.Text != nil && c.Text.Text == acc {
+			n = c
+		}
+	}
+	if n == nil {
+		t.Fatalf("no node for the paragraph")
+	}
+	if !s.Screen.PerformAccessibilityAction(accessibility.ActionRequest{Node: n.ID, Action: accessibility.SetTextSelection, Start: aStart, End: aEnd}) {
+		t.Fatalf("SetTextSelection over the formula was refused")
+	}
+	s.Sync()
+	s.Do(func() {
+		l := e.layout(0)
+		if placeholderIn(e, 0) >= 0 {
+			t.Errorf("the caret at the formula should reveal its source: %q", string(l.proj.Disp))
+		}
+	})
+	_ = lines
+	_ = ar
 	s.CheckNamed()
 }
