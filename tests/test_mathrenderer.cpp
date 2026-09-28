@@ -1448,6 +1448,52 @@ private slots:
         QVERIFY2(!amp.isEmpty(),
                  "an alignment '&' outside array mode should report an error");
     }
+
+    void inlineAmpersandDoesNotCrash()
+    {
+        // An inline `$a & b$` span reaches MicroTeX wrapped as
+        // `\textstyle{a & b}`. Its inner formula parsed the `&` in lenient
+        // mode, left no root atom, and the style atom then read the missing
+        // atom's type — a null dereference that crashed the program. The
+        // vendored fixes leave an empty atom there, so the span typesets to
+        // nothing (as the Go port's TestStyleCommandsWithBadArgumentsDoNotCrash
+        // pins) instead of taking the process down. Reaching the end of this
+        // test is the regression: before the fix the first inline measure
+        // below segfaulted.
+        const QStringList bad = {
+            QStringLiteral("a & b"),
+            QStringLiteral("\\textstyle{a & b}"),
+            QStringLiteral("\\displaystyle{a & b}"),
+            QStringLiteral("\\scriptstyle{a&b}"),
+            QStringLiteral("\\scriptscriptstyle{a&b}"),
+        };
+        for (const QString &tex : bad) {
+            for (bool displayStyle : {false, true}) {
+                const MathRenderer::Metrics m =
+                    MathRenderer::measure(tex, 18, displayStyle);
+                QString error;
+                const QImage image = MathRenderer::render(
+                    tex, 18, QColor(Qt::black), 1.0, &error, 2, 0,
+                    displayStyle);
+                if (!m.valid)
+                    QVERIFY2(!m.error.isEmpty(),
+                             qPrintable(QStringLiteral("'%1' must say why it "
+                                                        "does not render")
+                                            .arg(tex)));
+                if (image.isNull())
+                    QVERIFY2(!error.isEmpty(),
+                             qPrintable(QStringLiteral("'%1' must report its "
+                                                        "error")
+                                            .arg(tex)));
+            }
+        }
+        // The same span without the stray alignment still renders inline.
+        QString okError;
+        const QImage ok = MathRenderer::render(
+            QStringLiteral("a + b"), 18, QColor(Qt::black), 1.0, &okError, 2,
+            0, /*displayStyle=*/false);
+        QVERIFY2(!ok.isNull(), qPrintable(okError));
+    }
 };
 
 QTEST_MAIN(TestMathRenderer)

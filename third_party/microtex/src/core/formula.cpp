@@ -62,7 +62,13 @@ Formula::Formula(const TeXParser& tp, const wstring& latex, bool preprocess)
   if (tp.isPartial()) {
     try {
       _parser.parse();
-    } catch (exception& e) {}
+    } catch (exception& e) {
+      // Local fix, not upstream: leave an empty atom when the error is
+      // swallowed, as the two constructors above do. Without it the style
+      // commands built on this one, \displaystyle{a & b} for one, took the
+      // missing atom's type and crashed the program.
+      if (_root == nullptr) _root = sptrOf<EmptyAtom>();
+    }
   } else {
     _parser.parse();
   }

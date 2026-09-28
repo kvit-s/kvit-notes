@@ -833,8 +833,10 @@ public:
 
   StyleAtom(TexStyle style, const sptr<Atom>& a) {
     _style = style;
-    _at = a;
-    _type = a->_type;
+    // Local fix, not upstream: a style command with nothing to style is an
+    // empty atom rather than a read of a missing one.
+    _at = a != nullptr ? a : sptrOf<EmptyAtom>();
+    _type = _at->_type;
   }
 
   sptr<Box> createBox(Environment& env) override {
