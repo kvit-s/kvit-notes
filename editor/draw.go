@@ -17,6 +17,7 @@ import (
 	"github.com/richardwilkes/toolbox/v2/geom"
 	"github.com/richardwilkes/unison"
 	"github.com/richardwilkes/unison/enums/paintstyle"
+	"github.com/richardwilkes/unison/enums/pathop"
 )
 
 func (e *Editor) fill(gc *unison.Canvas, r geom.Rect, c palette.Color) {
@@ -65,9 +66,21 @@ func (e *Editor) draw(gc *unison.Canvas, dirty geom.Rect) {
 		}
 		e.drawRow(gc, i)
 	}
-	if r, ok := e.caretRect(); ok && e.Focused() && !e.blinkOff {
+	if r, ok := e.caretRect(); ok && e.Focused() && !e.blinkOff && e.caretVisible(r) {
 		e.fill(gc, r, e.tok().TextPrimary)
 	}
+}
+
+// caretVisible reports whether the caret shows: a code block clips it to
+// its viewport, as Qt's clipped TextArea does, so a caret scrolled away
+// with the scrollbar is not drawn over the panel.
+func (e *Editor) caretVisible(r geom.Rect) bool {
+	i := e.Doc.Index(e.Doc.Caret.Block)
+	if i < 0 || !e.codeNoWrap(&e.Doc.Blocks[i]) {
+		return true
+	}
+	view := e.codeViewportRect(i)
+	return r.X >= view.X-e.px(1) && r.X <= view.Right()+e.px(1)
 }
 
 // dragOpacity is how strongly a row being dragged is drawn, and
@@ -158,9 +171,25 @@ func (e *Editor) drawRow(gc *unison.Canvas, i int) {
 		st.Color = colour(t.TextDisabled)
 		e.ui.Fonts.Layout([]text.Span{{Text: e.Placeholder, Style: st}}, text.Options{Pitch: l.pitch}).Draw(gc, o.X, o.Y)
 	}
+	if e.codeNoWrap(b) {
+		e.drawCodeText(gc, i, l, o)
+		e.drawCodeScroll(gc, i)
+		e.drawCodeHint(gc, i)
+		return
+	}
 	l.text.Draw(gc, o.X, o.Y)
 	drawInlineMath(gc, l.text, l.proj, o.X, o.Y)
 	e.drawDropCap(gc, i)
+}
+
+// drawCodeText draws a code block's unwrapped text clipped to its viewport.
+func (e *Editor) drawCodeText(gc *unison.Canvas, i int, l *blockLayout, o geom.Point) {
+	view := e.codeViewportRect(i)
+	gc.Save()
+	defer gc.Restore()
+	gc.ClipRect(view, pathop.Intersect, true)
+	l.text.Draw(gc, o.X, o.Y)
+	drawInlineMath(gc, l.text, l.proj, o.X, o.Y)
 }
 
 // drawDivider draws a divider in its style, thickness, colour and width
@@ -396,15 +425,25 @@ func (e *Editor) drawCodePanel(gc *unison.Canvas, i int) {
 		cp := e.label("Copy", e.chrome(kvitui.RoleCaption, text.Regular, c))
 		cp.Draw(gc, btn.X+e.px(codeCopyPad), y)
 	}
-	// The key that leaves the block, while the caret is in it, as Kvit's
-	// BlockKeyHint names it.
-	if d := e.Doc; d.Focused && d.Caret.Block == b.ID {
-		hintSize := max(9, e.ui.Typography.MonoSize()-4)
-		hint := e.ui.Fonts.Layout([]text.Span{{Text: "Ctrl+Enter: new block",
-			Style: text.Style{Family: e.ui.Typography.FontFamily(), Size: float32(hintSize), Color: colour(t.TextFaint)}}}, text.Options{})
-		hw, hh := hint.Size()
-		hint.Draw(gc, p.Right()-e.px(codePadSide)-hw, p.Bottom()-(e.px(codeFooter)+hh)/2)
+}
+
+// drawCodeHint names the key that leaves a code block in its footer, while
+// the caret is in it, as Kvit's BlockKeyHint does. It draws after the
+// scrollbar, as Kvit's footer draws above it, so the hint stays readable
+// where the two overlap.
+func (e *Editor) drawCodeHint(gc *unison.Canvas, i int) {
+	b := &e.Doc.Blocks[i]
+	d := e.Doc
+	if !d.Focused || d.Caret.Block != b.ID {
+		return
 	}
+	t := e.tok()
+	p := e.codePanel(i)
+	hintSize := max(9, e.ui.Typography.MonoSize()-4)
+	hint := e.ui.Fonts.Layout([]text.Span{{Text: "Ctrl+Enter: new block",
+		Style: text.Style{Family: e.ui.Typography.FontFamily(), Size: float32(hintSize), Color: colour(t.TextFaint)}}}, text.Options{})
+	hw, hh := hint.Size()
+	hint.Draw(gc, p.Right()-e.px(codePadSide)-hw, p.Bottom()-(e.px(codeFooter)+hh)/2)
 }
 
 // gutterPart is one of the gutter's controls, or a part of a row that acts
@@ -435,6 +474,7 @@ const (
 	partTableGrip   // a table column border, dragging its width
 	partTableAddRow // the + Row button under a live table
 	partTableAddCol // the + Column button under a live table
+	partCodeBar     // a code block's horizontal scrollbar
 	partLanguage    // a code block's language, which opens the language menu
 	partQueryRow    // a query block's row or card
 )

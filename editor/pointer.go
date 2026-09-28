@@ -119,7 +119,7 @@ func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Mo
 		e.diagramClick(i, part, where, clickCount)
 		return true
 	}
-	if i, part := e.partAt(where); part != partNone && !(d.ReadOnly && part != partHandle && part != partMenu && part != partCopy && part != partTocEntry && part != partEmbedOpen && part != partQueryRow) {
+	if i, part := e.partAt(where); part != partNone && !(d.ReadOnly && part != partHandle && part != partMenu && part != partCopy && part != partTocEntry && part != partEmbedOpen && part != partQueryRow && part != partCodeBar) {
 		b := &d.Blocks[i]
 		switch part {
 		case partAdd:
@@ -197,6 +197,12 @@ func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Mo
 						e.activateTableCell(i, p.row, p.col, false)
 					}
 				}
+			}
+		case partCodeBar:
+			if track, ok := e.codeBarRect(i); ok && track.Width > 0 {
+				e.scrollCodeTo(i, where.X)
+				e.codeDrag = &codeDragState{blockID: b.ID, startX: where.X,
+					scroll: e.codeScrollOf(b.ID), trackW: track.Width, content: e.codeContent(i)}
 			}
 		case partQueryRow:
 			if k := e.queryRowAt(i, where); k >= 0 && e.OpenNote != nil {
@@ -285,6 +291,12 @@ func (e *Editor) mouseDrag(where geom.Point, _ int, _ mod.Modifiers) bool {
 	case e.tableResize != nil:
 		e.tableDragResize(where)
 		return true
+	case e.codeDrag != nil:
+		if e.codeDrag.trackW > 0 && e.codeDrag.content > 0 {
+			at := e.codeDrag.scroll + (where.X-e.codeDrag.startX)/e.codeDrag.trackW*e.codeDrag.content
+			e.setCodeScroll(e.codeDrag.blockID, at)
+		}
+		return true
 	case e.tableSweep != nil && e.tableSweep.sweeping:
 		if i := e.Doc.Index(e.tableSweep.blockID); i >= 0 {
 			if g, ok := e.gridFor(i); ok {
@@ -315,6 +327,11 @@ func (e *Editor) mouseDrag(where geom.Point, _ int, _ mod.Modifiers) bool {
 			e.dragStep(where.Y)
 		}
 	case e.msel != nil:
+		// Dragging a selection past a code block's viewport scrolls it,
+		// so a long line can be swept into view.
+		if i := e.rowAt(where); i >= 0 && i < len(e.Doc.Blocks) && e.codeNoWrap(&e.Doc.Blocks[i]) {
+			e.ensureCodePointVisible(i, where.X)
+		}
 		if pos, ok := e.posAtPoint(where); ok {
 			if e.msel.words {
 				pos = e.extendWord(pos)
@@ -347,6 +364,8 @@ func (e *Editor) mouseUp(where geom.Point, _ int, mods mod.Modifiers) bool {
 	switch {
 	case e.tableResize != nil:
 		e.tableEndResize()
+	case e.codeDrag != nil:
+		e.codeDrag = nil
 	case e.tableSweep != nil && e.tableSweep.sweeping:
 		i := e.Doc.Index(e.tableSweep.blockID)
 		if i >= 0 {
@@ -452,6 +471,8 @@ func (e *Editor) partAt(where geom.Point) (int, gutterPart) {
 		return i, partCopy
 	case b.Kind == Code && !e.tocShows(i) && where.In(e.languageButton(i)):
 		return i, partLanguage
+	case (b.Kind == Code || b.Kind == Raw) && e.codeBarAt(i, where):
+		return i, partCodeBar
 	case e.tocShows(i) && e.tocEntryAt(i, where) >= 0:
 		return i, partTocEntry
 	case e.queryShows(i) && e.queryRowAt(i, where) >= 0:

@@ -600,6 +600,22 @@ var scenarios = []scenario{
 		dr.shot("visual_31_code_03_language_menu.png")
 		dr.expect(dr.popups() == 1, "the language menu should be open")
 		dr.key(unison.KeyEscape, mod.None)
+		// A long line scrolls horizontally (wrap off): the caret follows
+		// to the end of a line wider than the panel (Qt test_31_code).
+		longLine := "result = compute(alpha, beta, gamma, delta, epsilon, zeta, eta, theta)  # a deliberately long single line that exceeds the panel width"
+		dr.do(func() {
+			d := dr.doc()
+			d.Edit("test", func() { d.Blocks[1].Text = longLine })
+		})
+		dr.do(func() { dr.ed().FocusBlock(1, len([]rune(longLine))) })
+		var barred bool
+		dr.do(func() {
+			r := dr.ed().PartRect(1, "codebar")
+			barred = r.Width > 0 && r.Height > 0
+		})
+		dr.expect(barred, "a long line should show the code scrollbar")
+		dr.shot("visual_31_code_04_long_line_scrolled.png")
+		dr.clearFocus()
 	}},
 	{"36_tables", "# Tables\n\n| Name | Role | Age |\n| :--- | :--- | ---: |\n| Alice | **Lead** | 30 |\n| Bob | Dev | 25 |\n| Carol | Design | 41 |", func(dr *driver) {
 		// Kvit's tests/tst_visual.qml test_36_tables: the grid rendered,

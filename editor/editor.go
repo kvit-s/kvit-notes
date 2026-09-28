@@ -120,6 +120,12 @@ type Editor struct {
 	picker         *tablePicker
 	pictures       map[string]picture
 	grids          map[int64]cachedGrid
+	// codeScroll is each code block's horizontal scroll offset by block id:
+	// long lines do not wrap (features.md 1.2.7), so the text scrolls under
+	// its panel past the viewport. codeDrag is a press on a code
+	// scrollbar, until let go.
+	codeScroll map[int64]float32
+	codeDrag   *codeDragState
 	// DiagramMath, when set, typesets the $$…$$ labels of Mermaid diagrams
 	// (diagram.go); without it they are drawn as their source.
 	DiagramMath DiagramMath
@@ -171,7 +177,8 @@ type cachedLayout struct {
 // New returns an editor showing doc.
 func New(ui *kvitui.UI, doc *Doc) *Editor {
 	e := &Editor{ui: ui, Doc: doc, Placeholder: "Type something...", layouts: map[int64]cachedLayout{},
-		blockSel: map[int64]bool{}, pictures: map[string]picture{}, grids: map[int64]cachedGrid{}, tableHold: map[int64]bool{}, tocHover: -1, queryHover: -1}
+		blockSel: map[int64]bool{}, pictures: map[string]picture{}, grids: map[int64]cachedGrid{}, tableHold: map[int64]bool{}, tocHover: -1, queryHover: -1,
+		codeScroll: map[int64]float32{}}
 	e.Self = e
 	e.SetFocusable(true)
 	e.SetSizer(e.sizes)
@@ -184,7 +191,7 @@ func New(ui *kvitui.UI, doc *Doc) *Editor {
 	e.MouseEnterCallback = e.mouseMove
 	e.MouseMoveCallback = e.mouseMove
 	e.MouseExitCallback = e.mouseExit
-	e.MouseWheelCallback = e.diagramWheel
+	e.MouseWheelCallback = e.wheel
 	e.UpdateCursorCallback = e.cursor
 	e.GainedFocusCallback = func() { e.touched(); e.MarkForRedraw(); e.syncFormatBar() }
 	e.LostFocusCallback = func() { e.MarkForRedraw(); e.syncFormatBar() }
@@ -221,6 +228,8 @@ func (e *Editor) SetDoc(doc *Doc) {
 	clear(e.grids)
 	clear(e.diagrams)
 	clear(e.blockSel)
+	clear(e.codeScroll)
+	e.codeDrag = nil
 	e.closeMenu()
 	e.drag, e.msel = nil, nil
 	e.changed()
@@ -458,10 +467,12 @@ func (e *Editor) textTop(b *Block) float32 {
 	return e.px(rowPadTop)
 }
 
-// textOrigin is the top-left corner of block i's text.
+// textOrigin is the top-left corner of block i's text: shifted left by a
+// code block's horizontal scroll, so the caret, hit tests and drawing all
+// follow it.
 func (e *Editor) textOrigin(i int) geom.Point {
 	b := &e.Doc.Blocks[i]
-	return geom.NewPoint(e.bodyLeft()+e.textLeft(b), e.tops[i]+e.textTop(b))
+	return geom.NewPoint(e.bodyLeft()+e.textLeft(b)-e.codeScrollDX(i), e.tops[i]+e.textTop(b))
 }
 
 // rowRect is block i's whole row, the gutter included.
@@ -575,6 +586,18 @@ func (e *Editor) measure() {
 			}
 		}
 	}
+	// Forget the horizontal scroll of blocks that are gone.
+	if len(e.codeScroll) > 0 {
+		live := make(map[int64]bool, n)
+		for _, b := range d.Blocks {
+			live[b.ID] = true
+		}
+		for id := range e.codeScroll {
+			if !live[id] {
+				delete(e.codeScroll, id)
+			}
+		}
+	}
 }
 
 // total is the height of every row, with the space above the first.
@@ -673,8 +696,13 @@ func (e *Editor) caretRect() (geom.Rect, bool) {
 	return geom.NewRect(o.X+x, o.Y+top, e.px(caretWidth), h), true
 }
 
-// revealCaret scrolls the caret into view, with a little room around it.
+// revealCaret scrolls the caret into view, with a little room around it: a
+// code block first scrolls horizontally so a caret on a long line shows,
+// then the region scrolls vertically as before.
 func (e *Editor) revealCaret() {
+	if i := e.Doc.Index(e.Doc.Caret.Block); i >= 0 {
+		e.ensureCodeCaretVisible(i)
+	}
 	r, ok := e.caretRect()
 	if !ok {
 		return

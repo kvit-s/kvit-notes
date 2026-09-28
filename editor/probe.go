@@ -35,7 +35,8 @@ func (e *Editor) CaretRect() (geom.Rect, bool) { return e.caretRect() }
 // card's "load" button and "open" title, and a table's "cell" (or
 // "cell:<row>:<col>" for another data cell), "header" (or "header:<col>"
 // for another header column), "grip", and "addrow"/"addcol" (the + Row /
-// + Column buttons under a live cell).
+// + Column buttons under a live cell), and a code block's "codebar" (its
+// horizontal scrollbar, when a long line runs past the panel).
 func (e *Editor) PartRect(i int, part string) geom.Rect {
 	switch part {
 	case "add":
@@ -90,6 +91,11 @@ func (e *Editor) PartRect(i int, part string) geom.Rect {
 				return rowR
 			}
 			return colR
+		}
+		return geom.Rect{}
+	case "codebar":
+		if r, ok := e.codeBarRect(i); ok {
+			return r
 		}
 		return geom.Rect{}
 	case "fold", "type", "title", "color":

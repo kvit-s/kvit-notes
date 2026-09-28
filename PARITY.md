@@ -34,17 +34,24 @@ kvit-ui-go's `platform` package for the tray.
   - [x] 1.2.4 Bulleted list, three bullet shapes by depth. Evidence: `07_block_types`, `08_listflow`
   - [x] 1.2.5 Numbered list, restarting when nested. Evidence: `07_block_types`
   - [x] 1.2.6 Quote. Evidence: `07_block_types`
-  - [~] 1.2.7 Code block: monospace, whitespace kept, Enter keeps the line's
+  - [x] 1.2.7 Code block: monospace, whitespace kept, Enter keeps the line's
     indentation, Ctrl+Enter leaves, Copy button, the Ctrl+Enter hint in the
     footer while the caret is in it, Tab padding to the next four-column stop
     (a selection over lines indenting or outdenting every line it touches),
     syntax colouring in Kvit's
     sixteen languages (the `highlight` package, with the Qt tests), the
     language menu (with Plain code, Mermaid and Text diagram), line numbers
-    from View. Evidence: `20_caret_nav`, `31_code`, `visual_31_code_*`,
+    from View. Long lines do not wrap: the panel clips them, the caret
+    follows along them, and the wheel (horizontal, or Shift+vertical) and a
+    scrollbar under the panel move them, as Kvit's `codeChrome` does.
+    Evidence: `20_caret_nav`, `31_code`,
+    `visual_31_code_01_light`, `visual_31_code_02_line_numbers`,
+    `visual_31_code_03_language_menu`,
+    `visual_31_code_04_long_line_scrolled`,
     `TestLanguageMenuDeclaresAndOptsOut`, `TestTabStopsInCode`,
-    `TestCodeFooterHint`. Missing: horizontal scrolling (long
-    lines wrap)
+    `TestCodeFooterHint`, `TestCodeLongLinesDoNotWrap`,
+    `TestCodeCaretScrollsIntoView`, `TestCodeBarDragScrolls`,
+    `TestPrintingWrapsCode`.
   - [~] 1.2.8 Image and media: an image line drawn as its picture (beside the
     note, from the top of the vault, or from the site folder for a path
     starting with "/"), at its width, with its caption; the line shown for
@@ -618,3 +625,8 @@ kvit-ui-go's `platform` package for the tray.
   right-aligned last column shows a wide empty run
   (`visual_36_tables_01_rendered`). Dragged widths are kept as Kvit keeps
   them, in the block's `cols` attribute.
+- **A code block's scrollbar is Kvit's thumb**, in the border colour (strong
+  under the pointer or while dragged) with no track of its own, where Qt's
+  QQC2 bar leaves no visible mark in its own screenshot
+  (`visual_31_code_04_long_line_scrolled`). The footer hint draws above it
+  in both, so it stays readable where the two overlap.
