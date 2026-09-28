@@ -65,6 +65,31 @@ func (e *Editor) PartRect(i int, part string) geom.Rect {
 // UndoSteps is how many steps Undo can take back.
 func (d *Doc) UndoSteps() int { return len(d.undo) }
 
+// CaretLineColumn is the caret's 1-based line and column within its block's
+// display text (features.md 9.7, Kvit's cursorLineColumn): the line breaks
+// are the display text's own newlines, as the status bar shows them.
+func (e *Editor) CaretLineColumn() (line, col int) {
+	d := e.Doc
+	b := d.CaretBlock()
+	if b == nil || !d.Focused {
+		return 1, 1
+	}
+	i := d.Index(b.ID)
+	if i < 0 {
+		return 1, 1
+	}
+	l := e.layout(i)
+	at := l.drawn(d.Caret.Off)
+	line, col = 1, at+1
+	for k := 0; k < at && k < len(l.proj.Disp); k++ {
+		if l.proj.Disp[k] == '\n' {
+			line++
+			col = at - k
+		}
+	}
+	return line, col
+}
+
 // PreviewTitle is the title an embed card shows from its page, "" before
 // the page is read.
 func (e *Editor) PreviewTitle(address string) string {

@@ -112,6 +112,39 @@ func (e *Editor) ReplaceRange(id int64, start, end int, replacement string, care
 	e.done()
 }
 
+// RemoveLinkAt removes the link formatting at a position, keeping its text:
+// "[text](address)" becomes "text" (Kvit's removeLinkAtCursor). Only a
+// Markdown link is removable; a bare address is its own text and a wiki
+// link keeps its brackets. It reports whether it removed one.
+func (e *Editor) RemoveLinkAt(pos Pos) bool {
+	d := e.Doc
+	b := d.Block(pos.Block)
+	if b == nil || d.ReadOnly || !b.Kind.HasInline() {
+		return false
+	}
+	r := []rune(b.Text)
+	for _, sp := range parseInline(r) {
+		if sp.Kind != sLink || pos.Off < sp.Start || pos.Off > sp.End {
+			continue
+		}
+		if sp.Start == sp.CStart {
+			return false
+		}
+		text := string(r[sp.CStart:sp.CEnd])
+		at := sp.Start + len([]rune(text))
+		d.Edit("remove link", func() {
+			b.Text = string(r[:sp.Start]) + text + string(r[sp.End:])
+			d.SetCaret(pos.Block, at)
+		})
+		e.clearBlockSel()
+		e.RequestFocus()
+		e.touched()
+		e.changed()
+		return true
+	}
+	return false
+}
+
 // Headings are the note's headings for the link dialog's heading list:
 // each one's level, text and the anchor a link reaches it by.
 func (e *Editor) Headings() (levels []int, texts, anchors []string) {

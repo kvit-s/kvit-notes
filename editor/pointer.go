@@ -52,6 +52,15 @@ func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Mo
 				e.Doc.SetCaret(pos.Block, pos.Off)
 				e.changed()
 			}
+			// A press on a link opens the link menu, as in Kvit.
+			if pos, ok := e.posAtPoint(where); ok {
+				if b := e.Doc.Block(pos.Block); b != nil {
+					if _, _, found := linkAt(b.Text, pos.Off); found {
+						e.openLinkMenu(at, pos)
+						return true
+					}
+				}
+			}
 			e.openTextMenu(at)
 			return true
 		}

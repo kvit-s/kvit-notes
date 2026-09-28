@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	kvitui "github.com/kvit-s/kvit-ui"
 )
 
 func spansOf(s string) []span { return parseInline([]rune(s)) }
@@ -750,4 +752,116 @@ func TestWikiAliasShowsAlias(t *testing.T) {
 	if !ok || !ref.Wiki || ref.Target != "Plan#Goals" {
 		t.Errorf("follow from the alias resolves %+v %v", ref, ok)
 	}
+}
+
+// RemoveLinkAt takes a Markdown link's formatting away keeping its text, as
+// the link menu's Remove link does; bare addresses and wiki links stay.
+func TestRemoveLinkAt(t *testing.T) {
+	s, e := openEditor(t, "see [the docs](https://x/a) now and [[Plan|alias]] end")
+	text := func() string {
+		var out string
+		s.Do(func() { out = e.Doc.Blocks[0].Text })
+		return out
+	}
+	var id int64
+	s.Do(func() { id = e.Doc.Blocks[0].ID })
+	s.Do(func() {
+		if !e.RemoveLinkAt(Pos{id, 8}) {
+			t.Fatal("should remove the Markdown link")
+		}
+	})
+	if got := text(); got != "see the docs now and [[Plan|alias]] end" {
+		t.Errorf("removed: %q", got)
+	}
+	s.Do(func() {
+		d := e.Doc
+		if d.Caret.Off != 12 {
+			t.Errorf("caret after the kept text: %d", d.Caret.Off)
+		}
+		d.Undo()
+		if d.Blocks[0].Text != "see [the docs](https://x/a) now and [[Plan|alias]] end" {
+			t.Errorf("one undo restores: %q", d.Blocks[0].Text)
+		}
+		// On the wiki link there is nothing to remove.
+		if e.RemoveLinkAt(Pos{id, 30}) {
+			t.Error("a wiki link should not lose its brackets")
+		}
+	})
+}
+
+// CaretLineColumn is the 1-based line and column in the block's display
+// text, for the status line.
+func TestCaretLineColumn(t *testing.T) {
+	s, e := openEditor(t, "first **bold** line\nsecond line")
+	s.Do(func() {
+		// "first bold line\nsecond line": offset of the 'y' in "bold".
+		e.FocusBlock(0, 9)
+		if ln, col := e.CaretLineColumn(); ln != 1 || col != 10 {
+			t.Errorf("line %d col %d, want 1/10", ln, col)
+		}
+		e.FocusBlock(0, 21)
+		if ln, col := e.CaretLineColumn(); ln != 2 || col != 2 {
+			t.Errorf("line %d col %d, want 2/2", ln, col)
+		}
+	})
+}
+
+// The block menu carries Export, which hands the blocks to the app.
+func TestBlockMenuHasExport(t *testing.T) {
+	lines, _ := BlockMenuCommands()
+	if !slices.Contains(lines, "Export…") {
+		t.Fatalf("block menu lines: %q", lines)
+	}
+	s, e := openEditor(t, "one\n\ntwo\n")
+	var got []int64
+	s.Do(func() {
+		e.OnExport = func(ids []int64) { got = append([]int64(nil), ids...) }
+		items := e.menuItems(blockCommands, []int64{e.Doc.Blocks[1].ID})
+		for _, it := range items {
+			name, _, _ := kvitui.AccessText(it.Text)
+			if name == "Export…" {
+				it.OnSelect()
+			}
+		}
+	})
+	if len(got) != 1 {
+		t.Fatalf("export got %v", got)
+	}
+	s.Do(func() {
+		if got[0] != e.Doc.Blocks[1].ID {
+			t.Errorf("export got %v", got)
+		}
+	})
+}
+
+// The link menu opens a link, edits a Markdown one, and removes its
+// formatting; a wiki link only opens, and plain text has no link menu.
+func TestLinkMenuItems(t *testing.T) {
+	s, e := openEditor(t, "see [the docs](https://x/a) and [[Plan|alias]] end")
+	names := func(items []kvitui.MenuItem) []string {
+		var out []string
+		for _, it := range items {
+			out = append(out, it.Text)
+		}
+		return out
+	}
+	var id int64
+	s.Do(func() {
+		id = e.Doc.Blocks[0].ID
+		e.FollowLink = func(LinkRef) {}
+		e.OnLink = func() {}
+		if got := names(e.linkMenuItems(Pos{id, 8})); !slices.Equal(got, []string{"Open link", "Edit link…", "Remove link"}) {
+			t.Errorf("markdown link: %q", got)
+		}
+		if got := names(e.linkMenuItems(Pos{id, 32})); !slices.Equal(got, []string{"Open link"}) {
+			t.Errorf("wiki link: %q", got)
+		}
+		if e.linkMenuItems(Pos{id, 0}) != nil {
+			t.Error("plain text should fall back to the text menu")
+		}
+		e.FollowLink, e.OnLink = nil, nil
+		if got := names(e.linkMenuItems(Pos{id, 8})); !slices.Equal(got, []string{"Remove link"}) {
+			t.Errorf("remove works without hooks: %q", got)
+		}
+	})
 }

@@ -27,6 +27,7 @@ import (
 	"github.com/richardwilkes/toolbox/v2/geom"
 	"github.com/richardwilkes/unison"
 	"github.com/richardwilkes/unison/accessibility"
+	"github.com/richardwilkes/unison/enums/align"
 	"github.com/richardwilkes/unison/enums/mod"
 	"github.com/richardwilkes/unison/enums/paintstyle"
 	"github.com/richardwilkes/unison/enums/role"
@@ -109,6 +110,76 @@ var dateChoices = []struct {
 }{
 	{"Any time", search.AnyTime}, {"Today", search.Today}, {"Last 7 days", search.Last7Days},
 	{"Last 30 days", search.Last30Days}, {"Last year", search.LastYear},
+}
+
+// maxRecentSearches is how many past searches the sidebar keeps, as Kvit's
+// Sidebar does.
+const maxRecentSearches = 6
+
+// recentSearches are the past searches, newest first.
+func (w *Window) recentSearches() []string {
+	if w.prefs == nil {
+		return nil
+	}
+	return w.prefs.strings("search.recent")
+}
+
+// commitRecentSearch remembers a search, newest first, without repeats.
+func (w *Window) commitRecentSearch(query string) {
+	q := strings.TrimSpace(query)
+	if q == "" || w.prefs == nil {
+		return
+	}
+	list := []string{q}
+	for _, item := range w.prefs.strings("search.recent") {
+		if item != q {
+			list = append(list, item)
+		}
+	}
+	if len(list) > maxRecentSearches {
+		list = list[:maxRecentSearches]
+	}
+	w.prefs.setStrings("search.recent", list)
+	w.syncRecent()
+}
+
+// hookSearchEnter remembers a search when Enter runs it.
+func (w *Window) hookSearchEnter() {
+	edit := w.search.Edit()
+	prev := edit.KeyDownCallback
+	edit.KeyDownCallback = func(key unison.KeyCode, mods mod.Modifiers, repeat bool) bool {
+		if (key == unison.KeyReturn || key == unison.KeyNumPadEnter) && strings.TrimSpace(w.search.Text()) != "" {
+			w.commitRecentSearch(w.search.Text())
+		}
+		if prev != nil {
+			return prev(key, mods, repeat)
+		}
+		return false
+	}
+}
+
+// syncRecent shows the recent searches under the field while it is empty,
+// each running its search again on click.
+func (w *Window) syncRecent() {
+	w.recent.RemoveAllChildren()
+	if strings.TrimSpace(w.search.Text()) != "" {
+		w.relayout()
+		return
+	}
+	for _, q := range w.recentSearches() {
+		q := q
+		b := kvitui.NewButton(w.ui, "↺ "+q)
+		b.Form = kvitui.ButtonQuiet
+		b.Explanation = "Search again for " + q
+		b.OnClick = func() {
+			w.search.SetText(q)
+			w.refreshList()
+			w.syncRecent()
+		}
+		b.SetLayoutData(&unison.FlexLayoutData{HAlign: align.Fill, HGrab: true})
+		w.recent.AddChild(b)
+	}
+	w.relayout()
 }
 
 // runSearch shows the results of what is typed in the search field.

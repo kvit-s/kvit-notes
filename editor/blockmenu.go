@@ -28,6 +28,11 @@ var blockCommands = []blockCommand{
 		{label: "&Markdown", run: func(e *Editor, ids []int64) { unison.ClipboardSetText(e.blocksMarkdown(ids)) }},
 		{label: "&Plain text", run: func(e *Editor, ids []int64) { unison.ClipboardSetText(e.blocksPlain(ids)) }},
 	}},
+	{label: "&Export…", run: func(e *Editor, ids []int64) {
+		if e.OnExport != nil {
+			e.OnExport(ids)
+		}
+	}},
 	{label: "&Turn into", sep: true, more: turnInto()},
 	{label: "Ali&gn", more: []blockCommand{
 		{label: "&Left", run: func(e *Editor, ids []int64) { e.Doc.SetAttr(ids, "align", "") }},
@@ -123,7 +128,7 @@ func (e *Editor) menuItems(cmds []blockCommand, ids []int64) []kvitui.MenuItem {
 			sub := e.menuItems(c.more, ids)
 			if c.label == "Copy &as…" && e.BlocksHTML != nil {
 				sub = append(sub, kvitui.MenuItem{Text: "&HTML", OnSelect: func() {
-					unison.ClipboardSetText(e.BlocksHTML(e.Doc.Blocks, e.indexesOf(ids)))
+					unison.ClipboardSetText(e.BlocksHTML(e.Doc.Blocks, e.IndexesOf(ids)))
 				}})
 			}
 			items = append(items, kvitui.MenuItem{Text: c.label, Items: sub})
@@ -173,7 +178,8 @@ func (e *Editor) inSelection(p Pos) bool {
 }
 
 // openTextMenu opens Kvit's menu for text (qml/EditorContextMenus.qml):
-// cut, copy and paste, the inline formats, and the block's own commands.
+// cut, copy and paste, the inline formats, the link dialog, and the
+// block's own commands.
 func (e *Editor) openTextMenu(at geom.Rect) {
 	d := e.Doc
 	e.closeMenu()
@@ -204,6 +210,10 @@ func (e *Editor) openTextMenu(at geom.Rect) {
 			format("Strikethrough", "~~"), format("Inline code", "`"), format("Highlight", "=="),
 		}},
 	}
+	if e.OnLink != nil {
+		link := e.OnLink
+		items = append(items, kvitui.MenuItem{Text: "Link…", Disabled: d.ReadOnly, OnSelect: func() { link() }})
+	}
 	if b := d.CaretBlock(); b != nil {
 		items = append(items, kvitui.MenuItem{Separator: true},
 			kvitui.MenuItem{Text: "Block", Items: e.menuItems(blockCommands, []int64{b.ID})})
@@ -211,8 +221,60 @@ func (e *Editor) openTextMenu(at geom.Rect) {
 	e.ui.ShowMenuAt(e, at, "Text", items)
 }
 
-// indexesOf are blocks' places in the note, in order.
-func (e *Editor) indexesOf(ids []int64) []int {
+// openLinkMenu opens Kvit's menu for a link under the pointer
+// (qml/EditorContextMenus.qml's linkContextMenu): open it, edit it, or
+// remove its formatting while keeping its text.
+func (e *Editor) openLinkMenu(at geom.Rect, pos Pos) {
+	if items := e.linkMenuItems(pos); items != nil {
+		e.closeMenu()
+		e.ui.ShowMenuAt(e, at, "Link", items)
+		return
+	}
+	e.openTextMenu(at)
+}
+
+// linkMenuItems are the link menu's lines for the link at pos, or nil when
+// no menu of its own opens there and the text menu serves instead: a wiki
+// link or a bare address only opens, a Markdown link also edits and removes.
+func (e *Editor) linkMenuItems(pos Pos) []kvitui.MenuItem {
+	b := e.Doc.Block(pos.Block)
+	if b == nil {
+		return nil
+	}
+	ref, sp, ok := linkAt(b.Text, pos.Off)
+	if !ok {
+		return nil
+	}
+	var items []kvitui.MenuItem
+	if e.FollowLink != nil {
+		follow := e.FollowLink
+		items = append(items, kvitui.MenuItem{Text: "Open link", OnSelect: func() { follow(ref) }})
+	}
+	if e.OnLink != nil && !ref.Wiki && sp.Start != sp.CStart {
+		link := e.OnLink
+		id, off := pos.Block, sp.CStart
+		items = append(items, kvitui.MenuItem{Text: "Edit link…", Disabled: e.Doc.ReadOnly, OnSelect: func() {
+			e.clearBlockSel()
+			e.Doc.SetCaret(id, off)
+			e.RequestFocus()
+			e.touched()
+			e.changed()
+			link()
+		}})
+	}
+	if !ref.Wiki && sp.Start != sp.CStart {
+		items = append(items, kvitui.MenuItem{Text: "Remove link", Disabled: e.Doc.ReadOnly, OnSelect: func() {
+			e.RemoveLinkAt(pos)
+		}})
+	}
+	if len(items) == 0 {
+		return nil
+	}
+	return items
+}
+
+// IndexesOf are blocks' places in the note, in order.
+func (e *Editor) IndexesOf(ids []int64) []int {
 	var out []int
 	for _, id := range ids {
 		if i := e.Doc.Index(id); i >= 0 {

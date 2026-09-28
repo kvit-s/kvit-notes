@@ -36,8 +36,24 @@ const (
 	outlineWidth  = 220
 )
 
-// saveDelay is how long after the last change a note is saved.
+// saveDelay is how long after the last change a note is saved, unless the
+// settings name another wait (\"save.interval\", in seconds).
 const saveDelay = 2 * time.Second
+
+// minSaveInterval is the shortest wait the setting may name, in seconds.
+const minSaveInterval = 1
+
+// saveInterval is how long after the last change a note is saved.
+func (w *Window) saveInterval() time.Duration {
+	if w.prefs == nil {
+		return saveDelay
+	}
+	n := w.prefs.int("save.interval", int(saveDelay/time.Second))
+	if n < minSaveInterval {
+		n = minSaveInterval
+	}
+	return time.Duration(n) * time.Second
+}
 
 // Window is one Kvit Notes window over a vault.
 type Window struct {
@@ -45,8 +61,8 @@ type Window struct {
 	Win    *kvitui.Window
 	Vault  *vault.Vault
 	Editor *editor.Editor
-
 	search *kvitui.SearchField
+	recent *unison.Panel // recent searches under the field, while it is empty
 	scopes *ScopeList
 	list   *NoteList
 	tags   *TagStrip
@@ -114,6 +130,7 @@ type Window struct {
 	back, forward []string      // the notes Back and Forward return to
 	travelling    bool          // Back or Forward is opening a note
 	switcher      *kvitui.Popup // the quick switcher, while it is open
+	f6Step        int           // F6 pane cycling position
 }
 
 // Open opens a window over a vault.
@@ -126,7 +143,9 @@ func Open(ui *kvitui.UI, v *vault.Vault) (*Window, error) {
 
 	w.search = kvitui.NewSearchField(ui)
 	w.search.Placeholder = "Search all notes"
-	w.search.OnChange = func(string) { w.refreshList() }
+	w.search.OnChange = func(string) { w.refreshList(); w.syncRecent() }
+	w.recent = unison.NewPanel()
+	w.hookSearchEnter()
 	w.scopes = NewScopeList(ui)
 	w.scopes.OnChoose = func(s Scope) {
 		if w.scope.Kind == ScopeTrash && s.Kind != ScopeTrash && w.trashed != nil {
@@ -150,11 +169,12 @@ func Open(ui *kvitui.UI, v *vault.Vault) (*Window, error) {
 	hideSide := kvitui.NewIconButton(ui, "caret-double-left", "Hide the sidebar")
 	hideSide.OnClick = func() { w.showPane("panels.sidebarCollapsed", false) }
 	sideHead := headerRow(ui, notesLabel, newFolder, hideSide)
-	side := kvitui.Column(ui, kvitui.SizeSpaceSnug, sideHead, w.search, w.scopes)
+	side := kvitui.Column(ui, kvitui.SizeSpaceSnug, sideHead, w.search, w.recent, w.scopes)
 	sideHead.SetLayoutData(&unison.FlexLayoutData{HAlign: align.Fill, HGrab: true})
 	side.SetBorder(kvitui.Padding(ui, kvitui.SizeSpace))
 	w.scopes.SetLayoutData(&unison.FlexLayoutData{HAlign: align.Fill, VAlign: align.Fill, HGrab: true, VGrab: true})
 	w.search.SetLayoutData(&unison.FlexLayoutData{HAlign: align.Fill, HGrab: true})
+	w.recent.SetLayoutData(&unison.FlexLayoutData{HAlign: align.Fill, HGrab: true})
 	side.DrawCallback = ground(ui, side, func() kvitui.Ink { return kvitui.InkPanelBackground })
 
 	w.list = NewNoteList(ui)
@@ -243,6 +263,7 @@ func Open(ui *kvitui.UI, v *vault.Vault) (*Window, error) {
 		return export.HTMLFromSelection(blocks, indexes, "", w.exportOptions())
 	}
 	w.Editor.OnLink = w.openLinkDialog
+	w.Editor.OnExport = w.openExportFor
 	w.Editor.LoadPreview = w.loadPreview
 	w.wireDiagrams()
 	w.Editor.OpenURL = func(address string) {
@@ -285,6 +306,7 @@ func Open(ui *kvitui.UI, v *vault.Vault) (*Window, error) {
 	w.main = fillPanel(unison.NewPanel())
 	w.toolbar = NewToolbar(ui, w.Editor, ToolbarHooks{File: w.fileMenu, View: w.viewMenu,
 		Back: w.goBack, Forward: w.goForward, Link: w.openLinkDialog})
+	w.toolbar.SetPrefs(w.prefs)
 	w.toolbar.SetLayoutData(&unison.FlexLayoutData{HAlign: align.Fill, HGrab: true})
 	body := fillPanel(unison.NewPanel())
 	body.AddChild(w.toolbar)
@@ -338,6 +360,7 @@ func Open(ui *kvitui.UI, v *vault.Vault) (*Window, error) {
 	if v.ReadOnly {
 		w.message = "This vault cannot be written, so it is open for reading only"
 		w.update()
+		unison.AnnounceForAccessibility(w.message)
 	}
 	w.offerRecovery()
 	w.watch()
@@ -490,6 +513,9 @@ func (w *Window) keyDown(key unison.KeyCode, mods mod.Modifiers, _ bool) bool {
 	case key == unison.KeyEscape && mods == 0 && w.focus:
 		w.toggleFocus()
 		return true
+	case key == unison.KeyF6 && mods == 0:
+		w.cyclePane()
+		return true
 	}
 	if key == unison.KeyB && mods.OSMenuCommandDown() && mods.ShiftDown() {
 		w.showPane("view.backlinks", !w.paneOn("view.backlinks"))
@@ -530,6 +556,49 @@ func (w *Window) toggleSides() {
 	w.prefs.set("panels.visible", !w.hidden)
 	w.arrange()
 	w.Editor.RequestFocus()
+}
+
+// paneDrawn reports whether F6 can stop on a pane: it is on and the window
+// draws it (focus mode leaves the editor alone).
+func (w *Window) paneDrawn(key string) bool {
+	switch key {
+	case "toolbar":
+		return !w.focus
+	case "panels.sidebarCollapsed", "panels.noteListCollapsed":
+		return !w.focus && !w.hidden && w.paneOn(key)
+	default:
+		return !w.focus && w.paneOn(key)
+	}
+}
+
+// cyclePane moves the keyboard focus to the next pane drawn (F6), in the
+// order sidebar, note list, editor, backlinks, outline, toolbar, as Kvit's
+// cyclePane walks its panes. Panes that are not drawn are skipped; with
+// only the editor drawn it stays there.
+func (w *Window) cyclePane() {
+	type stop struct {
+		drawn bool
+		focus func()
+	}
+	stops := []stop{
+		{w.paneDrawn("panels.sidebarCollapsed"), func() { w.search.Focus() }},
+		{w.paneDrawn("panels.noteListCollapsed"), func() { w.list.RequestFocus() }},
+		{true, func() { w.Editor.RequestFocus() }},
+		{w.paneDrawn("view.backlinks"), func() { w.backlinks.list.RequestFocus() }},
+		{w.paneDrawn("view.outline"), func() { w.outline.list.RequestFocus() }},
+		{w.paneDrawn("toolbar"), func() { w.toolbar.FocusFirst() }},
+	}
+	var order []int
+	for k, s := range stops {
+		if s.drawn {
+			order = append(order, k)
+		}
+	}
+	if len(order) == 0 {
+		return
+	}
+	w.f6Step = (w.f6Step + 1) % len(order)
+	stops[order[w.f6Step]].focus()
 }
 
 // showSortDirection shows the sort direction on its button.
@@ -968,7 +1037,7 @@ func (w *Window) newNote() {
 func (w *Window) edited() {
 	if w.open != nil && w.Editor.Doc.Dirty {
 		if w.saveAt.IsZero() {
-			w.saveAt = time.Now().Add(saveDelay)
+			w.saveAt = time.Now().Add(w.saveInterval())
 		}
 		if w.journalAt.IsZero() {
 			w.journalAt = time.Now().Add(journalDelay)
@@ -1057,6 +1126,8 @@ func (w *Window) update() {
 	if b := d.CaretBlock(); b != nil && d.Focused {
 		i := d.Index(b.ID)
 		facts = append(facts, fmt.Sprintf("Block %d", i+1), b.Kind.String())
+		ln, col := w.Editor.CaretLineColumn()
+		facts = append(facts, fmt.Sprintf("Ln %d, Col %d", ln, col))
 	}
 	switch {
 	case w.open != nil:

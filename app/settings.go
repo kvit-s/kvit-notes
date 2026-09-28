@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/kvit-s/kvit-notes/vault"
 	kvitui "github.com/kvit-s/kvit-ui"
@@ -163,7 +164,6 @@ func typographySettings(ui *kvitui.UI, relayout func()) *unison.Panel {
 	family.Placeholder = "System default"
 	family.SetText(ty.FontFamily())
 	family.OnChange = func(s string) { ty.SetFontFamily(strings.TrimSpace(s)) }
-
 	size := kvitui.NewStepper(ui, "Font size", tokens.MinBaseSize, tokens.MaxBaseSize)
 	size.Unit = "px"
 	size.Value = ty.BaseSize()
@@ -239,7 +239,15 @@ func generalSettings(ui *kvitui.UI) *unison.Panel {
 	keep := kvitui.NewCheck(ui, "Keep running in the tray when the window is closed")
 	keep.Checked = p.bool(closeToTrayKey, false)
 	keep.OnChange = func(on bool) { p.set(closeToTrayKey, on) }
-	return kvitui.Column(ui, kvitui.SizeSpace, settingRow(ui, "System tray", keep))
+	wait := kvitui.NewStepper(ui, "Auto-save after", minSaveInterval, 3600)
+	wait.Unit = "s"
+	wait.Value = p.int("save.interval", int(saveDelay/time.Second))
+	if wait.Value < minSaveInterval {
+		wait.Value = minSaveInterval
+	}
+	wait.OnChange = func(v int) { p.set("save.interval", v) }
+	return kvitui.Column(ui, kvitui.SizeSpace, settingRow(ui, "System tray", keep),
+		settingRow(ui, "Auto-save, in seconds after typing stops", wait))
 }
 
 func vaultSettings(ui *kvitui.UI, v *vault.Vault, relayout func()) *unison.Panel {

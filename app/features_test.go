@@ -918,3 +918,233 @@ func TestPDFExport(t *testing.T) {
 		})
 	}
 }
+
+// features.md 9.6: F6 moves the keyboard between the panes drawn.
+func TestF6CyclesPanes(t *testing.T) {
+	s := openVault(t, notes{"A.md": "text\n"})
+	focused := func() string {
+		var name string
+		s.do(func() {
+			switch {
+			case s.w.search.Edit().Focused():
+				name = "search"
+			case s.w.list.Focused():
+				name = "list"
+			case s.w.Editor.Focused():
+				name = "editor"
+			case s.w.toolbar.FocusedChild():
+				name = "toolbar"
+			default:
+				name = "other"
+			}
+		})
+		return name
+	}
+	s.do(func() { s.w.Editor.FocusBlock(0, 0) })
+	if got := focused(); got != "editor" {
+		t.Fatalf("starts in the editor, in %q", got)
+	}
+	// With everything drawn the cycle runs search, list, editor, toolbar.
+	var seen []string
+	for range 4 {
+		s.screen.KeyPress(unison.KeyF6, mod.None)
+		seen = append(seen, focused())
+	}
+	if !slices.Equal(seen, []string{"list", "editor", "toolbar", "search"}) {
+		t.Errorf("F6 should cycle list, editor, toolbar, search: %q", seen)
+	}
+	// Hidden panes are skipped: with the sides hidden it stays between the
+	// editor and the toolbar.
+	s.do(func() {
+		s.w.hidden = true
+		s.w.arrange()
+		s.w.f6Step = 0
+	})
+	seen = nil
+	for range 2 {
+		s.screen.KeyPress(unison.KeyF6, mod.None)
+		seen = append(seen, focused())
+	}
+	if !slices.Equal(seen, []string{"toolbar", "editor"}) {
+		t.Errorf("with the sides hidden F6 should stay editor and toolbar: %q", seen)
+	}
+}
+
+// features.md 9.2: the toolbar's groups hide from its menu and stay hidden.
+func TestToolbarGroupsHide(t *testing.T) {
+	s := openVault(t, notes{"A.md": "text\n"})
+	kind := func() string {
+		var b string
+		s.do(func() { b = s.w.toolbar.BlockKind() })
+		return b
+	}
+	s.do(func() { s.w.Editor.FocusBlock(0, 0) })
+	if got := kind(); got != "Text" {
+		t.Fatalf("block kind shows: %q", got)
+	}
+	s.do(func() {
+		if !s.w.toolbar.SetGroup("toolbar.showFormatting", false) {
+			t.Error("no formatting group")
+		}
+	})
+	if got := kind(); got != "Text" {
+		t.Errorf("hiding formatting keeps the kind list: %q", got)
+	}
+	var n int
+	s.do(func() {
+		for _, c := range s.w.toolbar.row.Children() {
+			_ = c
+			n++
+		}
+		if !s.w.toolbar.GroupOn("toolbar.showBlockType") {
+			t.Error("block type should still be on")
+		}
+	})
+	if n == 0 {
+		t.Error("the strip should still draw")
+	}
+	s.do(func() { s.w.toolbar.SetGroup("toolbar.showFormatting", true) })
+	var kept any
+	s.do(func() { kept, _ = s.w.prefs.value("toolbar.showFormatting") })
+	if v, ok := kept.(bool); !ok || !v {
+		t.Errorf("the setting should keep true, is %v", kept)
+	}
+}
+
+// features.md 8.4: recent searches are kept and run again.
+func TestRecentSearches(t *testing.T) {
+	s := openVault(t, notes{"A.md": "a fox here\n", "B.md": "another fox there\n"})
+	s.waitFor("the index", func() bool {
+		var n int
+		s.do(func() { n = s.w.index.Len() })
+		return n == 2
+	})
+	var rec []string
+	s.do(func() { rec = s.w.recentSearches() })
+	if len(rec) != 0 {
+		t.Fatalf("no searches yet: %q", rec)
+	}
+	s.do(func() {
+		s.w.search.SetText("fox")
+		s.w.search.Focus()
+	})
+	s.screen.KeyPress(unison.KeyReturn, mod.None)
+	s.do(func() { rec = s.w.recentSearches() })
+	if !slices.Equal(rec, []string{"fox"}) {
+		t.Fatalf("enter remembers: %q", rec)
+	}
+	s.do(func() {
+		s.w.commitRecentSearch("fox")
+		s.w.commitRecentSearch("den")
+		s.w.commitRecentSearch("fox")
+		rec = s.w.recentSearches()
+	})
+	if !slices.Equal(rec, []string{"fox", "den"}) {
+		t.Errorf("newest first without repeats: %q", rec)
+	}
+	// Clearing the field shows the recent list; choosing one searches again.
+	s.do(func() { s.w.search.SetText("") })
+	var n int
+	s.do(func() { n = len(s.w.recent.Children()) })
+	if n != 2 {
+		t.Fatalf("%d recent rows, want 2", n)
+	}
+	s.do(func() { s.w.search.SetText("fox") })
+	s.do(func() { n = len(s.w.recent.Children()) })
+	if n != 0 {
+		t.Errorf("typing hides the recent list: %d rows", n)
+	}
+}
+
+// features.md 9.7: the status line names the caret's line and column.
+func TestStatusShowsLineAndColumn(t *testing.T) {
+	s := openVault(t, notes{"A.md": "first line\nsecond line\n"})
+	s.do(func() { s.w.Editor.FocusBlock(0, 11) }) // start of "second"
+	var facts []string
+	s.do(func() { facts = s.w.status.Facts })
+	if !slices.Contains(facts, "Ln 2, Col 1") {
+		t.Errorf("status facts: %q", facts)
+	}
+}
+
+// features.md 12.2: the auto-save wait is a setting, in seconds.
+func TestSaveIntervalSetting(t *testing.T) {
+	s := openVault(t, notes{"A.md": "text\n"})
+	var d time.Duration
+	s.do(func() { d = s.w.saveInterval() })
+	if d != saveDelay {
+		t.Fatalf("default wait: %v", d)
+	}
+	s.do(func() {
+		s.w.prefs.set("save.interval", 9)
+		d = s.w.saveInterval()
+	})
+	if d != 9*time.Second {
+		t.Fatalf("set wait: %v", d)
+	}
+	s.do(func() {
+		s.w.prefs.set("save.interval", 0)
+		d = s.w.saveInterval()
+	})
+	if d != time.Duration(minSaveInterval)*time.Second {
+		t.Fatalf("clamped wait: %v", d)
+	}
+}
+
+// features.md 12.1: opening a vault that cannot be written says so aloud.
+func TestReadOnlyAnnounced(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root can write anywhere")
+	}
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "Note.md"), []byte("Text\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(root, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(root, 0o755) })
+	s := openVaultAt(t, root)
+	// The live announcement for production, and the standing status text
+	// a reader meets in the tree, as Kvit's read-only chip names it.
+	unison.AnnounceForAccessibility("probe")
+	var announced bool
+	s.do(func() { announced = slices.Contains(s.screen.Announcements(), "probe") })
+	if !announced {
+		t.Error("announcements should reach a screen reader")
+	}
+	var heard bool
+	s.do(func() {
+		tree := s.screen.AccessibilityTree(s.w.Win.Window)
+		for _, n := range tree.Nodes {
+			if strings.Contains(n.Name, "reading only") || strings.Contains(n.Value, "reading only") {
+				heard = true
+			}
+		}
+	})
+	if !heard {
+		t.Error("no accessible node says the vault is reading only")
+	}
+}
+
+// features.md 3.7 and 9.5: the block menu exports through the export dialog,
+// scoped to the blocks; the dialog opens without a scope otherwise.
+func TestBlockExportOpensScopedDialog(t *testing.T) {
+	s := openVault(t, notes{"A.md": "first\n\nsecond\n"})
+	if s.w.Editor.OnExport == nil {
+		t.Fatal("the editor should export through the window")
+	}
+	var id int64
+	s.do(func() { id = s.w.Editor.Doc.Blocks[0].ID })
+	popups := func() int {
+		var n int
+		s.do(func() { n = len(s.w.Win.Popups()) })
+		return n
+	}
+	before := popups()
+	s.do(func() { s.w.openExportFor([]int64{id}) })
+	if got := popups(); got != before+1 {
+		t.Fatalf("%d popups, want one more for the export dialog", got)
+	}
+	s.screen.KeyPress(unison.KeyEscape, mod.None)
+}

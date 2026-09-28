@@ -53,33 +53,93 @@ func (w *Window) exportOptions() export.Options {
 
 // openExport shows the export dialog.
 func (w *Window) openExport() {
+	w.openExportFor(nil)
+}
+
+// openExportFor shows the export dialog, scoped to blocks when ids names
+// them (Kvit's export dialog opened from a block menu, openForBlocks).
+func (w *Window) openExportFor(ids []int64) {
 	ui := w.ui
 	var options []kvitui.Option
 	for _, f := range exportFormats {
+		if ids != nil && f.format == export.FormatPDF {
+			continue // PDF is made for the note only
+		}
 		options = append(options, kvitui.Option{Value: string(f.format), Label: f.label})
 	}
 	format := kvitui.NewSelect(ui, "Format", options...)
 	format.Current = w.prefs.string("export.format", string(export.FormatHTML))
+	if ids != nil && export.Format(format.Current) == export.FormatPDF {
+		format.Current = string(export.FormatHTML)
+	}
 	scope := kvitui.NewSegmented(ui, "Scope",
 		kvitui.Option{Value: "note", Label: "This note"}, kvitui.Option{Value: "vault", Label: "Whole collection"})
 	scope.Current = "note"
 	if w.open == nil {
 		scope.Current = "vault"
 	}
+	if ids != nil {
+		scope = kvitui.NewSegmented(ui, "Scope",
+			kvitui.Option{Value: "blocks", Label: fmt.Sprintf("%d selected block(s)", len(ids))},
+			kvitui.Option{Value: "note", Label: "This note"})
+		scope.Current = "blocks"
+	}
 	single := kvitui.NewCheck(ui, "One combined file")
-	d := kvitui.NewDialog(ui, "Export", settingRow(ui, "Format", format), settingRow(ui, "Scope", scope, single))
+	scopeRow := settingRow(ui, "Scope", scope, single)
+	if ids != nil {
+		// One combined file is a vault export choice; blocks go to one file.
+		scopeRow = settingRow(ui, "Scope", scope)
+	}
+	d := kvitui.NewDialog(ui, "Export", settingRow(ui, "Format", format), scopeRow)
 	d.Detail = "PDF is made for this note only."
 	d.ConfirmText = "Choose destination…"
 	d.OnAccept = func() {
 		f := export.Format(format.Current)
 		w.prefs.set("export.format", string(f))
-		if scope.Current == "vault" && f != export.FormatPDF {
+		switch {
+		case scope.Current == "blocks" && ids != nil:
+			w.exportBlocks(ids, f)
+		case scope.Current == "vault" && f != export.FormatPDF:
 			w.exportVault(f, single.Checked)
-		} else {
+		default:
 			w.exportNote(f)
 		}
 	}
 	d.Open(w.Win)
+}
+
+// exportBlocks writes blocks of the open note, as the editor holds them, to
+// a file.
+func (w *Window) exportBlocks(ids []int64, f export.Format) {
+	if w.open == nil || len(ids) == 0 {
+		return
+	}
+	idx := w.Editor.IndexesOf(ids)
+	title := w.open.Title
+	data, err := export.Selection(w.Editor.Doc.Blocks, idx, title, f, w.exportOptions())
+	if err != nil {
+		w.fail("Could not export the blocks", err)
+		return
+	}
+	dlg := unison.NewSaveDialog()
+	dlg.SetAllowedExtensions(f.Extension())
+	dlg.SetInitialFileName(title + "." + f.Extension())
+	if !dlg.RunModal() || dlg.Path() == "" {
+		return
+	}
+	target := dlg.Path()
+	if filepath.Ext(target) == "" {
+		target += "." + f.Extension()
+	}
+	if err := w.refuseVaultNote(target); err != nil {
+		w.fail("Could not export the blocks", err)
+		return
+	}
+	if err := os.WriteFile(target, data, 0o644); err != nil {
+		w.fail("Could not export the blocks", err)
+		return
+	}
+	w.say("Exported to " + target)
 }
 
 // exportNote writes the open note, as the editor holds it, to a file.

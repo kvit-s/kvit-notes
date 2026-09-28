@@ -74,7 +74,9 @@ type Editor struct {
 	// FollowLink, when set, follows a link a press landed on.
 	FollowLink func(LinkRef)
 	// OnLink, when set, opens the link dialog, as Ctrl+K does.
-	OnLink       func()
+	OnLink func()
+	// OnExport, when set, exports blocks, as the block menu's Export does.
+	OnExport     func(ids []int64)
 	formatBar    func()        // hides the formatting bar while it is shown
 	formatBarRow *unison.Panel // the bar's buttons
 	// LoadPreview, when set, is asked to read a web page for its embed card,
