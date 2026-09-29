@@ -31,10 +31,10 @@ const (
 // MaxPinnedCoordinate is the largest distance from the origin, in logical
 // pixels, a `%% mermaid-flow:pos` line can pin a node's centre at. A
 // coordinate beyond it is clamped to it, so the node stays visible at the
-// edge. It is Diagram::kMaxPinnedCoordinate of the Qt app's diagrambudget.h.
+// edge. It is Diagram::kMaxPinnedCoordinate of the app's diagrambudget.h.
 const MaxPinnedCoordinate = 200000.0
 
-// newParseResult is a ParseResult with the Qt app's defaults where Go's zero
+// newParseResult is a ParseResult with the app's defaults where Go's zero
 // values differ.
 func newParseResult() ParseResult {
 	var r ParseResult

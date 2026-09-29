@@ -1,7 +1,7 @@
 package editor
 
-// The table of contents (features.md 17.2, Kvit's TocBlock.qml and
-// TocFenceSync.qml): a code fence of language "toc". It is drawn as a
+// The table of contents (features.md 17.2, Kvit's TocBlock and
+// TocFenceSync): a code fence of language "toc". It is drawn as a
 // "Contents" card listing the note's headings, indented by level, each a
 // link that scrolls the note to its heading. Its body, which is what the
 // file holds, is kept as a Markdown list of links to the headings' anchors,

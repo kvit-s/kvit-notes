@@ -2,14 +2,14 @@ package export
 
 // The blocks an export renders. The editor models paragraphs, headings, the
 // three list kinds, quotes, callouts, code, dividers, images, media and
-// tables, and keeps everything else as Raw Markdown. The Qt app models more:
+// tables, and keeps everything else as Raw Markdown. The app models more:
 // a $$ fence is a maths block, a code fence whose language is kanban, toc,
 // mermaid or query renders as a board, a table of contents, a diagram or a
 // query, and a quote is split where its nesting depth changes. Each editor
-// block is read here into the block the Qt parser would have made of the same
+// block is read here into the block the parser would have made of the same
 // Markdown (src/domain/documentserializer.cpp, DocumentSerializer::parse, and
 // src/domain/blockkinds.cpp, kindForState), so the renderers can follow the
-// Qt block kinds one to one.
+// block kinds one to one.
 
 import (
 	"net/url"
@@ -49,7 +49,7 @@ const (
 
 func (k kind) isList() bool { return k == kBullet || k == kNumbered || k == kTodo }
 
-// block is one block as the Qt exporter sees it (Block::State).
+// block is one block as the exporter sees it (Block::State).
 type block struct {
 	kind    kind
 	level   int    // a heading's level, 1 to 4
@@ -72,11 +72,11 @@ func (b *block) headingLevel() int {
 
 var reCallout = regexp.MustCompile(`^\[!([A-Za-z][A-Za-z0-9_-]*)\]([+-]?)\s*(.*)$`)
 
-// fromEditor reads editor blocks as the Qt parser would read the same
+// fromEditor reads editor blocks as the parser would read the same
 // Markdown. A leading Raw block holding front matter is left out when
-// skipFrontMatter is set, since no Qt export renders a note's metadata as
+// skipFrontMatter is set, since no  export renders a note's metadata as
 // part of its body; a leading Raw block that starts with "---" but is not
-// front matter by the Qt app's rule is read as a divider and what follows.
+// front matter by the app's rule is read as a divider and what follows.
 func fromEditor(src []editor.Block, skipFrontMatter bool) []block {
 	var out []block
 	for i, b := range src {
@@ -100,7 +100,7 @@ func fromEditor(src []editor.Block, skipFrontMatter bool) []block {
 	return out
 }
 
-// rereadDashes reads text the editor took for front matter as the Qt parser
+// rereadDashes reads text the editor took for front matter as the parser
 // reads a body that starts with "---": a divider, then the rest.
 func rereadDashes(text string) []block {
 	first, rest, _ := strings.Cut(text, "\n")
@@ -169,7 +169,7 @@ func convert(b editor.Block) []block {
 		return quotes(b.Text, b.Attrs)
 	case editor.Callout:
 		// Written back as the quote it was read from, so that a nested line
-		// in its body ends it as the Qt parser ends it.
+		// in its body ends it as the parser ends it.
 		header := "[!" + b.Lang + "]"
 		if b.Checked {
 			header += "-"
@@ -210,7 +210,7 @@ func convert(b editor.Block) []block {
 	return paragraphs(b.Text, b.Attrs)
 }
 
-// paragraphs splits a paragraph around its image lines: the Qt parser makes
+// paragraphs splits a paragraph around its image lines: the parser makes
 // a line that is exactly one image expression an image block of its own,
 // whatever is around it.
 func paragraphs(text, attrs string) []block {
@@ -242,7 +242,7 @@ func paragraphs(text, attrs string) []block {
 }
 
 // quotes splits a quote by nesting depth and recognises a callout, as the
-// Qt parser's quote runs do: each run of lines at one depth is one block,
+// parser's quote runs do: each run of lines at one depth is one block,
 // and a run whose first line is "[!type] Title" is a callout.
 func quotes(text, attrs string) []block {
 	type line struct {
@@ -252,7 +252,7 @@ func quotes(text, attrs string) []block {
 	var lines []line
 	for _, l := range strings.Split(text, "\n") {
 		// The editor took one ">" and one space off; the rest are counted
-		// here the way the Qt parser counts them.
+		// here the way the parser counts them.
 		depth, rest := 1, l
 		for strings.HasPrefix(rest, ">") {
 			depth++
@@ -282,7 +282,7 @@ func quotes(text, attrs string) []block {
 }
 
 // raw reads the Markdown the editor keeps verbatim: a pipe table, a $$ fence,
-// and anything else, which the Qt parser would read as a paragraph.
+// and anything else, which the parser would read as a paragraph.
 func raw(text, attrs string) []block {
 	lines := strings.Split(text, "\n")
 	first, firstAttrs := stripTag(lines[0])
@@ -313,7 +313,7 @@ func raw(text, attrs string) []block {
 
 // tableBlocks is a pipe table's rows as a table block. A tag left on a data
 // row, where Kvit once wrote it, is taken off; rows that do not make a table
-// are the paragraph the Qt parser would read them as.
+// are the paragraph the parser would read them as.
 func tableBlocks(lines []string, attrs string) []block {
 	rows := make([]string, len(lines))
 	for i, l := range lines {
@@ -352,7 +352,7 @@ func sortedKeys(m map[string]string) []string {
 	for k := range m {
 		keys = append(keys, k)
 	}
-	// QMap orders keys by QString's comparison, which for these ASCII keys is
+	// QMap orders keys by string's comparison, which for these ASCII keys is
 	// byte order.
 	slices.Sort(keys)
 	return keys
@@ -469,7 +469,7 @@ func withDropCap(html string, a map[string]string) string {
 		return html
 	}
 	// One character. A character outside the Basic Multilingual Plane is two
-	// UTF-16 units to Qt, and the Qt exporter wraps only the first of them;
+	// UTF-16 units to , and the exporter wraps only the first of them;
 	// the whole character is wrapped here, which keeps the output valid.
 	_, size := utf8.DecodeRuneInString(html[start:])
 	end := start + size
@@ -770,7 +770,7 @@ func applyEdits(text string, edits []edit) string {
 	return text
 }
 
-// simplified is QString::simplified: whitespace runs to one space, trimmed.
+// simplified is string::simplified: whitespace runs to one space, trimmed.
 func simplified(s string) string { return strings.Join(strings.FieldsFunc(s, isSpace), " ") }
 
 func parseCardBody(rest string, c *card) {

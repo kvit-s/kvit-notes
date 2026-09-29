@@ -84,8 +84,8 @@ func TestResolveAsTheQtAppDoes(t *testing.T) {
 	}
 }
 
-// Candidates are listed without regard to case, as QStringList::sort with
-// Qt::CaseInsensitive lists them.
+// Candidates are listed without regard to case, as string list::sort with
+// ::CaseInsensitive lists them.
 func TestAmbiguousCandidatesAreSortedWithoutCase(t *testing.T) {
 	ix := NewIndex([]string{"b/Welcome.md", "a/Welcome.md", "Welcome.md", "A/welcome.md"})
 	r := ix.Resolution("welcome", true)
@@ -140,7 +140,7 @@ func TestABareNameNeverResolvesIntoARealm(t *testing.T) {
 	}
 }
 
-// What [[ completion inserts (qml/WikiLinkMenu.qml).
+// What [[ completion inserts (qml/WikiLinkMenu).
 func TestCompletionTargetIsTheTitleWhenThatResolves(t *testing.T) {
 	ix := NewIndex(append([]string{"Archive/Welcome.md"}, fixture...))
 	cases := []struct{ path, title, want string }{
@@ -161,7 +161,7 @@ func TestCompletionTargetIsTheTitleWhenThatResolves(t *testing.T) {
 // TestNoteSession::aDanglingWikiLinkIsCreatedAndReportedWithNoWindowToReportTo
 // and tst_integration's test_wiki1_followOpensAndCreates and
 // test_wiki1b_requestOpenLinkKeepsSpaces, with the path-qualified cases of
-// createWikiTarget in qml/NoteSession.qml.
+// createWikiTarget in qml/NoteSession.
 func TestNewNoteFor(t *testing.T) {
 	cases := []struct {
 		target, current string
@@ -179,7 +179,7 @@ func TestNewNoteFor(t *testing.T) {
 		{".md", "", NewNote{}, false},
 		// A trailing slash makes an untitled note in the folder.
 		{"Folder/", "", NewNote{"Folder", "", ""}, true},
-		// What the Qt app fails to create.
+		// What the app fails to create.
 		{".hidden/x", "", NewNote{}, false},
 		{"a//b", "", NewNote{}, false},
 		{"a /b", "", NewNote{}, false},

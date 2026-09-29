@@ -4,15 +4,15 @@
 #
 # The test installer is built from the same kvit-notes.iss with its own AppId,
 # product name and ProgID, so installing and uninstalling it cannot change a
-# real Kvit Notes installation (Qt or Go) or its .md association. The script
+# real Kvit Notes installation or its .md association. The script
 # refuses to run with the real product's AppId or ProgID, and compares the real
 # product's registry keys before and after to show they were left alone.
 #
 # What it does:
 #   1. unzips the portable zip and starts kvit-notes.exe briefly;
-#   2. puts files named like the Qt runtime into the install folder, installs
+#   2. puts files named like the runtime into the install folder, installs
 #      the test installer silently into that folder, and checks the installed
-#      files, that the Qt files were removed, the Start-menu shortcut and the
+#      files, that the files were removed, the Start-menu shortcut and the
 #      HKCU keys of the .md association;
 #   3. starts the installed kvit-notes.exe briefly;
 #   (after 1 and 3, the math self-test in that folder;)
@@ -148,12 +148,12 @@ Check (-not (Test-Path $UninstallKey)) "no earlier test installation is register
 $realBefore = @(Get-RegistryLines "$Classes\$RealProgId") + @(Get-RegistryLines "$UninstallRoot\{$RealAppId}_is1") +
     @(Get-ItemProperty $OpenWith -ErrorAction SilentlyContinue | ForEach-Object { $_.PSObject.Properties.Name } | Where-Object { $_ -notlike 'PS*' })
 
-# Files an earlier Qt installation leaves in the folder, which the installer
+# Files an earlier installation leaves in the folder, which the installer
 # must remove, and one file of the user's, which it must leave.
-$qtFiles = 'Qt6Core.dll', 'avcodec-61.dll', 'msvcp140.dll', 'platforms\qwindows.dll', 'qml\QtQuick\qmldir', 'licenses\qt\LICENSE.LGPL3'
-foreach ($f in $qtFiles) {
+$oldFiles = 'Qt6Core.dll', 'avcodec-61.dll', 'msvcp140.dll', 'platforms\qwindows.dll', 'qml\view layer\qmldir', 'licenses\qt\LICENSE.LGPL3'
+foreach ($f in $oldFiles) {
     New-Item -ItemType Directory -Force (Split-Path (Join-Path $Install $f)) | Out-Null
-    Set-Content (Join-Path $Install $f) 'stand-in for a Qt runtime file'
+    Set-Content (Join-Path $Install $f) 'stand-in for a runtime file'
 }
 Set-Content (Join-Path $Install 'keep-me.txt') 'not the installer''s'
 
@@ -169,8 +169,8 @@ foreach ($f in 'kvit-notes.exe', 'kvitmath.dll', 'unins000.exe', 'unins000.dat',
                'licenses\THIRD-PARTY-NOTICES.md', 'math-res\fonts\licences\OFL.txt') {
     Check ($installed -contains $f) "installed $f"
 }
-foreach ($f in $qtFiles) { Check (-not (Test-Path (Join-Path $Install $f))) "removed the Qt file $f" }
-foreach ($d in 'platforms', 'qml', 'licenses\qt') { Check (-not (Test-Path (Join-Path $Install $d))) "removed the Qt folder $d" }
+foreach ($f in $oldFiles) { Check (-not (Test-Path (Join-Path $Install $f))) "removed the file $f" }
+foreach ($d in 'platforms', 'qml', 'licenses\qt') { Check (-not (Test-Path (Join-Path $Install $d))) "removed the folder $d" }
 Check (Test-Path (Join-Path $Install 'keep-me.txt')) "left keep-me.txt alone"
 Remove-Item (Join-Path $Install 'keep-me.txt')
 
@@ -203,8 +203,8 @@ Check ($p.ExitCode -eq 0) "the uninstaller exited with code $($p.ExitCode)"
 # The uninstaller runs a copy of itself from the temporary folder and returns
 # at once, so wait until that copy has removed the uninstall entry and folder.
 # The uninstaller removes the folders it created and leaves those that
-# existed before, here the install folder and licenses, which the Qt
-# stand-ins made (a real Qt installation's folders are in the uninstall log
+# existed before, here the install folder and licenses, which the 
+# stand-ins made (a real  installation's folders are in the uninstall log
 # the Go installer extends, so they are removed there).
 $deadline = (Get-Date).AddSeconds(90)
 while ((Get-Date) -lt $deadline -and ((Test-Path $UninstallKey) -or (Test-Path (Join-Path $Install 'unins000.exe')))) {

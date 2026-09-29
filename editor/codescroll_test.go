@@ -1,7 +1,7 @@
 package editor
 
 // Horizontal scrolling for code blocks (features.md 1.2.7, Kvit's
-// EditableBlock.qml codeChrome and CodeBlockChrome.qml): long lines do not
+// EditableBlock codeChrome and CodeBlockChrome): long lines do not
 // wrap, the caret follows along them, and the scrollbar and the wheel move
 // the text.
 

@@ -1,7 +1,7 @@
 package vault
 
-// The vault lock, shared with the Qt app: an exclusive lock on
-// .kvit/vault.lock held for as long as the vault is open, so the Qt and Go
+// The vault lock, shared with the app: an exclusive lock on
+// .kvit/vault.lock held for as long as the vault is open, so the and Go
 // apps never have one vault open at once (src/repository/vaultlock.cpp).
 // While it holds the lock the holder writes who it is into the file, which is
 // what the refusal the other app gives says.

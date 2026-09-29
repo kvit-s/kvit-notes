@@ -10,7 +10,7 @@ import (
 )
 
 // documentsDir is the reader's Documents folder: on Linux the one named in
-// user-dirs.dirs, as Qt reads it, else ~/Documents.
+// user-dirs.dirs, as reads it, else ~/Documents.
 func documentsDir() string {
 	home, _ := os.UserHomeDir()
 	config := os.Getenv("XDG_CONFIG_HOME")

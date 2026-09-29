@@ -127,7 +127,7 @@ var (
 	reDivider  = regexp.MustCompile(`^(\*{3,}|-{3,}|_{3,})\s*$`)
 )
 
-// fenceOpen reads a code fence's opening line as the Qt parser does
+// fenceOpen reads a code fence's opening line as the parser does
 // (DocumentSerializer's fenceLength): three or more backticks or tildes and
 // an info string. A backtick fence's info string cannot hold a backtick, so
 // such a line opens nothing; a tilde fence's may, and the backticks are
@@ -305,7 +305,7 @@ func ParseMarkdown(src string) []Block {
 			b.Attrs = attrs
 			// A fence arriving from outside the note (a note opened,
 			// Markdown pasted) holding a character diagram is tagged and
-			// straightened, as in the Qt app's parse. Its whole info
+			// straightened, as in the app's parse. Its whole info
 			// string decides, as there, though only its first word is kept.
 			lang, text := textdiagram.Ingest(info, b.Text)
 			if lang != info {

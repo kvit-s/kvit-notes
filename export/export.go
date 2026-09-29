@@ -1,12 +1,12 @@
 // Package export writes notes out as HTML, plain text and Markdown, imports
 // Markdown and text files into a vault, and converts HTML to Markdown, the
-// way the Qt app does (features.md 12.5 Export Options and 12.6 Import
-// Options). It is the Qt app's DocumentExporter, DocumentImporter and
+// way the app does (features.md 12.5 Export Options and 12.6 Import
+// Options). It is the app's DocumentExporter, DocumentImporter and
 // HtmlToMarkdown (the converter behind pasting HTML) without their dialogs
 // and without writing anything: every function returns the text or the list
 // of files to write, and the caller writes them.
 //
-// PDF is not here. The Qt app prints the HTML page through QTextDocument; the
+// PDF is not here. The app prints the HTML page through QTextDocument; the
 // Go app will draw it through the UI toolkit.
 package export
 
@@ -18,7 +18,7 @@ import (
 	"github.com/kvit-s/kvit-notes/editor"
 )
 
-// Format is an export format, as the Qt export dialog names them.
+// Format is an export format, as the export dialog names them.
 type Format string
 
 // The export formats.
@@ -59,7 +59,7 @@ func HTMLFromMarkdown(body, title string, opt Options) string {
 
 // HTMLFromBlocks is the note the editor holds as an HTML page
 // (DocumentExporter::htmlForModel). A leading block of front matter is left
-// out, as the Qt app never has it in the editor.
+// out, as the app never has it in the editor.
 func HTMLFromBlocks(blocks []editor.Block, title string, opt Options) string {
 	return page(fromEditor(blocks, true), title, opt)
 }
@@ -131,7 +131,7 @@ func MarkdownFromSelection(blocks []editor.Block, indexes []int) string {
 	return sb.String()
 }
 
-// Note is the note the editor holds, written in a format: what the Qt export
+// Note is the note the editor holds, written in a format: what the export
 // dialog writes for its "This note" scope (DocumentExporter::writeModel).
 // Markdown is the note's body as the editor saves it, without front matter;
 // HTML and text are as HTMLFromBlocks and TextFromBlocks. PDF returns ErrPDF.
@@ -152,7 +152,7 @@ func Note(blocks []editor.Block, title string, format Format, opt Options) ([]by
 	return nil, ErrFormat
 }
 
-// Selection is some of the editor's blocks written in a format: what the Qt
+// Selection is some of the editor's blocks written in a format: what the
 // export dialog writes for its "Selected blocks" scope
 // (DocumentExporter::writeModelBlocks).
 func Selection(blocks []editor.Block, indexes []int, title string, format Format, opt Options) ([]byte, error) {

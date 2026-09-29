@@ -3,7 +3,7 @@ package textdiagram
 import "strings"
 
 // The characters Repair recognizes as parts of boxes and connectors, from
-// the Qt app's diagramglyphs.h. Canvas draws only characters from these
+// the app's diagramglyphs.h. Canvas draws only characters from these
 // sets, which is why Repair leaves a Canvas's text unchanged.
 
 // IsTopLeft reports whether r is a box's top-left corner.

@@ -1,6 +1,6 @@
 package editor
 
-// Collection query blocks (features.md 1.2.18, Kvit's QueryBlock.qml): a
+// Collection query blocks (features.md 1.2.18, Kvit's QueryBlock): a
 // code fence of language "query" holds a spec, and while the caret is
 // elsewhere the block shows the notes it selects, as a table with a row a
 // note or, with "view: board", as columns of cards grouped by a field. A

@@ -324,7 +324,7 @@ func (w *Window) storedPath(abs string) string {
 
 // noteSlug is a note's name as new picture names start with: its file
 // name lowercased, every run of other characters than a to z and 0 to 9 a
-// dash, or "image" (BlockEditorSurface.qml, documentSlug).
+// dash, or "image" (BlockEditorSurface, documentSlug).
 func noteSlug(note string) string {
 	name := strings.TrimSuffix(path.Base(note), path.Ext(note))
 	var b strings.Builder
@@ -365,7 +365,7 @@ func safeSegment(value, fallback string) string {
 }
 
 // pasteImage saves a picture on the clipboard into the vault and reports
-// its stored path, as Qt's AssetStore::ingestClipboardImage does. It
+// its stored path, as the AssetStore::ingestClipboardImage does. It
 // reports false when the clipboard holds no picture, leaving the text paste
 // path to run instead.
 func (w *Window) pasteImage() (string, bool) {

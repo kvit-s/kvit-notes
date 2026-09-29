@@ -49,8 +49,8 @@ func TestBacklinksRows(t *testing.T) {
 }
 
 // The context of a link at the very start of a note is the note's first
-// line. The Qt app shows the last line instead, or nothing when the body
-// ends with a newline, because QString::lastIndexOf with a start of -1
+// line. The app shows the last line instead, or nothing when the body
+// ends with a newline, because string::lastIndexOf with a start of -1
 // searches from the end; that is not reproduced.
 func TestBacklinkAtTheStartOfANote(t *testing.T) {
 	bodies := map[string]string{"A.md": "[[B]] first line\nsecond\n", "B.md": ""}

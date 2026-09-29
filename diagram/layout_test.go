@@ -1,8 +1,8 @@
 package diagram
 
-// These tests are the Qt app's tests/test_diagramlayout.cpp, one Go test per
+// These tests are the app's tests/test_diagramlayout.cpp, one Go test per
 // test function there and in the same order, with the same sources and
-// expectations, measured as helpers_test.go describes. Four Qt functions are
+// expectations, measured as helpers_test.go describes. Four  functions are
 // not here because they test the painter or the DiagramCanvas item, which
 // become the editor's: canvasSelectionAndLinking,
 // resetSceneDropsLastGoodAcrossReuse, savePngWritesImage and
@@ -10,7 +10,7 @@ package diagram
 // canvasSelectionAndLinking (finding the node and edge under a point, and
 // the source offset of a node) is TestSceneHitTesting in hittest_test.go.
 // deterministicScene compares the whole scene, which covers the positions
-// the Qt test compares.
+// the test compares.
 
 import (
 	"fmt"
@@ -214,7 +214,7 @@ func TestRankSkippingEdgeClearsTheNodeBetween(t *testing.T) {
 	}
 }
 
-// The five sources of the Qt app's docs/qa-checklist.md item 6, one per
+// The five sources of the app's docs/qa-checklist.md item 6, one per
 // family. The checklist asks a person to confirm every edge label sits in
 // open space; this is that check.
 func TestChecklistDiagramsKeepLabelsOffBoxes(t *testing.T) {
@@ -357,7 +357,7 @@ func TestMathLabelRecognizesWholeLabelsOnly(t *testing.T) {
 
 // An expression that does not typeset falls back to its source: no size, so
 // layout measures the label's text and the editor draws it. Here fakeMath
-// does the rejecting that MicroTeX does in the Qt test.
+// does the rejecting that MicroTeX does in the test.
 func TestUnparseableMathFallsBackToItsSource(t *testing.T) {
 	o := testOpts()
 	if _, ok := o.mathSize(MathLabel("$$x^2$$")); !ok {

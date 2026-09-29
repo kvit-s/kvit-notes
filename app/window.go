@@ -29,7 +29,7 @@ import (
 )
 
 // The panes' widths in design pixels until the reader changes them
-// (main.qml).
+// (main).
 const (
 	sidebarWidth  = 200
 	noteListWidth = 260
@@ -378,7 +378,7 @@ func Open(ui *kvitui.UI, v *vault.Vault) (*Window, error) {
 		w.openNote(w.shown[0])
 	}
 	if w.open != nil {
-		// The keyboard starts in the note, at its start, as in the Qt app.
+		// The keyboard starts in the note, at its start, as in the app.
 		w.Editor.FocusBlock(0, 0)
 	}
 	if v.ReadOnly {
@@ -401,7 +401,7 @@ func Open(ui *kvitui.UI, v *vault.Vault) (*Window, error) {
 }
 
 // recordOpenVaults writes the vaults open in windows to the settings, which
-// is where the next start, of this app or the Qt one, opens.
+// is where the next start, of this app or the one, opens.
 func (w *Window) recordOpenVaults() {
 	var roots []string
 	for _, o := range windows {
@@ -574,7 +574,7 @@ func (w *Window) keyDown(key unison.KeyCode, mods mod.Modifiers, _ bool) bool {
 }
 
 // toggleSides hides the sidebar and the note list, giving the editor the
-// whole window, or brings them back (Ctrl+\, as in the Qt app).
+// whole window, or brings them back (Ctrl+\, as in the app).
 func (w *Window) toggleSides() {
 	w.hidden = !w.hidden
 	w.prefs.set("panels.visible", !w.hidden)
@@ -979,7 +979,7 @@ func (w *Window) refreshList() {
 // Manual sort, which only a folder has; elsewhere it is by title.
 func (w *Window) manualOrder() bool { return w.sortBy == "manual" && w.scope.Kind == ScopeFolder }
 
-// sortShown puts the notes shown in order, as the Qt note list does
+// sortShown puts the notes shown in order, as the note list does
 // (NoteListModel): by the sort chosen, each way, ties by path, the Manual
 // order as the reader left it (reversed when turned around), and pinned
 // notes first in every order.
@@ -1183,7 +1183,7 @@ func (w *Window) setTags(tags []string) {
 }
 
 // update shows the save state and the caret's place in the status line, in
-// the Qt app's order (qml/EditorStatusBar.qml): the save state with its dot,
+// the app's order (qml/EditorStatusBar): the save state with its dot,
 // the last-saved time, the caret's block, line and column, the block type,
 // the file path, the block count, and the word and character counts with the
 // writing goal. The passive update notice leads when a newer release is
@@ -1236,7 +1236,7 @@ func (w *Window) update() {
 	w.status.MarkForLayoutAndRedraw()
 }
 
-// savedAgo is the Qt status bar's last-saved time: relative, absolute on
+// savedAgo is the status bar's last-saved time: relative, absolute on
 // hover ("just now", "N min ago", "hh:mm").
 func savedAgo(at, now time.Time) string {
 	if at.IsZero() {

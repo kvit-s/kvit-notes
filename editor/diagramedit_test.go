@@ -1,7 +1,7 @@
 package editor
 
 // Editing a Mermaid diagram on its drawing. These tests are not ports: the
-// Qt app tests its edits at the source level (tests/test_mermaidedits.cpp,
+// app tests its edits at the source level (tests/test_mermaidedits.cpp,
 // ported in package mermaid) and has no test that drives a gesture on the
 // drawing; canvasSelectionAndLinking in tests/test_diagramlayout.cpp calls
 // no gesture either. They drive each gesture of features.md 1.2.17 through

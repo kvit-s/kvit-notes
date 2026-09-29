@@ -2,7 +2,7 @@ package editor
 
 // Math in the editor (features.md 1.2.15): display equations (mathblock.go),
 // inline $…$ spans (mathinline.go) and diagram labels (mathdiagram.go). The
-// Qt app's own checks of these are storyboards (tests/tst_visual.qml,
+// app's own checks of these are storyboards (tests/tst_visual,
 // test_39_math, test_49_inline_math, test_62_math_canary,
 // test_36b_table_math_and_column_widths), replayed with their pictures by
 // cmd/kvit-notes/scenarios_math.go; these check the geometry the pictures
@@ -78,7 +78,7 @@ func TestMathFencesAreEquations(t *testing.T) {
 }
 
 // Away from the caret an equation shows only its typeset form, centred in
-// a row as tall as it and its padding (MathBlock.qml); with the caret in it,
+// a row as tall as it and its padding (MathBlock); with the caret in it,
 // its TeX in a panel, the typeset preview under that, and the exit key
 // under the preview.
 func TestDisplayEquationShowsTypesetUntilEdited(t *testing.T) {

@@ -1,6 +1,6 @@
 package diagram
 
-// The sequence-diagram layout, a port of the Qt app's
+// The sequence-diagram layout, a port of the app's
 // src/content/diagrams/sequencelayout.cpp. Lifelines make the columns,
 // messages, notes and fragments make the rows, and labels widen the columns
 // before anything is placed. It follows the conventions a Mermaid user knows

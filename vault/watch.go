@@ -2,7 +2,7 @@ package vault
 
 // Noticing changes made by other programs: the vault's folders are watched,
 // and what changed is reported in batches, a moment after the changes stop,
-// as the Qt app's FileWatcher does (src/platform/filewatcher.cpp). The
+// as the app's FileWatcher does (src/platform/filewatcher.cpp). The
 // vault's own writes are told apart by their content rather than by
 // timing: a note whose text is what this app last wrote or read is
 // unchanged.

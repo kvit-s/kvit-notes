@@ -1,11 +1,11 @@
 package app
 
 // Renaming and moving notes and folders without breaking the links to
-// them (Kvit's NoteRenameWorkflow.qml over src/repository/notecollection.cpp).
+// them (Kvit's NoteRenameWorkflow over src/repository/notecollection.cpp).
 // When wiki links name what is being renamed, the reader is asked first:
 // Update links rewrites them to the new name, Rename only leaves them, and
 // Cancel does nothing. Updating goes through the vault's table of renamed
-// notes, .kvit/redirects.json, as the Qt app's does: the rename is recorded,
+// notes, .kvit/redirects.json, as the app's does: the rename is recorded,
 // every note linking through it is rewritten, and the entry is dropped once
 // no link needs it, so an interrupted rewrite is finished the next time.
 

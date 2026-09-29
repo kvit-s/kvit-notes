@@ -1,11 +1,11 @@
 package diagram
 
-// These tests are the layout and render functions of the Qt app's
+// These tests are the layout and render functions of the app's
 // tests/test_mermaidstate.cpp, one Go test per test function and in the
 // same order, with the same sources and expectations; the parser's
 // functions of that file are ported in package mermaid. Each name has
 // "State" added, because every family's test file has a
-// layoutDeterministic. The Qt test tells a note's line by Qt::DashLine; here
+// layoutDeterministic. The test tells a note's line by ::DashLine; here
 // it is LineDashed.
 
 import (

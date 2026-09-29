@@ -1,8 +1,8 @@
 package textdiagram
 
-// These tests are the Qt app's tests/test_textcanvas.cpp, one Go test per
+// These tests are the app's tests/test_textcanvas.cpp, one Go test per
 // test function there and in the same order, with the same inputs and
-// expected outputs. The Qt data function testJunctionTable_data is the table
+// expected outputs. The data function testJunctionTable_data is the table
 // inside TestJunctionTable, one subtest per row. QChar() outside the grid is
 // the rune 0 here.
 

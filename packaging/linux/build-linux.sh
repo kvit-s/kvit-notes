@@ -21,9 +21,9 @@
 #
 # The AppImage is made by appimagetool with a separately pinned type-2
 # runtime, both downloaded once into packaging/.tools and checked against the
-# digests below, as the Qt app's AppImage script did. appimagetool runs with
-# --appimage-extract-and-run so the build machine needs no FUSE. The Qt
-# script's other tool, linuxdeploy with its Qt plugin, is not needed: the Go
+# digests below, as the app's AppImage script did. appimagetool runs with
+# --appimage-extract-and-run so the build machine needs no FUSE. The
+# script's other tool, linuxdeploy with its  plugin, is not needed: the Go
 # program has no libraries to collect.
 #
 # packaging/linux/test-linux.sh runs the results.
@@ -36,7 +36,7 @@ release_version
 
 # ── Pinned tools
 #
-# The digests were recorded for the Qt app's AppImage on 2026-08-02 and
+# The digests were recorded for the app's AppImage on 2026-08-02 and
 # match what these URLs served on 2026-09-27. The runtime is pinned apart
 # from appimagetool so that an older runtime inside the tool cannot bring back
 # the libfuse.so.2 dependency on FUSE 3 systems. Its source is

@@ -10,8 +10,8 @@ import (
 )
 
 // foldRune returns the same rune for every member of r's simple case
-// folding class and a different rune for every other class. Qt's
-// case-insensitive QString::indexOf compares characters by their simple case
+// folding class and a different rune for every other class. the
+// case-insensitive string::indexOf compares characters by their simple case
 // folding one character at a time, so a match has the query's length, which
 // is what lets a match in folded text keep its offsets. The rune returned is
 // the smallest member of the class: for ASCII letters that is the capital.
@@ -78,12 +78,12 @@ func foldString(s string) string {
 	return f
 }
 
-// trim is QString::trimmed: the Unicode white space removed from both ends.
+// trim is string::trimmed: the Unicode white space removed from both ends.
 // Go's unicode.IsSpace is the same set as QChar::isSpace.
 func trim(s string) string { return strings.TrimFunc(s, unicode.IsSpace) }
 
 // isWordChar is the find bar's word character (documentsearch.cpp
-// isWordChar): QChar::isLetterOrNumber or the underscore. Qt asks it of one
+// isWordChar): QChar::isLetterOrNumber or the underscore.  asks it of one
 // UTF-16 code unit, and half of a surrogate pair is neither, so a character
 // beyond the Basic Multilingual Plane is never a word character here.
 func isWordChar(r rune) bool {
@@ -128,13 +128,13 @@ func hasWordChar(s string) bool {
 }
 
 // scalarCount is how many characters a query has for choosing between whole
-// words and substrings (SearchMatching::unicodeScalarCount). Qt counts the
+// words and substrings (SearchMatching::unicodeScalarCount).  counts the
 // Unicode scalar values of the query after NFC normalisation, so a letter
 // typed with a separate combining accent counts once. The standard library
 // has no normaliser, so this counts a nonspacing mark as part of the
 // character before it and composes Hangul jamo as NFC does. The two counts
 // differ only for a mark that has no precomposed form with its base, such
-// as q with an acute accent, which Qt counts as two.
+// as q with an acute accent, which  counts as two.
 func scalarCount(s string) int {
 	n := 0
 	prev := rune(-1)

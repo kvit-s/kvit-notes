@@ -11,12 +11,12 @@ import (
 	"testing"
 )
 
-// The Qt app's tests/test_ignorerules.cpp, case for case.
+// The app's tests/test_ignorerules.cpp, case for case.
 //
 // Three of its cases check the rules through NoteCollection (the vault scan)
 // and FileWatcher, which this package cannot import. Those cases run the
 // same files through scanVault and discoverDirectories below, which repeat
-// the walks of the Qt app's src/repository/vaultscan.cpp and
+// the walks of the app's src/repository/vaultscan.cpp and
 // src/platform/filewatcher.cpp in the parts that use the rules, and check
 // the same results.
 
@@ -209,7 +209,7 @@ func TestGitPatternsAndNestedNegation(t *testing.T) {
 	}
 }
 
-// The Qt case keeps the patterns in a SettingsStore backed by
+// The case keeps the patterns in a SettingsStore backed by
 // settings.json. Here the settings are the same JSON object, written to
 // settings.json in a folder of its own and read back.
 func TestInfoExcludeAndSettingsAreRootSpecific(t *testing.T) {
@@ -322,9 +322,9 @@ func TestChangingSettingsRescansAnOpenCollection(t *testing.T) {
 	}
 }
 
-// The Qt case also checks FileWatcher::watchDegraded, which says the
+// The case also checks FileWatcher::watchDegraded, which says the
 // system refused a watch; discoverDirectories registers no watches, so
-// there is nothing to check for it. The debounce the Qt case drains is the
+// there is nothing to check for it. The debounce the case drains is the
 // watcher's too. What it measures, that a change inside an excluded folder
 // is dropped, is isIgnoredPath here.
 func TestWatcherNeverEntersIgnoredDirectories(t *testing.T) {

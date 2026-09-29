@@ -143,7 +143,7 @@ func (p *iparser) matchAt(i, to int, closing string, record bool) (int, bool) {
 		// A wiki link by the shared grammar (links.MatchAt, the port of
 		// WikiLinkScanner::matchAt): with an alias the opening marker
 		// swallows "target|", so only the alias shows away from the caret,
-		// as in the Qt app.
+		// as in the app.
 		if l, ok := links.MatchAt(s, i); ok && i+l.Length <= to {
 			if record {
 				cstart := i + 2
@@ -557,7 +557,7 @@ func (p *projection) forClick(d int) int {
 }
 
 // cssColors are the CSS colour names a colour span may use, those the
-// Qt app's text colour dialog and other editors write.
+// app's text colour dialog and other editors write.
 var cssColors = map[string]string{
 	"black": "#000000", "white": "#ffffff", "gray": "#808080", "grey": "#808080", "silver": "#c0c0c0",
 	"red": "#ff0000", "maroon": "#800000", "orange": "#ffa500", "yellow": "#ffff00", "olive": "#808000",

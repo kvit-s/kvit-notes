@@ -12,19 +12,19 @@ import (
 )
 
 // The tests in this file are ported from Kvit's tests/test_searchindexdb.cpp
-// and tests/test_collectionsearch.cpp; each names the Qt test it comes from.
-// The Qt tests of the SQLite database itself (its schema, integrity checks,
+// and tests/test_collectionsearch.cpp; each names the test it comes from.
+// The tests of the SQLite database itself (its schema, integrity checks,
 // connections, rebuilding, freshness of files on disk, cancellation and
 // worker threads) have no counterpart: this index is in memory, is filled
 // by the caller and answers in a few milliseconds.
 //
-// The Qt tests load notes from Markdown files. Here each note is given as
-// the text of its blocks as the reader sees it, which is what the Qt app
+// The tests load notes from Markdown files. Here each note is given as
+// the text of its blocks as the reader sees it, which is what the app
 // derives from the file (CollectionSearchIndex::parseNote): markers
 // removed, a code block's source kept, front-matter tags passed as tags.
 
 // note builds a note from its path and blocks, with the title and folder
-// the Qt app would give it and the current time as its modification time.
+// the app would give it and the current time as its modification time.
 func note(path string, blocks ...string) Note {
 	title, folder := TitleFolder(path)
 	return Note{Path: path, Title: title, Folder: folder, Modified: time.Now(), Blocks: blocks}
@@ -316,7 +316,7 @@ func TestIndexRevisionIncrements(t *testing.T) {
 	}
 }
 
-// oracle is the reference matcher of the Qt suite (TestSearchIndexDb::oracle):
+// oracle is the reference matcher of the suite (TestSearchIndexDb::oracle):
 // every block of every note scanned with the rules of section 4, written
 // here rune by rune and independent of the index.
 func oracle(notes []Note, query string) Results {
@@ -372,7 +372,7 @@ func oracle(notes []Note, query string) Results {
 	return res
 }
 
-// buildMatch is the reference snippet, Qt's buildMatch written over runes:
+// buildMatch is the reference snippet, the buildMatch written over runes:
 // the match's line, trimmed to 32 leading and 120 total characters with
 // ellipses.
 func buildMatch(text string, start int) (string, int) {
@@ -509,7 +509,7 @@ func TestTokenizationDifferentialOracle(t *testing.T) {
 		astral, astral + "x", "x", private, "y", decomposedE, "é", "ve", combining,
 		"naïve", "caf" + decomposedE, "café", "alone", "^", "a^",
 	})
-	// Spot checks against the Qt suite's expectations.
+	// Spot checks against the suite's expectations.
 	x := index(notes...)
 	for query, want := range map[string]int{"y": 1, decomposedE: 1, "é": 1, "ve": 0} {
 		if got := run(x, query).MatchCount; got != want {
@@ -693,7 +693,7 @@ func TestFiltersCompose(t *testing.T) {
 	}
 }
 
-// Results come in the order of QString's comparison, by UTF-16 code units,
+// Results come in the order of string's comparison, by UTF-16 code units,
 // where a character beyond the Basic Multilingual Plane sorts before one
 // from U+E000 up.
 func TestResultsAreInQtPathOrder(t *testing.T) {
@@ -737,7 +737,7 @@ func TestQueryWithNul(t *testing.T) {
 	}
 }
 
-// testQueryPerformanceGate: a 500-note vault answers well inside the Qt
+// testQueryPerformanceGate: a 500-note vault answers well inside the
 // suite's 45 ms budget. The budget is loose on purpose; the benchmark
 // below gives the numbers.
 func TestQueryPerformanceGate(t *testing.T) {

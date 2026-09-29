@@ -18,7 +18,7 @@ import (
 	"github.com/richardwilkes/unison/enums/mod"
 )
 
-// The message box, after the Qt core's tests/test_embeddededitor.cpp and
+// The message box, after the core's tests/test_embeddededitor.cpp and
 // Kvit Works' tests/agent/test_composerassets.cpp.
 
 func openCompact(t *testing.T, o CompactOptions) (*uitest.Session, *Compact) {
@@ -464,7 +464,7 @@ func TestTheBoxAnnouncesGrowthWhileTheCaretIsIn(t *testing.T) {
 
 // The box spaces its lines as every editor does, the font's own line height
 // times the line height, so an empty box is one such line and its row's
-// padding tall (50 px at 14 px and 1.3), as Qt's is.
+// padding tall (50 px at 14 px and 1.3), as the is.
 func TestTheBoxSpacesLinesAsTheTranscriptDoes(t *testing.T) {
 	s, c := openCompact(t, CompactOptions{})
 	s.Sync()

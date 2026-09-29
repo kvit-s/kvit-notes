@@ -88,7 +88,7 @@ type Editor struct {
 	CopyRich  func(markdown string)
 	PasteRich func() (string, bool)
 	// PasteImage, when set, saves a clipboard picture into the vault and
-	// reports the stored path, as Qt's assetSink does. Nil keeps image data
+	// reports the stored path, as the assetSink does. Nil keeps image data
 	// from being pasted, leaving the text path to run instead.
 	PasteImage func() (string, bool)
 	// SaveDroppedImage, when set, copies an image file dropped from another
@@ -408,7 +408,7 @@ func (e *Editor) bodyLeft() float32 {
 func (e *Editor) bodyRight() float32 { return e.width() - e.side() }
 
 // focusColumn is the width focus mode keeps the text to when the reader has
-// set no limit of their own (BlockEditor.qml).
+// set no limit of their own (BlockEditor).
 const focusColumn = 760
 
 // side is the space left and right of the rows: the page margin, and, when

@@ -58,7 +58,7 @@ func (e *Editor) draw(gc *unison.Canvas, dirty geom.Rect) {
 		}
 		if e.Typewriter != nil && e.Doc.Focused && e.Doc.Blocks[i].ID != e.Doc.Caret.Block {
 			// Typewriter mode fades every block but the caret's, as Kvit
-			// does (EditableBlock.qml, typewriterDim).
+			// does (EditableBlock, typewriterDim).
 			gc.SaveWithOpacity(typewriterOpacity)
 			e.drawRow(gc, i)
 			gc.Restore()
@@ -128,7 +128,7 @@ func (e *Editor) gapRect(g int, h float32) (geom.Rect, bool) {
 }
 
 // caretVisible reports whether the caret shows: a code block clips it to
-// its viewport, as Qt's clipped TextArea does, so a caret scrolled away
+// its viewport, as the clipped TextArea does, so a caret scrolled away
 // with the scrollbar is not drawn over the panel.
 func (e *Editor) caretVisible(r geom.Rect) bool {
 	if !e.showsCaret() {
@@ -253,7 +253,7 @@ func (e *Editor) drawCodeText(gc *unison.Canvas, i int, l *blockLayout, o geom.P
 }
 
 // drawDivider draws a divider in its style, thickness, colour and width
-// (qml/DividerDelegate.qml): solid unless style says dashed, dotted or
+// (qml/DividerDelegate): solid unless style says dashed, dotted or
 // double, 2 px unless thickness says 1 to 12, the border colour unless
 // color names one, the full width unless width gives a share.
 func (e *Editor) drawDivider(gc *unison.Canvas, i int) {
@@ -434,7 +434,7 @@ func (e *Editor) languageButton(i int) geom.Rect {
 	return geom.NewRect(p.X+e.px(codePadSide)-pad, p.Y+(e.px(codeHeader)-h)/2-pad, w+2*pad, h+2*pad)
 }
 
-// languageItems are the language menu (LanguagePicker.qml): plain text,
+// languageItems are the language menu (LanguagePicker): plain text,
 // plain code, the two diagram kinds, then every language Kvit colours. A
 // choice goes through Doc.SetCodeLanguage, so choosing "Text diagram"
 // straightens the block's drawing, and "Plain code" keeps the block from

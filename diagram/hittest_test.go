@@ -1,7 +1,7 @@
 package diagram
 
-// Not a port of one Qt test: this is the half of canvasSelectionAndLinking
-// in the Qt app's tests/test_diagramlayout.cpp that the scene answers
+// Not a port of one  test: this is the half of canvasSelectionAndLinking
+// in the app's tests/test_diagramlayout.cpp that the scene answers
 // itself, with the same source. The canvas's selection, revision gating and
 // text export move to the editor with the rest of that test.
 

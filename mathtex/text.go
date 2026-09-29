@@ -77,7 +77,7 @@ func textStyle(family string, style uint8, size float32, c text.Color) text.Styl
 
 // measureText answers the library's question about text it has no font
 // for: the text's bounds at its size with the origin on the baseline, as
-// Qt's QFontMetricsF::boundingRect gave them to the Qt app: from the ascent
+// the QFontMetricsF::boundingRect gave them to the app: from the ascent
 // above the baseline to the descent below it, and the advance width across.
 func measureText(t *textRequest) uintptr {
 	s := unsafe.String(t.text, t.textLen)
@@ -130,7 +130,7 @@ var (
 // TextXHeight is the x-height, in pixels, of text in style st with fonts:
 // the height of the ink of a lowercase x in its family, weight and slant at
 // its size, which OpticalMathSize matches the math to, rounded up to a whole
-// pixel as the x-height the Qt app read from Qt's font metrics was. Kvit's
+// pixel as the x-height the app read from the font metrics was. Kvit's
 // pictures show the rounding: beside 15 px DejaVu Sans, whose x is 8.2 px
 // tall, its display math is set at 20 px, which is what a 9 px x-height gives
 // and 8.2 px does not.

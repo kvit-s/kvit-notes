@@ -1,17 +1,17 @@
 package export
 
-// Cases whose expected output is what the Qt app produced for the same input.
+// Cases whose expected output is what the app produced for the same input.
 // They were made by running Kvit's own DocumentExporter::htmlForMarkdown,
 // DocumentExporter::plainTextForMarkdown and HtmlToMarkdown::convert (the
-// libraries of ~/kvit-notes/build, Qt 6.10.1) over each input, on 2026-09-27,
-// so each row is the Qt behaviour itself rather than a reading of its source.
+// libraries of the archived notes sources/build,  6.10.1) over each input, on 2026-09-27,
+// so each row is the behaviour itself rather than a reading of its source.
 
 import (
 	"strings"
 	"testing"
 )
 
-// qtExports are Markdown bodies with the <body> of the page the Qt exporter
+// qtExports are Markdown bodies with the <body> of the page the exporter
 // writes for each, and the plain text it writes.
 var qtExports = []struct{ md, body, text string }{
 	{"Hello",
@@ -170,7 +170,7 @@ func TestExportMatchesQt(t *testing.T) {
 	}
 }
 
-// qtConversions are HTML inputs with the Markdown the Qt converter makes of
+// qtConversions are HTML inputs with the Markdown the converter makes of
 // each: its own tests' inputs, clipboard payloads from a browser, a word
 // processor and a document editor, and the cases that show how QTextDocument
 // reads HTML where a browser would read it otherwise.

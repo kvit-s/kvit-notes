@@ -2,8 +2,8 @@ package editor
 
 // What changes about the editor when a program draws it somewhere other than
 // the note pane: a markdown file or a transcript drawn read-only, a message
-// box, a comment field. Kvit Works draws it in all three (its Qt QML hosts
-// BlockEditor through core/qml/DocumentView.qml and CompactEditor.qml, and
+// box, a comment field. Kvit Works draws it in all three (its  view markup hosts
+// BlockEditor through core/qml/DocumentView and CompactEditor, and
 // sets BlockEditorSurface's showGutter, contentMargin, trailingScrollSpace,
 // blockSpacing, showImageEditPanel, returnCreatesBlock and readOnly).
 //
@@ -24,28 +24,28 @@ import (
 type Embedding struct {
 	// NoGutter takes away the strip left of each row with the add button,
 	// the drag handle and the block menu, and its width with it, so the text
-	// starts near the editor's left edge (Qt showGutter false).
+	// starts near the editor's left edge ( showGutter false).
 	NoGutter bool
 	// Margin is the space between the editor's edges and its rows, in design
 	// pixels, in place of the note's page margin of 20: above the first row,
-	// below the last, and at either side (Qt contentMargin and
+	// below the last, and at either side ( contentMargin and
 	// contentTopMargin). Nothing is added below the last row for scrolling
-	// past the end (Qt trailingScrollSpace 0), so the editor is exactly as
+	// past the end ( trailingScrollSpace 0), so the editor is exactly as
 	// tall as its rows and margins.
 	Margin float32
 	// BlockSpacing is the space between two rows in design pixels; 0 keeps
-	// the reader's paragraph spacing (Qt blockSpacing).
+	// the reader's paragraph spacing ( blockSpacing).
 	BlockSpacing int
 	// ReadOnlyLook draws no caret, no focus bar and no hover tint, which is
-	// how Qt draws a document whose text areas are read-only. It does not
+	// how  draws a document whose text areas are read-only. It does not
 	// refuse edits by itself: set Doc.ReadOnly for that.
 	ReadOnlyLook bool
 	// HideImageLine never shows an image block's Markdown line, even with
-	// the caret in it (Qt showImageEditPanel false): the picture keeps the
+	// the caret in it ( showImageEditPanel false): the picture keeps the
 	// keyboard as a whole, Backspace or Delete removes it, the arrows leave
 	// it, and nothing can be typed into it.
 	HideImageLine bool
-	// ReturnPressed, when set, takes Enter from the editor (Qt
+	// ReturnPressed, when set, takes Enter from the editor (
 	// returnCreatesBlock false with the returnPressed signal): it is called
 	// with the index of the caret's block instead of the block being split.
 	// Enter still takes the highlighted entry of an open menu, writes a new
@@ -59,10 +59,10 @@ type Embedding struct {
 	OpenPicture func(path, alt string)
 	// CopyFragments makes Ctrl+C and Ctrl+X put the selection on the
 	// clipboard as RangeMarkdown gives it: a partly selected block as a
-	// fragment whose inline markers are balanced, as Qt's copy does.
+	// fragment whose inline markers are balanced, as the copy does.
 	CopyFragments bool
 	// Laid, when set, runs each time the rows have been measured again,
-	// for a host that places things over them (Qt's layoutTick). It may ask
+	// for a host that places things over them (the layoutTick). It may ask
 	// where things are, and must not change the editor.
 	Laid func()
 }
@@ -241,7 +241,7 @@ func (e *Editor) embeddedRune() (used, stop bool) {
 		return false, true
 	}
 	if e.pictureHoldsKeyboard() {
-		// Letters go nowhere on a picture, as on Qt's image row.
+		// Letters go nowhere on a picture, as on the image row.
 		return true, true
 	}
 	return false, false

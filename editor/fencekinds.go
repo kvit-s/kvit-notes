@@ -1,10 +1,10 @@
 package editor
 
-// Code fence languages a program adds to the editor (the Qt core's
+// Code fence languages a program adds to the editor (the core's
 // src/domain/blockkindregistry.h, registerFenceLanguage). Kvit Works adds
 // `diff`, so a ```diff block in a transcript or a document draws its added
 // lines in the success colour and its removed lines in the danger colour
-// (its qml/agent/DiffBlock.qml). A language is drawn by its line tones;
+// (its qml/agent/DiffBlock). A language is drawn by its line tones;
 // the block stays a code block in every other respect: it is saved as it
 // was, copied as it was, and edited as code in an editor that edits.
 //
@@ -42,7 +42,7 @@ const DiffFenceLanguage = "diff"
 
 // DiffFence is the diff drawing Kvit Works registers under
 // DiffFenceLanguage: a line starting with "+" is added, one starting with
-// "-" removed, and every other line plain (DiffBlock.qml).
+// "-" removed, and every other line plain (DiffBlock).
 func DiffFence() FenceLanguage { return FenceLanguage{Tone: DiffTone} }
 
 // DiffTone is DiffFence's tone for one line.

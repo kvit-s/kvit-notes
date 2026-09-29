@@ -3,10 +3,10 @@ package vault
 // A note's front matter: the YAML block between "---" lines at the top of a
 // note, where Kvit keeps a note's tags, creation date, pinned and favourite
 // marks and writing goal (src/content/notefrontmatter.cpp). Other tools keep
-// their own keys there. The Qt app rebuilds the block whenever it writes a
+// their own keys there. The app rebuilds the block whenever it writes a
 // key; this one is more careful: the block is kept as its lines, and a change
-// rewrites only the key it changes, in the form the Qt app writes, so
-// everything else comes back byte for byte and the Qt app reads the result
+// rewrites only the key it changes, in the form the app writes, so
+// everything else comes back byte for byte and the app reads the result
 // as it would its own.
 
 import (
@@ -102,7 +102,7 @@ func (f *frontMatter) find(key string) (at, end int) {
 		if k != key {
 			continue
 		}
-		// The last one wins, as in the Qt app.
+		// The last one wins, as in the app.
 		at, end = i, i+1
 		for end < len(f.lines) {
 			if _, isKey := mappingLine(f.lines[end]); isKey {
@@ -182,7 +182,7 @@ func splitFlow(s string) []string {
 var knownKeys = []string{"tags", "created", "pinned", "favorite", "goal"}
 
 // set writes a key's line in place, or adds it among Kvit's own keys in the
-// Qt app's order; an empty value removes the key.
+// app's order; an empty value removes the key.
 func (f *frontMatter) set(key, line string) {
 	at, end := f.find(key)
 	if line == "" {
@@ -207,7 +207,7 @@ func (f *frontMatter) set(key, line string) {
 	f.lines = append(f.lines[:insert], append([]string{line}, f.lines[insert:]...)...)
 }
 
-// quoteTag writes a tag as the Qt app writes one in a flow list: quoted when
+// quoteTag writes a tag as the app writes one in a flow list: quoted when
 // it holds a character a flow list would read differently, or has space
 // around it.
 func quoteTag(t string) string {

@@ -2,7 +2,7 @@
 // Scene: shapes, paths and text in logical pixels, with colours named by
 // their role rather than resolved. The editor draws a scene on screen and
 // into PDF and PNG exports, and package textdiagram turns one into
-// box-drawing text. It is a port of the Qt app's
+// box-drawing text. It is a port of the app's
 // src/content/diagrams/diagram*.cpp and *layout.cpp, and knows nothing of the
 // toolkit: text is measured through LayoutOptions.
 package diagram
@@ -107,7 +107,7 @@ type Segment struct {
 	Pts  [3]Point
 }
 
-// Outline is a sequence of path steps, as a QPainterPath is in the Qt app.
+// Outline is a sequence of path steps, as a QPainterPath is in the app.
 type Outline struct {
 	Segs []Segment
 }
@@ -118,7 +118,7 @@ type LineStyle int
 const (
 	LineSolid LineStyle = iota
 	LineDashed
-	LineDotted // a flowchart's dotted link, `-.->`, drawn as dots as Qt::DotLine is
+	LineDotted // a flowchart's dotted link, `-.->`, drawn as dots as ::DotLine is
 )
 
 // Path is an edge, a lifeline or a message line.

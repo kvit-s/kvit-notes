@@ -7,7 +7,7 @@ import (
 )
 
 // The translation of one gitignore line into a regular expression, from
-// the anonymous namespace of the Qt app's src/platform/ignorerules.cpp
+// the anonymous namespace of the app's src/platform/ignorerules.cpp
 // (compileRule, globRegularExpression, markerIsEscaped) and its
 // IgnoreRules::Rule.
 
@@ -84,8 +84,8 @@ func markerIsEscaped(text string, at int) bool {
 // class, with a leading "!" turned into "^". A backslash makes the next
 // character literal, and every other character is literal.
 //
-// The Qt function writes each literal character through
-// QRegularExpression::escape, which puts a backslash before everything but
+// The function writes each literal character through
+// regular expression::escape, which puts a backslash before everything but
 // ASCII letters, digits and "_". Go's regexp rejects a backslash before a
 // letter outside ASCII, so literals are written with regexp.QuoteMeta, which
 // escapes only the characters that are special; both match the character
@@ -138,7 +138,7 @@ func globRegularExpression(glob string) string {
 	return result.String()
 }
 
-// compileRule compiles one line of an ignore file (compileRule in the Qt
+// compileRule compiles one line of an ignore file (compileRule in the
 // source). It reports false for a line that is not a rule: blank, a
 // comment, nothing left after "!" or "/", or an expression that does not
 // compile.

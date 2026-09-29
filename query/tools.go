@@ -35,7 +35,7 @@ const NoCollectionError = "no collection is open"
 
 // Answer is what a query block shows for one body: either the reason it
 // cannot show results or the evaluated result. It is the map
-// QueryTools::run returns in the Qt app. Answers are shared between the
+// QueryTools::run returns in the app. Answers are shared between the
 // cache and every block that asked, so they must be treated as read-only.
 type Answer struct {
 	// OK is false when the body does not parse or no collection is open.
@@ -48,7 +48,7 @@ type Answer struct {
 	Result
 }
 
-// Source is the open collection as Tools reads it (the Qt app's
+// Source is the open collection as Tools reads it (the app's
 // NoteCollection).
 type Source interface {
 	// Revision is a number that changes whenever a note is added, removed or
@@ -78,11 +78,14 @@ const (
 // keep the work from multiplying:
 //
 //   - one copy of the notes per collection revision, shared by every query
-//     at that revision;
+//
+// at that revision;
 //   - requests for the same body at the same revision share one evaluation,
-//     so several blocks showing one query cost one evaluation;
+//
+// so several blocks showing one query cost one evaluation;
 //   - a result from a revision that has since changed is dropped rather
-//     than delivered, because the blocks have already asked again.
+//
+// than delivered, because the blocks have already asked again.
 //
 // Answers are cached by body and revision. The methods may be called from
 // any goroutine. Tools calls Source methods while holding its own lock, so a
@@ -96,7 +99,7 @@ type Tools struct {
 	// Post, when set, is how a background evaluation hands its answer back.
 	// Tools calls it with a function that stores the answer and calls
 	// OnResult; Post should run that function on the goroutine that drives
-	// the editor, as Qt delivers the answer on the GUI thread. When Post is
+	// the editor, as delivers the answer on the GUI thread. When Post is
 	// nil the function runs on the background goroutine. Set it before the
 	// first call.
 	Post func(func())
@@ -147,7 +150,7 @@ func (t *Tools) SetCollection(c Source) {
 
 // RootChanged tells Tools that the collection now reads a different folder.
 // It drops every cached answer and every running evaluation's answer, as the
-// Qt app does on NoteCollection::rootChanged; the owner of the collection
+// app does on NoteCollection::rootChanged; the owner of the collection
 // calls it.
 func (t *Tools) RootChanged() {
 	t.mu.Lock()

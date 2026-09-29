@@ -21,7 +21,7 @@ type Language struct {
 }
 
 // menu is the language menu's list in its order (supportedLanguages in
-// codelanguages.cpp), with the names qml/LanguagePicker.qml shows. The picker
+// codelanguages.cpp), with the names qml/LanguagePicker shows. The picker
 // has names for eleven of the languages and shows the other five by their
 // IDs, and so does this list. The aliases are in the order aliasMap in
 // codelanguages.cpp lists them.
@@ -282,7 +282,7 @@ var table = map[string]*rules{
 		hashDirective: true,
 		calls:         true,
 	},
-	// QML is JavaScript's scanner with QML's object and property
+	// view markup is JavaScript's scanner with view markup's object and property
 	// declarations added as keywords and types.
 	"qml": {
 		keywords: words(`as break case catch const continue default

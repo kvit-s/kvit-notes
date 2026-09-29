@@ -9,7 +9,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// lockFile takes flock's exclusive lock without waiting, as the Qt app
+// lockFile takes flock's exclusive lock without waiting, as the app
 // does; fcntl locks would not exclude it. held reports that another process
 // has it.
 func lockFile(f *os.File) (held bool, err error) {

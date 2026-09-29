@@ -1,7 +1,7 @@
 package editor
 
 // Editing a Mermaid diagram on its drawing (features.md 1.2.17, "On-diagram
-// editing"; Kvit's qml/DiagramBlock.qml and diagramcanvas.cpp). Every gesture
+// editing"; Kvit's qml/DiagramBlock and diagramcanvas.cpp). Every gesture
 // becomes one edit of the fence's source through package mermaid's edits,
 // applied as one undo step, so everything outside the edited statement stays
 // as written; a gesture whose result would not parse is refused, and the
@@ -9,17 +9,17 @@ package editor
 //
 // A press on a shape or a line selects it. Then:
 //   - on a flowchart: dragging a node moves it, on an 8-pixel grid with
-//     guides to the nodes it lines up with, and writes every node's place
-//     into a `%% mermaid-flow:pos` line, which switches the diagram to the
-//     arranged layout (Reset layout takes the line out again); a
-//     double-click, F2 or Enter edits a node's label; the context menu
-//     renames a node, changes its shape or colour, restyles an edge, adds a
-//     connected node, or deletes; Delete deletes; and the four dots on the
-//     selected node's sides draw a new edge when dragged onto another node,
-//     or add a connected node when pressed;
+// guides to the nodes it lines up with, and writes every node's place
+// into a `%% mermaid-flow:pos` line, which switches the diagram to the
+// arranged layout (Reset layout takes the line out again); a
+// double-click, F2 or Enter edits a node's label; the context menu
+// renames a node, changes its shape or colour, restyles an edge, adds a
+// connected node, or deletes; Delete deletes; and the four dots on the
+// selected node's sides draw a new edge when dragged onto another node,
+// or add a connected node when pressed;
 //   - on a sequence diagram: Ctrl+Up and Ctrl+Down move the selected message,
-//     Ctrl+Left and Ctrl+Right the selected participant, and so does dragging
-//     one a position's worth, or the context menu.
+// Ctrl+Left and Ctrl+Right the selected participant, and so does dragging
+// one a position's worth, or the context menu.
 // Gestures act only while the drawing shown is the current source's.
 
 import (
@@ -107,7 +107,7 @@ const (
 	dragGrid  = 8
 	dragGuide = 6
 	// How far a participant or a message is dragged to move it one place,
-	// in editor pixels (DiagramBlock.qml).
+	// in editor pixels (DiagramBlock).
 	reorderAcross = 30
 	reorderDown   = 24
 	// The anchors on a selected node's sides, and the room around one a
@@ -639,7 +639,7 @@ func (e *Editor) diagramMenuAnchor(i int) geom.Rect {
 	return geom.NewRect(p.X, p.Y, 0, 0)
 }
 
-// The shapes the context menu offers, and the colours (DiagramBlock.qml):
+// The shapes the context menu offers, and the colours (DiagramBlock):
 // each colour a light fill and a darker stroke, written into the source.
 var (
 	diagramShapes = []struct {

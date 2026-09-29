@@ -2,7 +2,7 @@ package export
 
 import "testing"
 
-// Front matter is recognised by the Qt app's rule (testSplitRecognition in
+// Front matter is recognised by the app's rule (testSplitRecognition in
 // tests/test_notefrontmatter.cpp).
 func TestSplitRecognition(t *testing.T) {
 	cases := []struct {
@@ -40,7 +40,7 @@ func TestSplitRecognition(t *testing.T) {
 	}
 }
 
-// A note's front matter is written in the Qt app's canonical form
+// A note's front matter is written in the app's canonical form
 // (testSerializeCanonicalOrder, testSerializeTagQuoting,
 // testSerializeUnknownLinesAfterKnown, testParseTagsForms).
 func TestCanonicalFrontMatter(t *testing.T) {

@@ -332,7 +332,7 @@ func (w *Window) changeMeta(e *vault.Entry, change func(p *vault.Page)) {
 }
 
 // autoTitle names an "Untitled" note after its first block once the reader
-// has finished it, as the Qt app does (qml/NoteAutoTitle.qml): the caret has
+// has finished it, as the app does (qml/NoteAutoTitle): the caret has
 // left it. It happens once, while the note still has the automatic name.
 func (w *Window) autoTitle() {
 	e, d := w.open, w.Editor.Doc
@@ -340,7 +340,7 @@ func (w *Window) autoTitle() {
 		return
 	}
 	first := d.Blocks[0]
-	// Only the kinds whose text describes the note name it, as in the Qt
+	// Only the kinds whose text describes the note name it, as in the
 	// app's titleBearing: a note that opens with code, a table, a picture or
 	// an equation is left alone.
 	switch first.Kind {

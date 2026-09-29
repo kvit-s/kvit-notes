@@ -1,6 +1,6 @@
 package editor
 
-// The rest of a task board (features.md 1.2.12, Kvit's KanbanBlock.qml):
+// The rest of a task board (features.md 1.2.12, Kvit's KanbanBlock):
 // dragging columns with a gap indicator, the dragged card drawn under the
 // pointer, label chips that remove themselves with a chip adding one (the
 // board's labels offered for reuse), a date chip opening a calendar for the
@@ -25,7 +25,7 @@ import (
 
 // colDragState is a press on a column's header: a click renames the column,
 // moving the pointer further than dragThreshold drags it to the gap nearest
-// the pointer (KanbanBlock.qml columnDrag).
+// the pointer (KanbanBlock columnDrag).
 type colDragState struct {
 	block  int64
 	from   int

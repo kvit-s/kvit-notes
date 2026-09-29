@@ -1,6 +1,6 @@
 package app
 
-// The keyboard shortcuts list (Kvit's ShortcutReference.qml, from
+// The keyboard shortcuts list (Kvit's ShortcutReference, from
 // src/platform/shortcutcatalog.cpp): every shortcut by section, and the
 // actions that have none, with where to find them instead.
 

@@ -362,7 +362,7 @@ func TestFindAndReplace(t *testing.T) {
 	})
 	s.do(func() { s.w.finder.replaceOne() })
 	// Replacing all of a span's text replaces the span, as selecting it
-	// and typing would (Qt's cutRangeResult).
+	// and typing would (the cutRangeResult).
 	if got := s.editorText(); got != "The new fox and the old hound\nold bullet entry\nNothing to replace here" {
 		t.Errorf("replace one: %q", got)
 	}
@@ -376,7 +376,7 @@ func TestFindAndReplace(t *testing.T) {
 
 // features.md 7.1-7.2: a block selection or a cross-block text selection
 // arms the in-selection domain, with the toggle on; turning it off searches
-// the whole note, and closing clears it (Qt's FindBar.open over
+// the whole note, and closing clears it (the FindBar.open over
 // DocumentSearch::setBlockDomain and setTextDomain).
 func TestFindInSelection(t *testing.T) {
 	s := openVault(t, notes{"A.md": "fox one fox\n\nfox two fox\n\nfox three fox\n"})
@@ -1069,13 +1069,13 @@ func TestRecentSearches(t *testing.T) {
 func TestStatusFollowsQtOrderWithSavedTimeAndUpdateNotice(t *testing.T) {
 	s := openVault(t, notes{"A.md": "first line\nsecond line\n"})
 	s.do(func() { s.w.Editor.FocusBlock(0, 11) })
-	// Qt order: Block Ln Col, then kind, path, block and char counts.
+	// order: Block Ln Col, then kind, path, block and char counts.
 	var facts []string
 	s.do(func() { facts = s.w.status.Facts })
 	want := []string{"Block 1 \u00b7 Ln 2, Col 1", "Paragraph", "A.md", "1 blocks"}
 	for i, w := range want {
 		if i >= len(facts) || facts[i] != w {
-			t.Fatalf("facts in Qt order: %q, want start %q", facts, want)
+			t.Fatalf("facts in reference order: %q, want start %q", facts, want)
 		}
 	}
 	// Saving stamps the last-saved time beside Saved.

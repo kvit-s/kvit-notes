@@ -17,19 +17,19 @@ import (
 // Options are the find bar's toggles.
 type Options struct {
 	// CaseSensitive compares letters exactly; otherwise by their simple case
-	// folding, as Qt's Qt::CaseInsensitive does.
+	// folding, as the ::CaseInsensitive does.
 	CaseSensitive bool
 	// WholeWord accepts a match only where a word starts and where one ends,
 	// by the rule of the regular expression \b: the characters either side
 	// of each end of the match differ in whether they are word characters.
 	// Those are letters and digits of any script and the underscore; with
 	// Regex the pattern is wrapped in \b(?:...)\b, whose word characters are
-	// the ASCII ones, as in Qt.
+	// the ASCII ones, as in .
 	WholeWord bool
 	// Regex takes the query as a regular expression. The syntax is Go's
-	// (RE2), which is Qt's PCRE2 without backreferences and lookaround; a
-	// query that uses those does not compile. As in Qt, . does not match a
-	// line break; unlike Qt, $ matches only at the end of a block's text,
+	// (RE2), which is the PCRE2 without backreferences and lookaround; a
+	// query that uses those does not compile. As in , . does not match a
+	// line break; unlike , $ matches only at the end of a block's text,
 	// not also before a line break that ends it.
 	Regex bool
 	// PreserveCase gives a replacement the case of the text it replaces. It
@@ -198,7 +198,7 @@ func wordEdges(hay string, at, end int) bool {
 
 // Domain is the part of a note a search is kept inside: the blocks or the
 // text that were selected when the find bar's "in selection" toggle was
-// armed (DocumentSearch::setBlockDomain and setTextDomain). The Qt app
+// armed (DocumentSearch::setBlockDomain and setTextDomain). The app
 // remembers the blocks by their ids so the domain survives blocks moving;
 // here the caller passes the blocks' current indexes.
 type Domain interface {
@@ -254,7 +254,7 @@ func InText(startBlock, startPos, endBlock, endPos int) Domain {
 // query or an option changes: the first match at or after the caret, or
 // the note's first match when none follows it (DocumentSearch::recompute).
 // The caret is a block and a display offset; a block of -1 means there is no
-// caret. It is -1 when there are no matches. After a replacement the Qt app
+// caret. It is -1 when there are no matches. After a replacement the app
 // puts the caret just after the replacement, which is how it moves on to
 // the next match.
 func Nearest(matches []Match, block, pos int) int {

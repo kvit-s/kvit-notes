@@ -1,11 +1,11 @@
 package mermaid
 
-// These tests are the Qt app's tests/test_mermaidparser.cpp, one Go test per
+// These tests are the app's tests/test_mermaidparser.cpp, one Go test per
 // test function there and in the same order, with the same inputs and
 // expected outputs: the lexer's positions and the flowchart parser's trees.
-// Where the Qt test compared a ClassDef's fill with QColor("#f96"), this one
-// compares it with ParseColor("#f96"). Where the Qt test took a span's text
-// with QString::mid, this one slices the source's runes. The Qt test
+// Where the test compared a ClassDef's fill with colour("#f96"), this one
+// compares it with ParseColor("#f96"). Where the test took a span's text
+// with string::mid, this one slices the source's runes. The test
 // unterminatedShapeRecovers only checks that parsing returns, and so does
 // its port.
 

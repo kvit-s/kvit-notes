@@ -9,7 +9,7 @@ import (
 	"github.com/richardwilkes/unison/enums/mod"
 )
 
-// The decoration registry, after the Qt core's
+// The decoration registry, after the core's
 // tests/test_documentdecorations.cpp and what Kvit Works asks of it: panels
 // between blocks and beside lines, washes and outlines over characters, and
 // where each is.

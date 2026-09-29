@@ -1,6 +1,6 @@
 package export
 
-// Inline Markdown as the Qt exporter reads it: the span parser of
+// Inline Markdown as the exporter reads it: the span parser of
 // src/content/markdownformatter.cpp (MarkdownFormatter::parseSpans), the
 // wiki-link grammar of src/content/wikilinkscanner.cpp, the inline HTML of
 // src/content/htmlinline.cpp, and the marker-free text of
@@ -8,7 +8,7 @@ package export
 //
 // The editor package has its own span parser, which knows fewer span types
 // (no superscript, subscript, colour, inline maths or escapes). An export has
-// to write the same HTML the Qt app writes, so the Qt parser is ported here
+// to write the same HTML the app writes, so the parser is ported here
 // whole rather than borrowed from the editor.
 
 import (
@@ -77,7 +77,7 @@ var spanDefs = []spanDef{
 	{"autolink", autolinkMatcher, "", true, false, false},
 }
 
-// The parse is bounded as the Qt parser bounds it: nesting stops at 24
+// The parse is bounded as the parser bounds it: nesting stops at 24
 // levels, and every scanning loop spends from one budget shared by the whole
 // parse, after which the remaining text stays literal.
 const (
@@ -114,7 +114,7 @@ func escapedAt(md []rune, pos int) bool {
 	return n&1 != 0
 }
 
-// indexRunes is QString::indexOf for a marker, from a start offset.
+// indexRunes is string::indexOf for a marker, from a start offset.
 func indexRunes(md []rune, marker []rune, from int) int {
 	if from < 0 {
 		from = 0
@@ -444,7 +444,7 @@ func wikiMatch(md []rune, pos int) (length, targetLen int, target string, alias,
 	return closeAt + 2 - pos, len(targetPart), trimSpace(string(targetPart)), pipe >= 0, true
 }
 
-// trimSpace is QString::trimmed: whitespace by QChar::isSpace.
+// trimSpace is string::trimmed: whitespace by QChar::isSpace.
 func trimSpace(s string) string { return strings.TrimFunc(s, isSpace) }
 
 const escapable = "*_~^=+`[]\\$#->|"

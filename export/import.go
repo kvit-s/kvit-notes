@@ -1,6 +1,6 @@
 package export
 
-// Importing Markdown and text files into a vault, as the Qt app's import
+// Importing Markdown and text files into a vault, as the app's import
 // dialog does (src/repository/documentimporter.cpp): one file, several, or a
 // whole folder tree, into a folder of the vault. Each file is copied as it is,
 // byte for byte, front matter and all, so a note from another tool (an
@@ -8,7 +8,7 @@ package export
 // as a .md note. A name already taken gets " 2", " 3" and so on, and a folder
 // import recreates the folder's subfolders under the target folder.
 //
-// The Qt importer copies each file as it goes. Here the import is planned
+// The importer copies each file as it goes. Here the import is planned
 // instead: the plan says which folders to create and which files to write
 // with what bytes, and the caller writes them. The plan reads the source
 // files and asks whether names are taken in the vault; it writes nothing.
@@ -28,7 +28,7 @@ import (
 // ImportOptions tune an import.
 type ImportOptions struct {
 	// MaxFileBytes is the largest file imported; a larger one is skipped. 0
-	// means 64 MiB, the Qt app's cap, and a negative value means no cap.
+	// means 64 MiB, the app's cap, and a negative value means no cap.
 	MaxFileBytes int64
 }
 
@@ -54,7 +54,7 @@ type ImportPlan struct {
 	Skipped []string
 }
 
-// DryRun is the summary the Qt import dialog shows before importing
+// DryRun is the summary the import dialog shows before importing
 // (DocumentImporter::dryRunFiles and dryRunFolder).
 type DryRun struct {
 	// Files is how many files would be imported.
@@ -100,7 +100,7 @@ func sanitizeBase(name string) string {
 }
 
 // importer plans one run: it remembers the names it has already given, as
-// the Qt importer, copying one file after another, sees each copy it made.
+// the importer, copying one file after another, sees each copy it made.
 type importer struct {
 	root    string
 	opt     ImportOptions
@@ -278,12 +278,12 @@ type importEntry struct {
 	sub  string // its folder under the imported folder, "/"-separated
 }
 
-// isHidden is how QDir's listing decides a file is hidden on Unix: its name
+// isHidden is how directory's listing decides a file is hidden on Unix: its name
 // starts with a dot.
 func isHidden(name string) bool { return strings.HasPrefix(name, ".") }
 
-// importableUnder lists the importable files under dir the way QDirIterator
-// walks it for the Qt importer: in the order the file system lists each
+// importableUnder lists the importable files under dir the way directoryIterator
+// walks it for the importer: in the order the file system lists each
 // folder, going into a subfolder where it is listed, files only, hidden files
 // and folders passed over, links to folders not followed. The order decides
 // which of two files with one name in a folder gets the " 2".
@@ -311,7 +311,7 @@ func importableUnder(dir string) ([]importEntry, error) {
 			}
 			switch {
 			case info.IsDir():
-				// A folder that cannot be read is passed over, as the Qt
+				// A folder that cannot be read is passed over, as the
 				// importer's walk passes it over.
 				_ = walk(p, joinFolder(sub, name))
 				continue
@@ -350,7 +350,7 @@ func ImportableFiles(dir string) ([]string, error) {
 
 // DryRunFiles is the summary for importing files into a folder: how many are
 // importable, and how many of those already have a note of their name there
-// (DocumentImporter::dryRunFiles). As in the Qt app, a collision is counted
+// (DocumentImporter::dryRunFiles). As in the app, a collision is counted
 // against the notes already in the vault, by the file's own name.
 func DryRunFiles(root string, paths []string, folder string) DryRun {
 	var d DryRun

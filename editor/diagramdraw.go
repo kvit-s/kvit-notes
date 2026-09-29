@@ -4,7 +4,7 @@ package editor
 // src/content/diagrams/diagrampainter.cpp (the scene's roles given the
 // theme's colours, then groups, lines with their markers, shapes and text),
 // the selection rings of diagramcanvas.cpp, and the block's panels, controls
-// and notes of qml/DiagramBlock.qml.
+// and notes of qml/DiagramBlock.
 
 import (
 	"fmt"
@@ -24,8 +24,8 @@ import (
 	"github.com/richardwilkes/unison/enums/strokejoin"
 )
 
-// roleColor is the theme's colour for a scene role, as the Qt block binds
-// them (DiagramBlock.qml's ThemedCanvas). ok is false for the background,
+// roleColor is the theme's colour for a scene role, as the block binds
+// them (DiagramBlock's ThemedCanvas). ok is false for the background,
 // which is drawn as nothing so the panel shows through.
 func (e *Editor) roleColor(r diagram.Role) (palette.Color, bool) {
 	t := e.tok()
@@ -94,7 +94,7 @@ func toPath(o diagram.Outline) *unison.Path {
 
 // pen is a stroke in a colour, width and line style, with round ends and
 // joins when round is set. A dash is four widths long with two between, and
-// a dot one with two between, as Qt draws them.
+// a dot one with two between, as draws them.
 func pen(c unison.Color, width float32, style diagram.LineStyle, round bool) *unison.Paint {
 	p := unison.NewPaint()
 	p.SetAntialias(true)

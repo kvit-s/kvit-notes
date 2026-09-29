@@ -1,10 +1,10 @@
 package textdiagram
 
-// These tests are the Qt app's tests/test_diagramclassifier.cpp, one Go test
+// These tests are the app's tests/test_diagramclassifier.cpp, one Go test
 // per test function there and in the same order, with the same inputs and
 // expected outputs. The fixture tests/fixtures/llm-diagram.md is copied into
-// testdata. The two timing tests keep the Qt tests' limit of 250 ms and log
-// the time as the Qt tests print it.
+// testdata. The two timing tests keep the tests' limit of 250 ms and log
+// the time as the tests print it.
 
 import (
 	"os"

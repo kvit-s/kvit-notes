@@ -10,7 +10,7 @@ import (
 	"github.com/richardwilkes/unison/enums/mod"
 )
 
-// Three places where the note editor followed a different rule from Qt Kvit
+// Three places where the note editor followed a different rule from  Kvit
 // Notes: a line break typed with Shift+Enter, the line that closes a code
 // fence, and the spacing of a paragraph's lines with the placement of a
 // picture.
@@ -116,7 +116,7 @@ func TestAFenceClosesOnlyOnALineOfFenceCharacters(t *testing.T) {
 	}
 }
 
-// Qt's text documents space a block's lines by the line height times the
+// the text documents space a block's lines by the line height times the
 // font's own line height (QTextBlockFormat's ProportionalHeight): 22.1 px at
 // 14 px and 1.3, 18 px at 15 px and 1.0, where the font size rule gave 18.2
 // and 15.
@@ -143,7 +143,7 @@ func TestANoteSpacesLinesByTheFontsLineHeight(t *testing.T) {
 }
 
 // features.md 9.2: a picture is centred unless its block is aligned left or
-// right (ImageBlock.qml, imageAlign).
+// right (ImageBlock, imageAlign).
 func TestANoteCentresItsPictures(t *testing.T) {
 	root := t.TempDir()
 	writePicture(t, filepath.Join(root, "p.png"))

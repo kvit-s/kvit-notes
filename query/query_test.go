@@ -1,8 +1,8 @@
 package query
 
-// A port of the Qt suite tests/test_querydata.cpp, case for case: the spec
+// A port of the suite tests/test_querydata.cpp, case for case: the spec
 // grammar with its error cases, and evaluation (filters, typed sorting,
-// grouping) against a small fixture collection. The Qt suite writes the
+// grouping) against a small fixture collection. The suite writes the
 // fixture notes to a temporary directory and indexes them with
 // NoteCollection; here the fixture type below builds the same Note values
 // from the same file texts, since this package does not read files.
@@ -21,7 +21,7 @@ import (
 // fixtureTime is the modification and creation time of every fixture note.
 var fixtureTime = time.Date(2026, 9, 1, 12, 30, 0, 0, time.Local)
 
-// noteFromFile builds the Note the Qt collection would index for a file with
+// noteFromFile builds the Note the collection would index for a file with
 // this path and text (vaultscan.cpp entryFromText), for the simple front
 // matter the fixtures use: "key: value" lines between "---" lines at the top.
 func noteFromFile(relPath, content string) Note {
@@ -63,7 +63,7 @@ func noteFromFile(relPath, content string) Note {
 	return note
 }
 
-// fixture stands in for the Qt suite's temporary directory and the
+// fixture stands in for the suite's temporary directory and the
 // NoteCollection indexing it. writeNote writes a file; refresh indexes the
 // files again and changes the revision, as NoteCollection::refresh and
 // refreshPaths do; openRoot replaces the files and reports the new root to
@@ -127,7 +127,7 @@ func (f *fixture) snapshot() []Note {
 	return notes
 }
 
-// makeFixture writes the Qt suite's fixture: four project notes with mixed
+// makeFixture writes the suite's fixture: four project notes with mixed
 // front matter plus one note without any.
 func makeFixture(t *testing.T) *fixture {
 	t.Helper()
@@ -439,8 +439,8 @@ func TestQueryToolsCache(t *testing.T) {
 	}
 }
 
-// eventLoop stands in for the Qt event loop the Qt suite runs with
-// QTRY_COMPARE and QTest::qWait: Tools.Post queues functions here, and they
+// eventLoop stands in for the event loop the suite runs with
+// QTRY_COMPARE and test wait: Tools.Post queues functions here, and they
 // run only when the test processes them, on the test's goroutine.
 type eventLoop struct {
 	posted chan func()
@@ -469,7 +469,7 @@ func (l *eventLoop) processUntil(timeout time.Duration, done func() bool) bool {
 	return true
 }
 
-// wait runs posted functions for d (QTest::qWait).
+// wait runs posted functions for d (test wait).
 func (l *eventLoop) wait(d time.Duration) {
 	deadline := time.After(d)
 	for {
@@ -586,10 +586,10 @@ func TestQueryToolsRunsOffTheCallingThread(t *testing.T) {
 	}
 }
 
-// The Qt suite budgets this evaluation in process CPU time: a median under
+// The suite budgets this evaluation in process CPU time: a median under
 // 20 ms, and a ceiling of 55 ms that no sample may reach, enforced in release
 // builds. This port times each sample on the wall clock with the same two
-// limits and skips in -short mode, where the Qt suite skips in debug builds.
+// limits and skips in -short mode, where the suite skips in debug builds.
 func TestEvaluate1000NoteBudget(t *testing.T) {
 	if testing.Short() {
 		t.Skip("the 1000-note timing budget is not checked in -short mode")

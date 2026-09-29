@@ -264,19 +264,21 @@ func (d *Doc) DeleteSelection() {
 func (d *Doc) InsertText(text string) { d.insert(text, false, false) }
 
 // Paste inserts pasted text at the caret, replacing any selection, as
-// InsertText does, with the rules the Qt app applies to text arriving from
-// outside the note (the paste in EditableBlock.qml):
+// InsertText does, with the rules the app applies to text arriving from
+// outside the note (the paste in EditableBlock):
 //   - Into a text block, Markdown with blank lines becomes blocks, and so do
-//     several lines opening a code fence, so the fence is read as one.
-//     Several flat lines become a paragraph each, as Qt's in-block paste
-//     splices them. A plain-text paste does the same split, with inline
-//     formatting stripped from each line.
+//
+// several lines opening a code fence, so the fence is read as one.
+// Several flat lines become a paragraph each, as the in-block paste
+// splices them. A plain-text paste does the same split, with inline
+// formatting stripped from each line.
 //   - Into a code block, the block's text after the paste goes through the
-//     step a fence takes when a note is opened (textdiagram.Ingest): a
-//     character diagram in an untagged or `text` block is tagged `diagram`,
-//     and a diagram is straightened, in the same undo step as the paste.
-//     Typing into the block never does this, since retagging a block while
-//     someone types in it would change it under them.
+//
+// step a fence takes when a note is opened (textdiagram.Ingest): a
+// character diagram in an untagged or `text` block is tagged `diagram`,
+// and a diagram is straightened, in the same undo step as the paste.
+// Typing into the block never does this, since retagging a block while
+// someone types in it would change it under them.
 func (d *Doc) Paste(text string, plain bool) { d.insert(text, !plain, true) }
 
 // reOpensFence is a line of pasted text starting a code fence.
@@ -284,7 +286,7 @@ var reOpensFence = regexp.MustCompile("(^|\n)[ \t]*(```|~~~)")
 
 // PasteOpensAFence reports whether pasted text opens a code fence, in which
 // case the plain text is the structure source even when the clipboard also
-// holds HTML (EditableBlock.qml pasteFromClipboard, BlockGapCursor.qml).
+// holds HTML (EditableBlock pasteFromClipboard, BlockGapCursor).
 func PasteOpensAFence(text string) bool { return reOpensFence.MatchString(text) }
 
 // reLoneURL is a bare URL and nothing else, what pasting over a text
@@ -295,7 +297,7 @@ var reLoneURL = regexp.MustCompile(`(?i)\A(https?://|www\.)[^\s<>"]+\z`)
 func IsLoneURL(s string) bool { return reLoneURL.MatchString(strings.TrimSpace(s)) }
 
 // displayLine is the display text of one pasted plain-text line: its inline
-// markers removed, as Qt's displayTextFor does. Markers are hidden by
+// markers removed, as the displayTextFor does. Markers are hidden by
 // projecting with no reveal, keeping each span's content.
 func displayLine(s string) string {
 	r := []rune(s)
@@ -308,7 +310,7 @@ func displayLine(s string) string {
 // insert is InsertText and Paste. fences reads several lines opening a
 // fence as blocks; ingest, which only a paste asks for, runs the fence step
 // over a code block pasted into and makes flat multi-line text a paragraph
-// per line, as Qt's in-block paste does (a plain paste strips each line
+// per line, as the in-block paste does (a plain paste strips each line
 // first). Typed text with a line break stays in its block.
 func (d *Doc) insert(text string, fences, ingest bool) {
 	kind := "typing"
@@ -408,7 +410,7 @@ func (d *Doc) pasteBlocks(text string) {
 	id := last.ID
 	if tail != "" && !last.Kind.HasInline() {
 		// Text after the caret does not run on into a pasted code block or
-		// table: it follows as a paragraph of its own, as in the Qt app.
+		// table: it follows as a paragraph of its own, as in the app.
 		d.Blocks = slices.Insert(d.Blocks, i+len(pasted)+1, NewBlock(Paragraph, tail))
 	} else {
 		last.Text += tail
@@ -416,7 +418,7 @@ func (d *Doc) pasteBlocks(text string) {
 	d.SetCaret(id, off)
 }
 
-// pasteLines splices flat multi-line text at the caret, as Qt's in-block
+// pasteLines splices flat multi-line text at the caret, as the in-block
 // paste does: the first line joins the text before the caret, each middle
 // line becomes a paragraph, and the last line joins the text after it.
 func (d *Doc) pasteLines(text string) {
@@ -439,7 +441,7 @@ func (d *Doc) pasteLines(text string) {
 
 // PasteLink replaces a single-block text selection with a link whose label
 // is the selected text and whose address is url, as pasting a lone URL over
-// words does in the Qt app. It reports whether there was such a selection.
+// words does in the app. It reports whether there was such a selection.
 func (d *Doc) PasteLink(url string) bool {
 	if d.ReadOnly || !d.HasSelection() || d.CrossBlock() {
 		return false
@@ -490,7 +492,7 @@ func (d *Doc) InsertMarkdownAt(index int, markdown string) int {
 // InsertPlainTextAt inserts each line of text as a paragraph at index, as
 // one undo step, returning how many were inserted
 // (DocumentSerializer::insertPlainTextAt). Each line is stripped to its
-// display text, as Qt's paste-plain does.
+// display text, as the paste-plain does.
 func (d *Doc) InsertPlainTextAt(index int, text string) int {
 	text = strings.ReplaceAll(text, "\r\n", "\n")
 	lines := strings.Split(text, "\n")
@@ -511,7 +513,7 @@ func (d *Doc) InsertPlainTextAt(index int, text string) int {
 
 // SetCodeLanguage gives a code block a language from the language menu, as
 // one undo step. The block's text goes through textdiagram.Ingest with the
-// new language, as the Qt app's setCodeLanguage does: choosing "Text
+// new language, as the app's setCodeLanguage does: choosing "Text
 // diagram" straightens the drawing, and choosing plain text for a block
 // holding a diagram tags it `diagram` again. "Plain code" (`plain`) is the
 // language that keeps a block from being tagged.
@@ -533,7 +535,7 @@ func (d *Doc) SetCodeLanguage(id int64, lang string) {
 	})
 }
 
-// AsCode is a rendered diagram's "As code" control (DiagramBlock.qml): the
+// AsCode is a rendered diagram's "As code" control (DiagramBlock): the
 // block is shown as its source in a code block tagged `plain`, which no
 // later open or paste examines again. It is one undo step.
 func (d *Doc) AsCode(id int64) {
@@ -659,7 +661,7 @@ func (d *Doc) Enter() {
 		// The new line takes the indentation the current line opens with,
 		// up to the caret (or the start of a selection, which the line
 		// break replaces), so Enter inside that indentation never makes
-		// more of it (EditableBlock.qml's leadingIndentAt).
+		// more of it (EditableBlock's leadingIndentAt).
 		r := runes(b.Text)
 		pos := d.Caret.Off
 		if d.Anchor.Block == d.Caret.Block && d.Anchor.Off < pos {

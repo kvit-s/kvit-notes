@@ -14,9 +14,9 @@ import (
 	"github.com/richardwilkes/unison/enums/mod"
 )
 
-// The read-only document, after the Qt core's tests/test_documentview.cpp
+// The read-only document, after the core's tests/test_documentview.cpp
 // and tests/test_readonlydocument.cpp and what Kvit Works'
-// AgentReadOnlyDocument.qml adds over them.
+// AgentReadOnlyDocument adds over them.
 
 // heldPanel holds a panel at a fixed height, as the pane a document is the
 // whole of does.
@@ -329,7 +329,7 @@ func TestTwoDocumentsMarkTheirOwnText(t *testing.T) {
 	})
 }
 
-// A read-only document spaces a paragraph's lines as Qt's text documents do:
+// A read-only document spaces a paragraph's lines as the text documents do:
 // the line height times the font's own line height, rather than times its
 // size.
 func TestADocumentSpacesLinesByTheFontsLineHeight(t *testing.T) {
@@ -356,7 +356,7 @@ func TestADocumentSpacesLinesByTheFontsLineHeight(t *testing.T) {
 }
 
 // A picture is drawn in the middle of its row unless its block is aligned
-// left or right, as Qt's image block draws it.
+// left or right, as the image block draws it.
 func TestADocumentCentresItsPictures(t *testing.T) {
 	root := t.TempDir()
 	writePicture(t, filepath.Join(root, "p.png"))

@@ -129,7 +129,7 @@ func TestLookup(t *testing.T) {
 	}
 }
 
-// The file is the Qt app's compact JSON, and an empty table deletes it.
+// The file is the app's compact JSON, and an empty table deletes it.
 func TestSaveWritesTheQtFormat(t *testing.T) {
 	root := t.TempDir()
 	r := table(Redirect{"Target.md", "Renamed.md"}, Redirect{`Odd "name".md`, "Ideas/Café.md"})
@@ -153,7 +153,7 @@ func TestSaveWritesTheQtFormat(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, ".kvit", "redirects.json")); !os.IsNotExist(err) {
 		t.Error("an empty table left its file")
 	}
-	// Control characters are escaped as Qt escapes them.
+	// Control characters are escaped as escapes them.
 	if got := string(table(Redirect{"a\tb\x01.md", "c.md"}).encode()); got !=
 		`{"redirects":[{"from":"a\tb\u0001.md","to":"c.md"}],"version":1}` {
 		t.Errorf("escaped: %s", got)
@@ -209,7 +209,7 @@ func TestLoadRefusesAnOversizedFile(t *testing.T) {
 	}
 }
 
-// .kvit standing as a link is refused for reading and writing, as the Qt
+// .kvit standing as a link is refused for reading and writing, as the
 // app refuses to write through it.
 func TestALinkedKvitDirectoryIsRefused(t *testing.T) {
 	root, elsewhere := t.TempDir(), t.TempDir()

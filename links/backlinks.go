@@ -5,7 +5,7 @@ import (
 	"unicode/utf16"
 )
 
-// The backlinks pane, from WikiLinkIndex::backlinksTo in the Qt app's
+// The backlinks pane, from WikiLinkIndex::backlinksTo in the app's
 // src/repository/wikilinkindex.cpp.
 
 // Backlink is one note that links to another, as a row of the backlinks
@@ -21,11 +21,11 @@ type Backlink struct {
 }
 
 // contextLimit is the length a context line is cut to, in UTF-16 code
-// units as the Qt app counts.
+// units as the app counts.
 const contextLimit = 200
 
 // Backlinks lists the notes that link to the note at path, sorted by path
-// as the Qt app sorts (code unit by code unit, so capitals first). bodies
+// as the app sorts (code unit by code unit, so capitals first). bodies
 // holds every note's body, front matter removed, by path. A note's links to
 // itself are not listed, and a link resolves as Resolve says, through the
 // redirect table too.

@@ -6,15 +6,15 @@ package export
 // with their bold, italic, struck-through, code and link runs, and written as
 // Kvit's Markdown.
 //
-// The Qt converter hands the parsing to QTextDocument and walks the document
+// The converter hands the parsing to QTextDocument and walks the document
 // it builds. This file has no QTextDocument, so it reads the HTML itself and
-// builds the same things the Qt converter reads from that document: a block
+// builds the same things the converter reads from that document: a block
 // for each paragraph-like element and each line of a <pre>, a line separator
 // (U+2028) for each <br>, list items numbered within their list, table cells
 // in a grid, and runs of text with their character formats, the page's style
 // sheet applied (css.go). It follows how QTextDocument reads HTML where that
-// differs from a browser, as checked against the Qt converter itself: only
-// the elements Qt knows start blocks, and text in any other element is part of
+// differs from a browser, as checked against the converter itself: only
+// the elements  knows start blocks, and text in any other element is part of
 // the paragraph around it; a block element reuses an empty paragraph, so an
 // empty list item gives up its number; closing a <div> ends its paragraph only
 // when the div held other elements; a paragraph started by text after a closed
@@ -79,9 +79,9 @@ type hblock struct {
 	list    *hlist // the list the block is an item of
 	indent  int    // that list's nesting depth
 	item    int    // the block's place in its list, from 0, counted at the end
-	inList  bool   // inside a list without being an item, which Qt indents
+	inList  bool   // inside a list without being an item, which  indents
 	quote   bool   // indented or with margins on both sides
-	pre     bool   // Qt's nonBreakableLines: a <pre>, or white-space pre or nowrap
+	pre     bool   // the nonBreakableLines: a <pre>, or white-space pre or nowrap
 	nodes   *[]hnode
 }
 
@@ -103,7 +103,7 @@ type hcell struct {
 }
 
 // htable is a table and where it goes. A table inside a table cell has
-// nowhere to go: the Qt converter reads a cell's blocks and passes over a
+// nowhere to go: the converter reads a cell's blocks and passes over a
 // table in it.
 type htable struct {
 	rows     [][]*hcell
@@ -375,7 +375,7 @@ var basicColors = map[string]string{
 var reRGB = regexp.MustCompile(`^rgba?\(\s*([\d.]+%?)\s*,\s*([\d.]+%?)\s*,\s*([\d.]+%?)\s*(?:,\s*([\d.]+%?)\s*)?\)$`)
 
 // canonColor is a CSS colour as one comparable string, so that "#f00",
-// "#ff0000", "rgb(255,0,0)" and "red" are the same colour, as QColor reads
+// "#ff0000", "rgb(255,0,0)" and "red" are the same colour, as colour reads
 // them. Named colours beyond the basic ones are compared by name.
 func canonColor(v string) string {
 	v = strings.ToLower(strings.TrimSpace(v))
@@ -610,7 +610,7 @@ func formatFor(name string, attrs map[string]string, e *helem) {
 	case "dd":
 		e.ownL = 30
 	case "ul", "ol":
-		// Qt reads the type attribute on either element: a numbering style
+		// reads the type attribute on either element: a numbering style
 		// makes a numbered list, a bullet style a bulleted one.
 		e.ordered = name == "ol"
 		switch t := attrs["type"]; t {

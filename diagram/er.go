@@ -1,6 +1,6 @@
 package diagram
 
-// The entity-relationship layout, a port of the Qt app's
+// The entity-relationship layout, a port of the app's
 // src/content/diagrams/erlayout.cpp: entity tables (a title band, then
 // columns for type, name, keys and comment) placed by the layered core, and
 // relationships drawn from border to border with crow's-foot markers, dashed

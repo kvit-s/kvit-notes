@@ -4,7 +4,7 @@ package export
 // <style> rules as well as each element's style attribute, and what they say
 // reaches the Markdown: a rule can make text bold, italic, struck through or
 // monospace, keep its spaces, or give a block margins on both sides, which the
-// Qt converter reads as a quote. So the rules are read here too: type, class,
+// converter reads as a quote. So the rules are read here too: type, class,
 // id and attribute selectors, joined by descendant and child combinators, in
 // order of specificity, with @media rules for the screen. Pseudo-classes never
 // match, as nothing is hovered in a document being converted.

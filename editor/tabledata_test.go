@@ -1,6 +1,6 @@
 package editor
 
-// The Qt app's tests/test_tabledata.cpp, ported: the pipe-table
+// The app's tests/test_tabledata.cpp, ported: the pipe-table
 // parse/serialize/mutate core behind every grid edit.
 
 import (

@@ -1,6 +1,6 @@
 package app
 
-// The tray icon (features.md 15.2), as the Qt app's SystemIntegration.qml
+// The tray icon (features.md 15.2), as the app's SystemIntegration
 // and kvitapplication.cpp use it: the icon with the tooltip "Kvit Notes"
 // and its menu, New Note, Quick Capture…, Show Kvit and Quit; a click on
 // the icon showing the window; and, when the reader turned on
@@ -9,7 +9,7 @@ package app
 // The icon is kvit-ui's platform.Tray, shown only where the desktop has a
 // notification area.
 //
-// Native notifications (features.md 15.4) go through the same tray. The Qt
+// Native notifications (features.md 15.4) go through the same tray. The
 // app posts none of its own: only its tests call SystemTray.notify, since
 // the reminders and sync status 15.4 names do not exist (sync is out of
 // scope, section 20). So this app posts none either.
@@ -42,7 +42,7 @@ var (
 )
 
 // StartTray shows the app's tray icon, where the desktop has a notification
-// area, with the Qt app's tooltip and menu. icon is the app's icon at the
+// area, with the app's tooltip and menu. icon is the app's icon at the
 // sizes there are.
 func StartTray(t *platform.Tray, icon ...image.Image) {
 	if !t.Available() {
@@ -86,7 +86,7 @@ func Quitting() {
 }
 
 // Quit is the tray's Quit: it asks every window to close, which saves its
-// note, and ends the app when all have (the Qt app's quit from the tray).
+// note, and ends the app when all have (the app's quit from the tray).
 func Quit() {
 	quitting = true
 	unison.AttemptQuit()
@@ -157,7 +157,7 @@ func trayWindow() *kvitui.Window {
 
 // trayVault is the vault window the tray's New Note and Quick Capture act
 // on: the tray's window when it is a vault window, else the vault window
-// opened last; nil with none open, when the two do nothing, as in the Qt
+// opened last; nil with none open, when the two do nothing, as in the
 // app, where capture needs somewhere to put the note.
 func trayVault() *Window {
 	target := trayWindow()
@@ -184,7 +184,7 @@ func ShowKvit() {
 }
 
 // trayNewNote makes a note in the vault window, as Ctrl+N does, and shows
-// the window, which the Qt app leaves where it is: a note made in a window
+// the window, which the app leaves where it is: a note made in a window
 // hidden in the tray could not be seen.
 func trayNewNote() {
 	w := trayVault()

@@ -1,6 +1,6 @@
-// Package query runs collection query blocks. It is a port of the Qt app's
+// Package query runs collection query blocks. It is a port of the app's
 // src/application/querydata.cpp and of the parts of querytools.cpp that do
-// not depend on Qt.
+// not depend on .
 //
 // A query block is a fenced code block whose language is "query". Its body is
 // a spec, one "key: value" line per setting:
@@ -22,7 +22,7 @@
 //
 // Parse turns a block body into a Spec, or into the error message the block
 // shows instead of results. Evaluate applies a Spec to a list of notes and
-// returns the rows, with each cell formatted as the Qt app formats it. Tools
+// returns the rows, with each cell formatted as the app formats it. Tools
 // adds the cache and the background evaluation the editor uses, so that
 // several blocks showing the same query cost one evaluation after each change
 // to the collection.
@@ -103,7 +103,7 @@ type Spec struct {
 // Parse reads a query block body (querydata.cpp QueryData::parse). Blank
 // lines and lines starting with "#" are skipped. The error, when there is
 // one, is the message the block shows in place of results, word for word as
-// the Qt app shows it; unknown keys, views, operators and sort directions
+// the app shows it; unknown keys, views, operators and sort directions
 // are errors rather than being ignored, because the spec is written by hand.
 func Parse(body string) (Spec, error) {
 	var spec Spec
@@ -185,7 +185,7 @@ func Parse(body string) (Spec, error) {
 			}
 
 		case "limit":
-			// QString::toInt: an int with an optional sign.
+			// string::toInt: an int with an optional sign.
 			limit, err := strconv.ParseInt(value, 10, 32)
 			if err != nil || limit < 1 {
 				return Spec{}, errors.New("'limit:' needs a positive integer")
@@ -210,7 +210,7 @@ func Parse(body string) (Spec, error) {
 	return spec, nil
 }
 
-// splitSkipEmpty is QString::split(sep, Qt::SkipEmptyParts): the parts
+// splitSkipEmpty is string::split(sep, ::SkipEmptyParts): the parts
 // between separators, leaving out the empty ones. A part made of spaces is
 // not empty.
 func splitSkipEmpty(s, sep string) []string {

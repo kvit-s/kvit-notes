@@ -7,27 +7,27 @@ import (
 	"unicode/utf8"
 )
 
-// This file is the Qt app's diagramclassifier.cpp. Classify works in four
+// This file is the app's diagramclassifier.cpp. Classify works in four
 // steps:
 //
 //  1. Each line is read for box-drawing strokes, arrows, runs of edge
-//     between two corners, vertical strokes and label text.
+// between two corners, vertical strokes and label text.
 //  2. Two kinds of lookalike are rejected outright: tables (a Markdown
 //     `|---|` separator, or a grid made only of `+--+` rules and `|` rows, as
-//     psql and MySQL print) and source code.
+// psql and MySQL print) and source code.
 //  3. Framed regions are counted: a top edge, one or more lines of wall or
-//     label, then a bottom edge. The edges need not line up with each other
-//     or with the walls, and boxes side by side on one edge line each count.
+// label, then a bottom edge. The edges need not line up with each other
+// or with the walls, and boxes side by side on one edge line each count.
 //  4. The body is a diagram when it has three or more non-empty lines, two
-//     or more lines with some diagram evidence, two or more framed regions,
-//     and a score above scoreThreshold.
+// or more lines with some diagram evidence, two or more framed regions,
+// and a score above scoreThreshold.
 //
 // No step asks for columns to line up exactly, because the diagrams language
-// models write often do not: in one diagram of the Qt app's test corpus a
+// models write often do not: in one diagram of the app's test corpus a
 // box closes at a different column from its walls.
 
 // InspectionCapChars is the largest fence body Classify reads, in UTF-16
-// code units as the Qt app counts them. A larger body is never a diagram.
+// code units as the app counts them. A larger body is never a diagram.
 const InspectionCapChars = 256 * 1024
 
 // scoreThreshold is the score a diagram has to exceed. The rejection steps
@@ -138,7 +138,7 @@ func isArrowGlyph(u rune) bool {
 }
 
 // isLetterOrDigit is QChar::isLetterOrNumber on one UTF-16 code unit. A
-// character beyond the Basic Multilingual Plane is a surrogate pair to Qt,
+// character beyond the Basic Multilingual Plane is a surrogate pair to ,
 // and a surrogate is neither.
 func isLetterOrDigit(u rune) bool {
 	return u <= 0xFFFF && (unicode.IsLetter(u) || unicode.IsNumber(u))
@@ -286,7 +286,7 @@ func looksLikeMarkdownSeparator(t string) bool {
 	return true
 }
 
-// trimSpace is QString::trimmed: Go's unicode.IsSpace is the set of
+// trimSpace is string::trimmed: Go's unicode.IsSpace is the set of
 // characters QChar::isSpace accepts.
 func trimSpace(s string) string { return strings.TrimFunc(s, unicode.IsSpace) }
 
@@ -426,7 +426,7 @@ func countFramedRegions(lines []lineInfo) int {
 // so one pass merging the two lists finds whether any pair is close enough.
 // Comparing every column with every column instead is quadratic: two rows of
 // 50,000 strokes with no column in common, which fit inside the inspection
-// cap, took the Qt app 11.5 seconds.
+// cap, took the app 11.5 seconds.
 func countRecurringVerticalRows(lines []lineInfo) int {
 	const columnTolerance = 2
 	rows := 0
@@ -460,7 +460,7 @@ func countRecurringVerticalRows(lines []lineInfo) int {
 	return rows
 }
 
-// formatNumber is QString::arg(double): the shortest of plain and
+// formatNumber is string::arg(double): the shortest of plain and
 // exponent notation, with six significant digits.
 func formatNumber(f float64) string { return strconv.FormatFloat(f, 'g', 6, 64) }
 

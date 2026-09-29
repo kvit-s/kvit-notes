@@ -1,6 +1,6 @@
 package editor
 
-// Tables in the grid (features.md 1.2.11, Kvit's TableBlock.qml): a press in
+// Tables in the grid (features.md 1.2.11, Kvit's TableBlock): a press in
 // a cell makes it live for editing in place, Tab walks the grid, Enter moves
 // down, Shift+Enter breaks the line (<br>), Ctrl+Enter leaves, Escape
 // cancels, headers sort, the menu restructures, widths persist, and the grid

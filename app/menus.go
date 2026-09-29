@@ -1,6 +1,6 @@
 package app
 
-// The toolbar's File and View menus (Kvit's FileMenu.qml and ViewMenu.qml):
+// The toolbar's File and View menus (Kvit's FileMenu and ViewMenu):
 // opening vaults and files, saving, templates, import, export and settings;
 // and which panes and modes are on, the theme, and reduced motion.
 
@@ -235,7 +235,7 @@ func windowFor(root string) *Window {
 }
 
 // OpenVault opens a vault in a new window. An empty vault gets a first note
-// to read, as the Qt app's does.
+// to read, as the app's does.
 func OpenVault(ui *kvitui.UI, root string) (*Window, error) {
 	v, err := vault.Open(root)
 	if err != nil {

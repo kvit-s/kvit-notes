@@ -1,12 +1,12 @@
 package mermaid
 
-// These tests are the Qt app's tests/test_mermaidedits.cpp, one Go test per
+// These tests are the app's tests/test_mermaidedits.cpp, one Go test per
 // test function there and in the same order, with the same inputs and
 // expected outputs. Eight of its functions lay a diagram out or render it and
 // are ported in the diagram package instead: partialParseIsNotValid,
 // cleanParseIsStillValid, hugeCoordinatesDoNotExplodeSceneBounds, the four
-// arrangedMode… functions and pluginWrittenLinesParse. Where the Qt test
-// passed QColor("#ff0000") or an invalid QColor, this one passes
+// arrangedMode… functions and pluginWrittenLinesParse. Where the test
+// passed colour("#ff0000") or an invalid colour, this one passes
 // ParseColor("#ff0000") or the zero Color, and positions are NodePosition
 // values rather than pairs of an id and a QPointF.
 

@@ -220,7 +220,7 @@ func (e *Editor) handleKey(key unison.KeyCode, ctrl, shift, alt bool) bool {
 		case b.Kind == Code && shift:
 			e.indentCodeLines(true)
 		case isMermaid(b):
-			// Mermaid source indents by two spaces (DiagramBlock.qml).
+			// Mermaid source indents by two spaces (DiagramBlock).
 			d.InsertText("  ")
 		case b.Kind == Code:
 			e.indentCodeLines(false)
@@ -254,7 +254,7 @@ func (e *Editor) handleKey(key unison.KeyCode, ctrl, shift, alt bool) bool {
 // softBreak is Shift+Enter in a block that holds line breaks: a line break
 // at the caret, replacing any selection inside the block. A list item takes
 // no empty line, which would read back as a second block, so a break that
-// would make one is refused (EditableBlock.qml).
+// would make one is refused (EditableBlock).
 func (e *Editor) softBreak(b *Block) {
 	d := e.Doc
 	d.Edit("insert", func() {
@@ -274,7 +274,7 @@ func (e *Editor) softBreak(b *Block) {
 }
 
 // softBreaks reports whether Shift+Enter writes a line break inside a block
-// of kind k (EditableBlock.qml acceptsSoftBreak): a heading is one line, so
+// of kind k (EditableBlock acceptsSoftBreak): a heading is one line, so
 // there Shift+Enter is Enter.
 func softBreaks(k Kind) bool {
 	return k == Paragraph || k == Quote || k == Callout || k.IsList()
@@ -320,11 +320,11 @@ func (e *Editor) outdentCodeLine() {
 	})
 }
 
-// codeIndentWidth is the columns of one indent stop in code (Qt's
+// codeIndentWidth is the columns of one indent stop in code (the
 // codeIndentWidth).
 const codeIndentWidth = 4
 
-// indentCodeLines indents code by Tab's rule (EditableBlock.qml's
+// indentCodeLines indents code by Tab's rule (EditableBlock's
 // indentCodeLines): without a multi-line selection Tab pads to the next
 // four-column stop, replacing a selection inside the line, and Shift+Tab
 // takes one stop back off; a selection spanning lines indents or outdents
@@ -411,7 +411,7 @@ func (e *Editor) indentCodeLines(outdent bool) {
 
 // moveKey moves the caret. Within a block it follows the drawn layout; at a
 // block's edge Up goes to the end of the block above and Down to the start
-// of the block below (EditableBlock.qml). With Shift the selection extends,
+// of the block below (EditableBlock). With Shift the selection extends,
 // across blocks when it reaches an edge.
 func (e *Editor) moveKey(key unison.KeyCode, ctrl, shift bool) bool {
 	d := e.Doc
@@ -829,7 +829,7 @@ func (e *Editor) pasteClipboard() {
 }
 
 // pasteImage inserts a stored picture as an image block: converting the
-// caret's empty paragraph, else inserting below it, as Qt's insertImageBlock
+// caret's empty paragraph, else inserting below it, as the insertImageBlock
 // does.
 func (e *Editor) pasteImage(stored string) {
 	d := e.Doc

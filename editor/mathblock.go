@@ -1,6 +1,6 @@
 package editor
 
-// Display equations (features.md 1.2.15, Kvit's qml/MathBlock.qml): a
+// Display equations (features.md 1.2.15, Kvit's qml/MathBlock): a
 // "$$ … $$" fence is a Math block holding the TeX between the fences. Away
 // from the caret it shows the typeset equation, centred, in the text colour,
 // with its number at the right when View, Equation numbers is on; blank it
@@ -63,7 +63,7 @@ func parseMathFence(lines []string, i int, line, attrs string) (b Block, next in
 	return b, j, true
 }
 
-// The display block in design pixels (MathBlock.qml): its content starts 8
+// The display block in design pixels (MathBlock): its content starts 8
 // below the row's top and ends 8 above its bottom; the typeset equation takes
 // at least 24; the source panel pads its text 10 at the side and 6 above and
 // below; its parts are 6 apart; the preview panel is 12 taller than what it
@@ -97,7 +97,7 @@ func (e *Editor) mathEditing(i int) bool {
 func (e *Editor) mathReads(i int) bool { return e.mathOn(i) && !e.mathEditing(i) }
 
 // displayMathSize is the size display equations are set at: the note's
-// body size, matched to its text face's x-height (MathBlock.qml,
+// body size, matched to its text face's x-height (MathBlock,
 // mathPixelSize), so the letters stay the size of the prose around them and
 // display style supplies the large operators.
 func (e *Editor) displayMathSize() int {

@@ -5,7 +5,7 @@ package export
 // as data: URIs, code coloured token by token, tables and task boards as
 // static markup, display and inline maths left as TeX for MathJax, and a
 // Mermaid diagram left as source for mermaid.js. Each block's markup is the
-// toHtml of its Qt block kind (src/domain/blockkinds/).
+// toHtml of its  block kind (src/domain/blockkinds/).
 
 import (
 	"encoding/base64"
@@ -16,7 +16,7 @@ import (
 )
 
 // Colors are the theme colours the stylesheet and the code colouring use,
-// as CSS colours. An empty field takes the colour the Qt exporter uses when
+// as CSS colours. An empty field takes the colour the exporter uses when
 // no theme is set.
 type Colors struct {
 	Text           string // body text (#222222)
@@ -60,7 +60,7 @@ func (c Colors) withDefaults() Colors {
 
 // Options are what an export needs to know beyond the note itself.
 type Options struct {
-	// Colors are the theme's colours; the zero value is the Qt exporter's
+	// Colors are the theme's colours; the zero value is the exporter's
 	// colours for no theme.
 	Colors Colors
 	// NoteDir is the folder of the note, where a relative image path is
@@ -74,12 +74,12 @@ type Options struct {
 	// Hugo vault's static/ folder). Empty means VaultRoot.
 	SiteRoot string
 	// MaxAttachmentBytes is the largest image embedded in the page; a larger
-	// one is left out and its path shown instead. 0 means 64 MiB, the Qt
+	// one is left out and its path shown instead. 0 means 64 MiB, the
 	// app's budget, and a negative value means no limit.
 	MaxAttachmentBytes int64
 	// MaxCombinedChars is the largest combined file a vault export will
-	// build, in UTF-16 code units as the Qt app counts them. 0 means 128 Mi,
-	// the Qt app's budget, and a negative value means no limit.
+	// build, in UTF-16 code units as the app counts them. 0 means 128 Mi,
+	// the app's budget, and a negative value means no limit.
 	MaxCombinedChars int64
 	// EmbedPreview, when set, gives the page title and description the
 	// preview cache holds for a web address, for the card a web embed
@@ -87,7 +87,7 @@ type Options struct {
 	EmbedPreview func(url string) (title, description string)
 }
 
-// The pinned MathJax and Mermaid script tags, exactly as the Qt exporter
+// The pinned MathJax and Mermaid script tags, exactly as the exporter
 // writes them. Each is written once, and only when the page needs it.
 const (
 	mathJaxScriptTag = "<script async id=\"MathJax-script\" " +
@@ -358,7 +358,7 @@ func (r *renderer) blockHTML(b block, slug string) string {
 		return r.boardHTML(parseBoard(b.text))
 	case kQuery:
 		// A query is answered against the open vault; this package has none
-		// to ask, so the spec is written as its source, which is what the Qt
+		// to ask, so the spec is written as its source, which is what the
 		// exporter writes when no vault is open.
 		return "<pre><code>" + esc(b.text) + "</code></pre>"
 	case kDivider:
@@ -598,7 +598,7 @@ func (r *renderer) imageDataURI(stored string) string {
 		return resolved
 	}
 	if !filepath.IsAbs(resolved) {
-		// A data: address resolves to itself and is not a file, so the Qt
+		// A data: address resolves to itself and is not a file, so the
 		// exporter shows the placeholder for it.
 		return ""
 	}

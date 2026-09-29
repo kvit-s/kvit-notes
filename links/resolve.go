@@ -5,9 +5,9 @@ import (
 	"strings"
 )
 
-// Which note a link names, from the Qt app's
+// Which note a link names, from the app's
 // src/repository/wikilinkindex.cpp, and where following a link that names
-// no note creates one, from qml/NoteSession.qml.
+// no note creates one, from qml/NoteSession.
 
 // NormalizeTarget is the form of a link target that is compared with note
 // paths: spaces around it removed, the "#heading" dropped, one ".md"
@@ -44,7 +44,7 @@ const (
 	// Unique: exactly one note has that name.
 	Unique
 	// Ambiguous: several notes have that name. Following the link opens
-	// none of them and creates nothing; the Qt app says "Ambiguous link"
+	// none of them and creates nothing; the app says "Ambiguous link"
 	// and lists the candidates.
 	Ambiguous
 )
@@ -134,7 +134,7 @@ func (ix *Index) Resolve(target string) string {
 	return ix.Resolution(target, true).Path
 }
 
-// Resolution resolves a target as the Qt app does. A target matches a note
+// Resolution resolves a target as the app does. A target matches a note
 // when it is the note's path or the last segments of it, without regard to
 // case and with ".md" implied: [[kvit]], [[Kvit.md]] and [[Projects/Kvit]]
 // all name "Ideas/Projects/Kvit.md". More than one match is Ambiguous and
@@ -175,7 +175,7 @@ func (ix *Index) Resolution(target string, followRedirects bool) Resolution {
 
 // CompletionTarget is what [[ completion inserts for a note: its title when
 // that alone resolves to the note, else its path without ".md"
-// (qml/WikiLinkMenu.qml).
+// (qml/WikiLinkMenu).
 func (ix *Index) CompletionTarget(path, title string) string {
 	if ix.Resolve(title) == path {
 		return title
@@ -190,18 +190,18 @@ type NewNote struct {
 	// Any folder on the way to it that is missing is created first.
 	Folder string
 	// Title is the note's name. "" makes an untitled note ("Untitled",
-	// "Untitled 2", ...), which is what [[Folder/]] does in the Qt app.
+	// "Untitled 2", ...), which is what [[Folder/]] does in the app.
 	Title string
 	// Path is Folder/Title.md, or "" for an untitled note.
 	Path string
 }
 
 // NewNoteFor says where following target creates its note, from
-// createWikiTarget in qml/NoteSession.qml. target is the link's note part
+// createWikiTarget in qml/NoteSession. target is the link's note part
 // and current the path of the note holding the link. A bare name goes in
 // the current note's folder; a name with a path goes where the path says,
 // its folders created as needed, and a leading "/" means the top of the
-// vault. A trailing ".md" is dropped. It reports false when the Qt app would
+// vault. A trailing ".md" is dropped. It reports false when the app would
 // fail: a folder or note name that starts with a dot, holds a backslash, has
 // spaces around it, or is empty between two slashes.
 func NewNoteFor(target, current string) (NewNote, bool) {
@@ -237,7 +237,7 @@ func NewNoteFor(target, current string) (NewNote, bool) {
 	return n, true
 }
 
-// validName is the Qt app's rule for a note's or folder's name
+// validName is the app's rule for a note's or folder's name
 // (NoteCollection::validName): not blank, no spaces around it, no slash or
 // backslash, and not starting with a dot.
 func validName(name string) bool {

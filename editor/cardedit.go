@@ -1,6 +1,6 @@
 package editor
 
-// Editing a card of a task board (Kvit's KanbanBlock.qml card editor): a
+// Editing a card of a task board (Kvit's KanbanBlock card editor): a
 // field over the card holds its line (the title with its "#labels" and
 // "📅 date" as the file holds them) or its description. A press on the
 // description edits the description, a press elsewhere on the card its

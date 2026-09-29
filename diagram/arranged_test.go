@@ -1,12 +1,12 @@
 package diagram
 
-// These tests are the functions of the Qt app's tests/test_mermaidedits.cpp
+// These tests are the functions of the app's tests/test_mermaidedits.cpp
 // that test render and layout rather than edits, in that file's order, with
 // the same sources and expectations: partialParseIsNotValid,
 // cleanParseIsStillValid, hugeCoordinatesDoNotExplodeSceneBounds, the four
 // arrangedMode functions, and pluginWrittenLinesParse. The rest of that file
 // tests the on-diagram edits and moves with them. arrangedModeRoutesBeziers
-// looks for a CurveToElement in the Qt path; here it is a CubicTo segment.
+// looks for a CurveToElement in the path; here it is a CubicTo segment.
 
 import (
 	"math"

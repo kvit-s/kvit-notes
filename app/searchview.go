@@ -1,6 +1,6 @@
 package app
 
-// Searching across notes (features.md 8.4, Kvit's SearchResultsView.qml over
+// Searching across notes (features.md 8.4, Kvit's SearchResultsView over
 // src/search): what is typed in the sidebar's search field is looked for in
 // every note of the scope shown, and the note list becomes the results:
 // each note found, with how often, and under it the lines the text was found
@@ -286,7 +286,7 @@ type ResultsList struct {
 	Counting string
 }
 
-// Result row heights in design pixels (SearchResultsView.qml).
+// Result row heights in design pixels (SearchResultsView).
 const (
 	resultNoteRow = 28
 	resultHitRow  = 24

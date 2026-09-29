@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-// The table of renamed notes, .kvit/redirects.json, from the Qt app's
+// The table of renamed notes, .kvit/redirects.json, from the app's
 // src/repository/linkredirects.h.
 //
 // When a note is renamed or moved with its links updated, the table records
@@ -47,15 +47,15 @@ type Redirects struct {
 }
 
 // errUnsound is returned when .kvit is a link or not a directory, which
-// the Qt app refuses to write through (src/repository/vaultpaths.cpp).
+// the app refuses to write through (src/repository/vaultpaths.cpp).
 var errUnsound = errors.New("links: .kvit is not a directory of the vault's own")
 
 // IsPlainRelativePath reports whether p is a path inside a vault in its
 // plain form, the test every path in redirects.json must pass
 // (VaultPaths::isPlainRelativePath): not empty, not absolute, no
 // backslash, and no empty, "." or ".." segment. A path starting with a
-// drive letter and a colon, or with a colon (a Qt resource path), counts as
-// absolute on every system, as it does for the Qt app on Windows.
+// drive letter and a colon, or with a colon (a resource path), counts as
+// absolute on every system, as it does for the app on Windows.
 func IsPlainRelativePath(p string) bool {
 	if p == "" || strings.HasPrefix(p, "/") || strings.HasPrefix(p, ":") || strings.Contains(p, `\`) {
 		return false
@@ -150,7 +150,7 @@ func (r *Redirects) Save(root string) error {
 	return writeAtomic(path, r.encode())
 }
 
-// encode is the table as the Qt app's QJsonDocument writes it in compact
+// encode is the table as the app's JSON document writes it in compact
 // form: keys in alphabetical order, no spaces, no newline at the end.
 func (r *Redirects) encode() []byte {
 	b := []byte(`{"redirects":[`)
@@ -167,7 +167,7 @@ func (r *Redirects) encode() []byte {
 	return append(b, `],"version":1}`...)
 }
 
-// appendJSONString appends s as a JSON string with Qt's escapes: quote,
+// appendJSONString appends s as a JSON string with the escapes: quote,
 // backslash and the control characters, everything else as UTF-8.
 func appendJSONString(b []byte, s string) []byte {
 	b = append(b, '"')

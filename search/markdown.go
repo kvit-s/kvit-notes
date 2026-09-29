@@ -2,7 +2,7 @@ package search
 
 // A block's Markdown against the text the reader sees, which is what a
 // replacement needs: a match is found in the display text, and replacing it
-// has to change the Markdown. The rules are the Qt app's, from
+// has to change the Markdown. The rules are the app's, from
 // src/content/inlinemarkdown.cpp (segmentsFor, documentToMarkdown,
 // markdownToDocument and cutRangeResult) with no span revealed, which is
 // how the find bar sees a block.
@@ -262,7 +262,7 @@ func (b Block) Text() string {
 	return layoutOf(b.Markdown, b.Spans).text()
 }
 
-// MarkdownPos maps an offset in the display text to the Markdown, as the Qt
+// MarkdownPos maps an offset in the display text to the Markdown, as the
 // app does to put the caret at a match (BlockPositions::markdownPosition,
 // and CollectionSearch::markdownPosition for a search result). The answer
 // is kept inside the Markdown.
@@ -275,7 +275,7 @@ func (b Block) MarkdownPos(display int) int {
 	return max(0, min(layoutOf(b.Markdown, b.Spans).toMarkdown(d), n))
 }
 
-// DisplayPos maps an offset in the Markdown to the display text, as the Qt
+// DisplayPos maps an offset in the Markdown to the display text, as the
 // app does with the caret where a search starts and with the ends of the
 // selection a search is kept inside (BlockPositions::displayPosition).
 func (b Block) DisplayPos(markdown int) int {

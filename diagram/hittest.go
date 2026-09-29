@@ -1,13 +1,13 @@
 package diagram
 
 // Finding what is under a point and what a source position belongs to, the
-// scene-only part of the Qt app's src/content/diagrams/diagramcanvas.cpp
+// scene-only part of the app's src/content/diagrams/diagramcanvas.cpp
 // (nodeAt, edgeAt, sourceOffsetAt, highlightSourceOffset and the selection
 // helpers). Points are in the scene's coordinates; the editor divides out
 // its zoom first.
 
 // edgeHitWidth is how wide a path is for the pointer: 9 pixels, 4.5 either
-// side of the line. The Qt app strokes the path at this width with square
+// side of the line. The app strokes the path at this width with square
 // ends; this measures the distance to the line, which rounds the ends.
 const edgeHitWidth = 9.0
 

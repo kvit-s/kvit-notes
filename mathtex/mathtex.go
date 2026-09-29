@@ -1,8 +1,8 @@
 // Package mathtex typesets LaTeX math for Kvit Notes: the formulas of display
-// math blocks ($$…$$) and of inline spans ($…$). It is the port of the Qt
+// math blocks ($$…$$) and of inline spans ($…$). It is the port of the
 // app's src/content/mathrenderer.{h,cpp}.
 //
-// The typesetting is done by MicroTeX, the C++ engine the Qt app vendored,
+// The typesetting is done by MicroTeX, the C++ engine the app vendored,
 // which stays C++: it is built as a shared library (kvitmath.dll,
 // libkvitmath.dylib, libkvitmath.so, from third_party/microtex and
 // mathtex/native by tools/build-mathlib.sh) that this package loads at run
@@ -27,12 +27,12 @@ import (
 	"unicode/utf16"
 )
 
-// Ceilings on what a formula can ask for, from the Qt app's
+// Ceilings on what a formula can ask for, from the app's
 // src/content/diagrams/diagrambudget.h. A note is untrusted input, and its TeX
 // feeds sizes straight into layout and into rasters.
 const (
 	// MaxTeXChars is the longest TeX source laid out, in UTF-16 code units
-	// as Qt counts them. Real formulas are a line or two.
+	// as counts them. Real formulas are a line or two.
 	MaxTeXChars = 8192
 	// MaxTextSize is the largest size a formula is set at, in pixels per em.
 	MaxTextSize = 512
@@ -85,7 +85,7 @@ func normalizedTeX(tex string) string {
 	return strings.TrimSpace(tex)
 }
 
-// utf16Len is the length Qt gives a string: its UTF-16 code units.
+// utf16Len is the length  gives a string: its UTF-16 code units.
 func utf16Len(s string) int {
 	n := 0
 	for _, r := range s {

@@ -10,11 +10,10 @@ files through their UTF-16 path on Windows (`callfopen` in
 `tinyxml2/tinyxml2.cpp`), so a resource folder under a path that is not plain
 ASCII still works.
 
-It is copied from the Qt app's repository (`~/kvit-notes`,
-`third_party/microtex` as of its commit 918f539) without the parts that
-painted through a toolkit: the Qt, Cairo, Skia and GDI+ back ends
-(`src/platform`), the sample programs (`src/samples`), and the CMake, Meson
-and qmake files that built them.
+It is upstream MicroTeX at commit 0e3707f6 without the parts that
+paint through a toolkit: the platform back ends
+(`src/platform`), the sample programs (`src/samples`), and the CMake and Meson
+files that built them.
 
 It is built into the shared library the Go package `mathtex` loads, together
 with the recording back end and the C interface in `mathtex/native`, by
@@ -28,6 +27,6 @@ Licences: the engine's is `LICENSE.clatexmath`; tinyxml2's is
 
 The NewTX metric definitions in `src/res/font/kvit_newtx_*.def.cpp` first look
 for `build/generated/newtx-charter-microtex/defs/` at the top of the checkout,
-where the Qt repository's font generator writes, and otherwise use the copies
+and otherwise use the copies
 in `src/res/font/newtx-generated`. Nothing in this repository writes that
 folder, so the copies are what is built.

@@ -219,12 +219,12 @@ func (e *Editor) layOut(b *Block, width float32, caret, selA, selB int) *blockLa
 	pitch := e.pitch(base)
 	opt := text.Options{MaxWidth: width, Pitch: pitch, KeepTrailingSpace: true}
 	if e.codeNoWrap(b) {
-		// Code blocks scroll horizontally rather than wrap (Qt's
+		// Code blocks scroll horizontally rather than wrap (the
 		// TextEdit.NoWrap): line breaks in the source still start new
 		// lines, but a long line runs past the panel under a clip.
 		opt.MaxWidth = 0
 	}
-	// A block's alignment, as the Qt app applies it (EditableBlock.qml,
+	// A block's alignment, as the app applies it (EditableBlock,
 	// blockAlign).
 	switch a, _ := b.Attr("align"); a {
 	case "center":
@@ -236,7 +236,7 @@ func (e *Editor) layOut(b *Block, width float32, caret, selA, selB int) *blockLa
 	return &blockLayout{proj: proj, text: tl, style: base, pitch: pitch, width: width}
 }
 
-// height is the height of the laid-out text, down to a whole pixel, as Qt's
+// height is the height of the laid-out text, down to a whole pixel, as the
 // text areas report theirs, so rows stack at whole pixels however many
 // lines each holds.
 func (l *blockLayout) height() float32 {

@@ -1,6 +1,6 @@
 package diagram
 
-// These tests are the layout and render functions of the Qt app's
+// These tests are the layout and render functions of the app's
 // tests/test_mermaidclass.cpp, one Go test per test function and in the
 // same order, with the same sources and expectations; the parser's
 // functions of that file are ported in package mermaid. Each name has

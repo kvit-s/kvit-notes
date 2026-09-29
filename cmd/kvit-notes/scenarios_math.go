@@ -1,6 +1,6 @@
 package main
 
-// The math storyboards of Kvit's tests/tst_visual.qml (test_39_math,
+// The math storyboards of Kvit's tests/tst_visual (test_39_math,
 // test_49_inline_math, test_62_math_canary, and the first picture of
 // test_36b_table_math_and_column_widths; its second edits one cell, and a Go
 // table is edited as its whole Markdown), added to the scenarios. They need

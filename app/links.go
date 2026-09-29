@@ -1,13 +1,13 @@
 package app
 
 // Following links and the link dialog (features.md 2.4 and 8.5, Kvit's
-// NoteSession.qml, LinkDialog.qml and src/repository/wikilinkindex.cpp).
+// NoteSession, LinkDialog and src/repository/wikilinkindex.cpp).
 // A wiki link opens the note it names, the one note whose path ends with
 // it, at its heading when it names one; a link naming no note makes it,
-// where the Qt app makes it; a name several notes share offers them to
+// where the app makes it; a name several notes share offers them to
 // choose from. A Markdown link opens a web address in the browser, a
 // "#heading" in the note itself, and a path to a note in the vault. The
-// resolution rules are the links package's port of the Qt app's.
+// resolution rules are the links package's port of the app's.
 
 import (
 	"errors"
@@ -86,7 +86,7 @@ func (w *Window) openAtHeading(p, heading string) {
 	}
 }
 
-// createLinked makes the note a link names, where the Qt app would, and
+// createLinked makes the note a link names, where the app would, and
 // opens it.
 func (w *Window) createLinked(target string) {
 	current := ""

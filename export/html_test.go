@@ -10,7 +10,7 @@ import (
 )
 
 // htmlCases are Kvit's exporter tests (tests/test_documentexporter.cpp) that
-// render one Markdown body to HTML, one row per input, named after the Qt
+// render one Markdown body to HTML, one row per input, named after the
 // test. want must each appear in the page; not must not.
 var htmlCases = []struct {
 	name string
@@ -175,7 +175,7 @@ func TestScriptTagsAreWrittenOnce(t *testing.T) {
 	}
 }
 
-// The page is exactly what the Qt exporter writes for a small note, stylesheet
+// The page is exactly what the exporter writes for a small note, stylesheet
 // aside: the wrapper, the anchors, and no stray separators between blocks.
 func TestHTMLPageShape(t *testing.T) {
 	html := HTMLFromMarkdown("# One\n\nText with **bold**.\n\n- a\n- b", "Note", Options{})
@@ -320,7 +320,7 @@ func TestCodeHighlighting(t *testing.T) {
 // A note's front matter is never part of an export's body. The editor keeps a
 // file's front matter as a leading block when it opens a loose file, and that
 // block is left out; a body that starts with "---" but has no front matter by
-// the Qt app's rule is a divider and what follows, as the Qt parser reads it.
+// the app's rule is a divider and what follows, as the parser reads it.
 func TestLeadingDashes(t *testing.T) {
 	withFM := HTMLFromBlocks(editor.ParseMarkdown("---\ntags: [a]\n---\n# T"), "", Options{})
 	if strings.Contains(withFM, "<hr>") || strings.Contains(withFM, "tags") || !strings.Contains(withFM, `<h1 id="t">T</h1>`) {
@@ -331,7 +331,7 @@ func TestLeadingDashes(t *testing.T) {
 		t.Errorf("divider-led body: %s", bodyOf(divided))
 	}
 	// HTMLFromMarkdown is given a body, so a second front-matter-shaped block
-	// in it is text, as it is to the Qt exporter.
+	// in it is text, as it is to the exporter.
 	body := HTMLFromMarkdown("---\nnote: buy milk\n---\nBody", "", Options{})
 	if !strings.Contains(body, "<hr><p>note: buy milk</p><hr><p>Body</p>") {
 		t.Errorf("front matter shaped body: %s", bodyOf(body))

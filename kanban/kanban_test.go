@@ -1,10 +1,10 @@
 package kanban
 
-// These tests are the Qt app's tests/test_kanbandata.cpp, one Go test per
+// These tests are the app's tests/test_kanbandata.cpp, one Go test per
 // test function there and in the same order, with the same inputs and
-// expected outputs. Where the Qt test read a card's `line` through the QML
+// expected outputs. Where the test read a card's `line` through the view markup
 // wrapper KanbanTools::parse, this one calls Card.Line, which is the function
-// that wrapper calls. The Qt functions' default `today` argument is written
+// that wrapper calls. The functions' default `today` argument is written
 // out here as "".
 
 import (
@@ -264,7 +264,7 @@ func TestLiteralHashesRoundTripThroughTheEscape(t *testing.T) {
 }
 
 // Parse(x).Serialize() == x for arbitrary content, and every unmodelled line
-// survives any single mutation byte for byte. The boards are the ones the Qt
+// survives any single mutation byte for byte. The boards are the ones the
 // test builds: qtRandom reproduces its QRandomGenerator with the same seed.
 func TestMutationPreservationProperty(t *testing.T) {
 	rng := newQtRandom(0x4b616e62) // fixed seed: failures reproduce

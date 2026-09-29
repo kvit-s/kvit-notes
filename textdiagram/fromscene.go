@@ -1,6 +1,6 @@
 package textdiagram
 
-// FromScene, a port of the Qt app's src/content/diagrams/textdiagram.cpp:
+// FromScene, a port of the app's src/content/diagrams/textdiagram.cpp:
 // "Copy as text" on a rendered Mermaid diagram. It reads the same laid-out
 // diagram.Scene the editor draws, so what is copied matches what is shown,
 // and draws it on a Canvas, which uses only the characters Repair
@@ -86,7 +86,7 @@ func opposite(d Direction) Direction {
 
 // markerGlyph is the character a marker is drawn as. An arrow keeps the
 // arrowheads Repair knows; the UML heads become △ ◇ o x and a crow's foot
-// < > ^ v by the way its line runs, on purpose, as the Qt app does.
+// < > ^ v by the way its line runs, on purpose, as the app does.
 func markerGlyph(m diagram.Marker, dir Direction) rune {
 	switch m {
 	case diagram.MarkerArrow, diagram.MarkerOpenArrow:

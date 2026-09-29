@@ -1,4 +1,4 @@
-// Package kanban reads and writes Kvit's task boards. It is a port of the Qt
+// Package kanban reads and writes Kvit's task boards. It is a port of the
 // app's src/content/kanbandata.h and kanbandata.cpp (namespace KanbanData)
 // and writes the same text as that code for every input.
 //
@@ -8,27 +8,32 @@
 //
 //	## To do
 //	- [ ] Ship the beta #release #"client work" 📅 2026-08-01 <!--kvit created=2026-07-20 modified=2026-07-26-->
-//	  Lines indented under a card are its description.
-//	- [x] A finished card
-//	## Done
+//
+// Lines indented under a card are its description.
+//   - [x] A finished card
+//     ## Done
 //
 // A line starting with `## ` opens a column named by the rest of the line. A
 // line `- [ ] ` or `- [x] ` is a card, done when the box is checked; a `*`
 // bullet and `[X]` also work. On a card's line:
 //   - a `#label` token at the start of the text or after whitespace is a
-//     label, so a URL fragment such as https://example.com/#intro stays title
-//     text. A label containing a space, a hash, a quote or a backslash is
-//     written quoted, as `#"client work"`, with `\` and `"` escaped inside the
-//     quotes; the bare spelling is written whenever it fits.
+//
+// label, so a URL fragment such as https://example.com/#intro stays title
+// text. A label containing a space, a hash, a quote or a backslash is
+// written quoted, as `#"client work"`, with `\` and `"` escaped inside the
+// quotes; the bare spelling is written whenever it fits.
 //   - `📅 YYYY-MM-DD` is the due date. Only a day the calendar has counts;
-//     anything else after the marker is title text.
+//
+// anything else after the marker is title text.
 //   - a backslash before `#` or `📅` makes it literal title text, and a run of
-//     backslashes halves, so `\#` is a literal hash and `\\#tag` is a
-//     backslash followed by a label.
+//
+// backslashes halves, so `\#` is a literal hash and `\\#tag` is a
+// backslash followed by a label.
 //   - an HTML comment `<!--kvit created=… modified=…-->` at the end of the line
-//     holds the day the card was added and the day it last changed. Other
-//     Markdown tools show nothing for it, and the text the board's inline
-//     editor shows is the line without it (Card.Line).
+//
+// holds the day the card was added and the day it last changed. Other
+// Markdown tools show nothing for it, and the text the board's inline
+// editor shows is the line without it (Card.Line).
 //
 // Lines indented by two spaces or a tab under a card are its description,
 // including blank lines between such lines.
@@ -127,7 +132,7 @@ func (b *Board) ColumnCount() int { return len(b.Columns) }
 // calendar is the due-date marker, U+1F4C5.
 const calendar = "📅"
 
-// The kanbandata.cpp patterns are compiled by Qt's QRegularExpression
+// The kanbandata.cpp patterns are compiled by the regular expression
 // without its Unicode-properties option, so PCRE's \s there matches only the
 // six ASCII whitespace characters. Go's \s leaves out the vertical tab, so the
 // patterns below spell the class out. (\d and \w are ASCII-only in both.)
@@ -188,8 +193,8 @@ var stampValueRe = map[string]*regexp.Regexp{
 var boxRe = regexp.MustCompile(`^(` + space + `*[-*] \[)( |x|X)(\])`)
 
 // isRealDate reports whether text is a day the calendar has, written
-// YYYY-MM-DD (isRealDate() in kanbandata.cpp). The Qt code asks
-// QDate::fromString(text, "yyyy-MM-dd"), which in Qt 6.10 accepts exactly ten
+// YYYY-MM-DD (isRealDate() in kanbandata.cpp). The code asks
+// QDate::fromString(text, "yyyy-MM-dd"), which in 6.10 accepts exactly ten
 // characters, four ASCII digits, a hyphen, two digits, a hyphen and two
 // digits, naming a day of the proleptic Gregorian calendar from 0001-01-01 to
 // 9999-12-31. Year 0000 does not exist there. Reader and writer both ask this,
@@ -222,11 +227,11 @@ func digits(s string) int {
 	return n
 }
 
-// trimmed is QString::trimmed(): QChar::isSpace and unicode.IsSpace, which
+// trimmed is string::trimmed(): QChar::isSpace and unicode.IsSpace, which
 // strings.TrimSpace uses, are the same set of characters.
 func trimmed(s string) string { return strings.TrimSpace(s) }
 
-// simplified is QString::simplified(): trimmed, with every inner run of
+// simplified is string::simplified(): trimmed, with every inner run of
 // whitespace replaced by one space.
 func simplified(s string) string { return strings.Join(strings.Fields(s), " ") }
 

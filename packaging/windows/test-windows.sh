@@ -62,7 +62,7 @@ else
     math_probe windows amd64 "$work/mathprobe.exe"
 fi
 
-# The keys of the real installation (the Qt Kvit Notes on the development
+# The keys of the real installation (the Kvit Notes on the development
 # machine): its ProgID, the .md OpenWithProgids values, and its uninstall
 # entry. They are recorded with reg.exe before and after the test and must
 # not change.

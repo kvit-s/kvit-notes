@@ -9,11 +9,11 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// lockOffset is the byte the Qt app locks: one byte far past the end of the
+// lockOffset is the byte the app locks: one byte far past the end of the
 // file, so the lock never covers what the file says.
 const lockOffset = 0x40000000
 
-// lockFile takes the same exclusive one-byte lock the Qt app takes, without
+// lockFile takes the same exclusive one-byte lock the app takes, without
 // waiting. held reports that another process has it.
 func lockFile(f *os.File) (held bool, err error) {
 	ol := &windows.Overlapped{Offset: lockOffset}

@@ -1,8 +1,8 @@
 package mermaid
 
-// These tests are the parser tests of the Qt app's tests/test_mermaider.cpp,
+// These tests are the parser tests of the app's tests/test_mermaider.cpp,
 // one Go test per test function there and in the same order, with the same
-// inputs and expected outputs. The Qt file's layout tests
+// inputs and expected outputs. The file's layout tests
 // (layoutEntityTables, layoutCrowsFootMarkers, layoutNonIdentifyingIsDashed,
 // layoutDeterministic and rendererRendersErDiagram) lay the diagram out into
 // a scene and belong to the diagram package; demoCorpusParsesClean, which

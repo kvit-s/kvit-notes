@@ -3,8 +3,8 @@ package editor
 // Drop caps (features.md 1.2.16): a paragraph with the attribute
 // dropcap=<lines> draws its first letter enlarged beside its text while the
 // caret is elsewhere, in bold, in the colour of dropcapcolor and the family
-// of dropcapfont when they are set. As in the Qt app (EditableBlock.qml and
-// DropCapOverlay.qml), the whole paragraph is indented by the letter's
+// of dropcapfont when they are set. As in the app (EditableBlock and
+// DropCapOverlay), the whole paragraph is indented by the letter's
 // width and its own first letter left blank in place, and the paragraph
 // shows as plain text while it is being edited.
 

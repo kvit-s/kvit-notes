@@ -151,7 +151,7 @@ func ExpandTemplate(text, title string, now time.Time) string {
 	})
 }
 
-// qtTokens are the Qt date and time format letters, longest first, and how
+// qtTokens are the date and time format letters, longest first, and how
 // each is written.
 var qtTokens = []struct {
 	token string
@@ -179,7 +179,7 @@ var qtTokens = []struct {
 	{"ap", func(t time.Time) string { return t.Format("pm") }},
 }
 
-// QtTimeFormat writes a time with a Qt date format string ("dddd, MMMM d,
+// QtTimeFormat writes a time with a date format string ("dddd, MMMM d,
 // yyyy"), quoted text in single quotes kept as it is.
 func QtTimeFormat(t time.Time, format string) string {
 	var b strings.Builder

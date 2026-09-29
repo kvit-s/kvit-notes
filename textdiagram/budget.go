@@ -1,6 +1,6 @@
 package textdiagram
 
-// The limits on a Canvas, from the Qt app's diagrambudget.h. A note is
+// The limits on a Canvas, from the app's diagrambudget.h. A note is
 // untrusted input, and when a diagram is turned into text its coordinates
 // decide how many cells the canvas asks for: a node pinned far away by an
 // arrangement comment would otherwise make a grid of any size. Drawing

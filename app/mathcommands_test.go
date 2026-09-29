@@ -15,7 +15,7 @@ import (
 )
 
 // The commands chosen from the math menu are written to the settings file
-// under the Qt app's key, and the next start reads them back, so they lead
+// under the app's key, and the next start reads them back, so they lead
 // the menu again.
 func TestMathRecentCommandsRoundTrip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "ui.json")

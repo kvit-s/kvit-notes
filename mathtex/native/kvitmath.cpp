@@ -2,8 +2,8 @@
 // interface kvitmath.h declares over it.
 //
 // MicroTeX lays a formula out into boxes and draws them through the abstract
-// tex::Graphics2D in graphic/graphic.h. The Qt app painted with the Qt back
-// end (platform/qt/graphic_qt.cpp in the Qt repository); this one keeps the
+// tex::Graphics2D in graphic/graphic.h. The app painted with the back
+// end (platform/qt/graphic_qt.cpp in the repository); this one keeps the
 // transform, colour, stroke and font the boxes set, and writes each character,
 // line and rectangle they draw into a byte stream with the transform and
 // colour in force. The Go package mathtex reads the stream and draws it with
@@ -54,8 +54,8 @@ std::vector<std::string> g_fontPaths;
 
 // MicroTeX works on std::wstring. wchar_t is 32 bits on Linux and macOS and 16
 // on Windows, so a character outside the Basic Multilingual Plane is one
-// wchar_t on the first and a surrogate pair on the second, as Qt's
-// toStdWString gave the Qt app on each.
+// wchar_t on the first and a surrogate pair on the second, as the
+// toStdWString gave the app on each.
 std::wstring toWide(const char *s, int64_t n) {
     std::wstring out;
     out.reserve(static_cast<size_t>(n));
@@ -125,7 +125,7 @@ void appendUtf8(std::string &out, uint32_t cp) {
 }
 
 // Wide strings can end in a NUL MicroTeX left there, which ends the text, as
-// the Qt back end's wstring_to_QString does.
+// the back end's wstring_to_string does.
 std::string toUtf8(const std::wstring &w) {
     std::string out;
     for (size_t i = 0; i < w.size(); i++) {
@@ -145,8 +145,8 @@ std::string toUtf8(const std::wstring &w) {
 }
 
 // The generated NewTX fonts repeat every TeX slot below 33 at U+E000 + slot,
-// because Qt could not draw those codes (see
-// tools/build_newtx_outline_fonts.py in the Qt repository). The Qt back end
+// because  could not draw those codes (see
+// tools/build_newtx_outline_fonts.py in the repository). The back end
 // drew the alias whenever the NewTX fonts were in use; the same codes are
 // recorded here, so the Go side finds the glyph through the same map entry.
 wchar_t remapLowSlot(wchar_t c) {
@@ -453,7 +453,7 @@ int32_t fail(KvitMathResult *out, const std::string &message) {
 
 // parse lays tex out at size, as LaTeX::parse does, in display or text
 // style. Text style is the size TeX sets a $...$ span in: limits beside a
-// large operator, and fractions at script size. The Qt app asked for it by
+// large operator, and fractions at script size. The app asked for it by
 // wrapping the TeX in \textstyle{...}, whose argument MicroTeX parses as a
 // formula of its own and, in its lenient mode, drops the parse errors of:
 // "a & b" typeset to nothing instead of saying '&' needs an array, and before

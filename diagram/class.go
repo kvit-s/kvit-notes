@@ -1,6 +1,6 @@
 package diagram
 
-// The class-diagram layout, a port of the Qt app's
+// The class-diagram layout, a port of the app's
 // src/content/diagrams/classlayout.cpp: UML boxes with compartments placed by
 // the layered core, relations drawn from border to border with UML end
 // markers, cardinalities beside their ends, namespaces as frames, and notes

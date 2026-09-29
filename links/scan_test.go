@@ -30,7 +30,7 @@ func TestMatchAtFindsTheParts(t *testing.T) {
 		{"[[ a b # H 1 | al ]]", 0, 0, 20, "a b # H 1", "a b", "H 1", "al", 11, 9, 15},
 		// "[[" wins over "[": never a [text](url) link.
 		{"[[a]](b)", 0, 0, 5, "a", "a", "", "", 1, -1, -1},
-		// Rune offsets: the emoji is one position here and two in Qt.
+		// Rune offsets: the emoji is one position here and two in .
 		{"🙂 [[old]]", 2, 2, 7, "old", "old", "", "", 3, -1, -1},
 	}
 	for _, c := range cases {

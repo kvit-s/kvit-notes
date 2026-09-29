@@ -1,7 +1,7 @@
 package editor
 
 // A task board card's fields, and the math typing aids in them (Kvit's
-// KanbanBlock.qml card editor, which has the same MathEntryAssist as a
+// KanbanBlock card editor, which has the same MathEntryAssist as a
 // block). The field being edited is read through what a screen reader is
 // told about the focused control.
 

@@ -6,7 +6,7 @@
 #   ./build.sh --cross       also build kvit-notes for windows/amd64, darwin/arm64,
 #                            darwin/amd64 and linux/amd64 into build/<os>-<arch>/
 #   ./build.sh --win         build kvit-notes for Windows onto D: and start it there, on a
-#                            copy of the Qt repository's demo vault (not your own notes)
+#                            copy of the repository's demo vault (not your own notes)
 #   ./build.sh --win-check   the same, driving the editor through a scripted check in
 #                            its window, reading what Windows' screen-reader interface
 #                            reports, saving a picture of the window and its memory
@@ -29,9 +29,9 @@
 # build is what gets shipped.
 #
 # Everything builds with cgo off. KVIT_WIN_DIR overrides where Windows builds go
-# (default /mnt/d/projects/kvit-notes-go); KVIT_QT_SHOTS where Kvit's storyboard
-# screenshots are (default ~/kvit-qt-reference/kvit-notes-storyboards); KVIT_QT_REPO
-# where Kvit's Qt repository is, whose documentation --bench reads (default ~/kvit-notes).
+# (default /mnt/d/projects/kvit-notes-go); KVIT_REF_SHOTS overrides where the
+# storyboard screenshots for --compare come from; KVIT_REF_REPO overrides where
+# the documentation --bench reads comes from.
 set -euo pipefail
 cd "$(dirname "$0")"
 export CGO_ENABLED=0
@@ -112,9 +112,9 @@ if [ $win = 1 ]; then
     tools/build-mathlib.sh windows/amd64 "$dest/kvitmath.dll"
     mathres "$dest"
     if [ $check = 0 ]; then
-        # A copy of the Qt app's demo vault, so trying the build never touches
+        # A copy of the app's demo vault, so trying the build never touches
         # the vault you write in; kvit-notes.exe with no argument opens that.
-        demo=${KVIT_QT_REPO:-$HOME/kvit-notes}/screenshots/demo-vault
+        demo=${KVIT_REF_REPO:-$HOME/kvit-reference/kvit-notes-demo}/screenshots/demo-vault
         [ -d "$dest/demo-vault" ] || cp -r "$demo" "$dest/demo-vault"
         "$dest/kvit-notes.exe" "$(wslpath -w "$dest/demo-vault")" &
         disown
@@ -147,15 +147,15 @@ if [ $win = 1 ]; then
 fi
 
 if [ $shots = 1 ]; then
-    qt=${KVIT_QT_SHOTS:-$HOME/kvit-qt-reference/kvit-notes-storyboards}
+    ref=${KVIT_REF_SHOTS:-$HOME/kvit-reference/kvit-notes-storyboards}
     rm -rf build/shots
     compare=()
-    [ -d "$qt" ] && compare=(--compare "$qt")
+    [ -d "$ref" ] && compare=(--compare "$ref")
     build/kvit-notes --scenario all --out build/shots "${compare[@]}"
 fi
 
 if [ $bench = 1 ]; then
-    build/kvit-notes --bench "${KVIT_QT_REPO:-$HOME/kvit-notes}"
+    build/kvit-notes --bench "${KVIT_REF_REPO:-$HOME/kvit-reference/kvit-notes-docs}"
 fi
 
 if [ $run = 1 ]; then

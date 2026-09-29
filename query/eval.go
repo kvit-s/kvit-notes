@@ -9,7 +9,7 @@ import (
 )
 
 // Note is one note of the collection as a query reads it: the parts of the
-// Qt app's NoteCollection::NoteEntry (src/domain/noteentry.h) that
+// app's NoteCollection::NoteEntry (src/domain/noteentry.h) that
 // querydata.cpp uses. The caller fills it from its own index of the
 // collection.
 type Note struct {
@@ -22,7 +22,7 @@ type Note struct {
 	Folder string
 	// Modified is the file's modification time. A cell shows it as
 	// "2006-01-02 15:04" in the time's own location, so pass local times,
-	// as os.FileInfo.ModTime returns them, to match the Qt app. The zero time
+	// as os.FileInfo.ModTime returns them, to match the app. The zero time
 	// means the field does not exist.
 	Modified time.Time
 	// Created is the front matter "created:" date when it parses, and the
@@ -73,8 +73,8 @@ type Result struct {
 // noneGroup names the board column for notes without the group-by field.
 const noneGroup = "(none)"
 
-// SortNotes sorts notes by Path the way the Qt collection lists them
-// (NoteCollection::noteRelPaths, QStringList::sort): case-sensitively, by
+// SortNotes sorts notes by Path the way the collection lists them
+// (NoteCollection::noteRelPaths, string list::sort): case-sensitively, by
 // UTF-16 code units.
 func SortNotes(notes []Note) {
 	sort.SliceStable(notes, func(i, j int) bool {
@@ -85,7 +85,7 @@ func SortNotes(notes []Note) {
 // Evaluate runs a spec over notes (querydata.cpp QueryData::evaluate).
 //
 // Notes that tie on every sort key keep the order they have in notes. The
-// Qt app always passes the collection sorted by path, which makes the result
+// app always passes the collection sorted by path, which makes the result
 // the same every time; sort with SortNotes first for the same order. The
 // notes are only read.
 func Evaluate(spec Spec, notes []Note) Result {

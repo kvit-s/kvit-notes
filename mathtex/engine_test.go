@@ -12,7 +12,7 @@ import (
 	"github.com/richardwilkes/unison"
 )
 
-// These go beyond the Qt tests, over what the Go side adds: finding and
+// These go beyond the tests, over what the Go side adds: finding and
 // loading the library, the measure callback, colours, transforms, the cache
 // and the optical size. The benchmarks give the numbers in the migration
 // log:
@@ -134,7 +134,7 @@ func TestRotatedBoxIsDrawnRotated(t *testing.T) {
 }
 
 // The math font's x-height is the box of a math italic x, 117/256 em with its
-// small depth, as the Qt app measured it.
+// small depth, as the app measured it.
 func TestOpticalMathSize(t *testing.T) {
 	needEngine(t)
 	for _, c := range []struct {
@@ -323,7 +323,7 @@ func TestSelfTest(t *testing.T) {
 }
 
 // Text style is set on the whole formula rather than by wrapping the TeX in
-// \textstyle{…} as the Qt app did, which dropped the argument's parse errors
+// \textstyle{…} as the app did, which dropped the argument's parse errors
 // (kvitmath.cpp, parse). For TeX that typesets the two lay out the same.
 func TestTextStyleLaysOutAsTheQtAppsWrapping(t *testing.T) {
 	needEngine(t)

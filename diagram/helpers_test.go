@@ -1,11 +1,11 @@
 package diagram
 
-// What the ported tests share. The Qt tests measure with a real font,
+// What the ported tests share. The tests measure with a real font,
 // "sans-serif" at 14 pixels; these measure with fixedMeasurer, 8 pixels a
 // character and 17 a line, which is close to DejaVu Sans at that size, so
-// a test comparing positions checks the relation the Qt test checks rather
+// a test comparing positions checks the relation the test checks rather
 // than a pixel value. Mathematics is measured by fakeMath, which stands in
-// for MicroTeX: it rejects what MicroTeX rejects in the Qt tests, an
+// for MicroTeX: it rejects what MicroTeX rejects in the tests, an
 // unmatched brace and a bare alignment `&`, and makes a fraction two lines
 // tall.
 
@@ -50,7 +50,7 @@ func (fakeMath) Size(tex string) (Size, bool) {
 	return Size{6*float64(utf8.RuneCountInString(tex)) + 4, h}, true
 }
 
-// testOpts is the Qt tests' opts(): sans-serif at 14 pixels, top to bottom.
+// testOpts is the tests' opts(): sans-serif at 14 pixels, top to bottom.
 func testOpts() LayoutOptions {
 	return LayoutOptions{
 		FontFamily: "sans-serif",
@@ -100,7 +100,7 @@ func shapeRect(s Scene, id string) Rect {
 }
 
 // sameShapePositions reports whether two scenes put their shapes at the
-// same places, as the Qt tests' layoutDeterministic functions check.
+// same places, as the tests' layoutDeterministic functions check.
 func sameShapePositions(a, b Scene) bool {
 	if len(a.Shapes) != len(b.Shapes) {
 		return false

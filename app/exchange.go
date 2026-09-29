@@ -1,7 +1,7 @@
 package app
 
-// Export and import (features.md 12.5–12.6, Kvit's ExportDialog.qml and
-// ImportDialog.qml over the export package's port of DocumentExporter and
+// Export and import (features.md 12.5–12.6, Kvit's ExportDialog and
+// ImportDialog over the export package's port of DocumentExporter and
 // DocumentImporter). Export writes the open note, or every note of the
 // vault, as Markdown, HTML or plain text, to a file or a folder chosen;
 // the open note is exported as it is in the editor, saved or not. Import

@@ -1,6 +1,6 @@
 package links
 
-// Finding [[wiki links]] in Markdown, from the Qt app's
+// Finding [[wiki links]] in Markdown, from the app's
 // src/content/wikilinkscanner.cpp. The editor's inline parser and the
 // vault-wide scan use the same grammar there, so a link the editor draws is
 // a link the backlinks pane counts.
@@ -297,7 +297,7 @@ func Scan(text string) []Link {
 // Targets is the outgoing links of a note body, in order and with
 // repeats: each link's Target, heading kept and alias dropped. A
 // [[#heading]] link stays inside its note and is left out. This is the
-// list the Qt app keeps for every note (WikiLinkIndex::extractLinks in
+// list the app keeps for every note (WikiLinkIndex::extractLinks in
 // src/repository/wikilinkindex.cpp).
 func Targets(body string) []string {
 	var out []string

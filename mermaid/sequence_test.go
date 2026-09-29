@@ -1,8 +1,8 @@
 package mermaid
 
-// These tests are the parser tests of the Qt app's
+// These tests are the parser tests of the app's
 // tests/test_mermaidsequence.cpp, one Go test per test function there and in
-// the same order, with the same inputs and expected outputs. The Qt file's
+// the same order, with the same inputs and expected outputs. The file's
 // layout tests (every function from layoutProducesLifelinesHeadersAndMessage
 // on, and rendererRendersSequence) lay the diagram out into a scene and
 // belong to the diagram package. Several inputs are from demos/sequence.html

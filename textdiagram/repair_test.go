@@ -1,14 +1,14 @@
 package textdiagram
 
-// These tests are the Qt app's tests/test_diagramrepair.cpp, one Go test per
+// These tests are the app's tests/test_diagramrepair.cpp, one Go test per
 // test function there and in the same order, with the same inputs and
 // expected outputs. The fixture tests/fixtures/llm-diagram.md is copied into
-// testdata. Columns are rune offsets where the Qt tests use QString indexes,
+// testdata. Columns are rune offsets where the tests use string indexes,
 // which are the same numbers here because every character in these inputs is
-// inside the Basic Multilingual Plane. TestCorpusDump, like the Qt test, is
+// inside the Basic Multilingual Plane. TestCorpusDump, like the test, is
 // skipped unless KVIT_REPAIR_DUMP names a file to write the repaired fixture
-// to. The last test, TestSlidePastEndOfEdgeLineRefused, is not from the Qt
-// tests: it holds an input on which the Qt code reads past the end of a line.
+// to. The last test, TestSlidePastEndOfEdgeLineRefused, is not from the
+// tests: it holds an input on which the code reads past the end of a line.
 
 import (
 	"os"
@@ -242,9 +242,9 @@ func TestCorpusDump(t *testing.T) {
 	}
 }
 
-// Not from the Qt tests. A connector whose column is past the end of the
+// Not from the tests. A connector whose column is past the end of the
 // edge line it starts on: sliding the '+' there reads one cell past the end
-// of that line. The Qt code reads the string's terminating 0 there in a
+// of that line. The code reads the string's terminating 0 there in a
 // release build (a debug build stops on an assertion) and refuses the slide,
 // so the diagram is left as it is.
 func TestSlidePastEndOfEdgeLineRefused(t *testing.T) {

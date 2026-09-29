@@ -21,12 +21,12 @@
 #   Contents/Resources/math-res/        the math library's resources
 #   Contents/Resources/licenses/        the notices and every licence text
 # which is where the Go package mathtex looks for the library and resources
-# in a bundle, and the Qt app's name, identifier (org.kvit.Notes) and icon.
+# in a bundle, and the app's name, identifier (org.kvit.Notes) and icon.
 #
 # Building needs Go and zig (for the math library); joining the two
 # architectures needs llvm-lipo (llvm-lipo-18 on this Linux machine) or the
 # Xcode lipo. Signing, the disk image and notarisation need a Mac with the
-# Xcode command line tools (codesign, hdiutil, xcrun), as the Qt app's
+# Xcode command line tools (codesign, hdiutil, xcrun), as the app's
 # script did. No Mac was available when this was written, so the Mac-only
 # part below has not been run.
 #

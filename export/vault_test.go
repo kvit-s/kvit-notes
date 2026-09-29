@@ -153,7 +153,7 @@ func TestLiveNoteText(t *testing.T) {
 }
 
 // A standalone Markdown export is the note, front matter included, in the
-// form the Qt app writes it (testExportOutsideTheVaultStillWorks).
+// form the app writes it (testExportOutsideTheVaultStillWorks).
 func TestMarkdownExportIncludesFrontMatter(t *testing.T) {
 	root, notes := vaultOf(t, map[string]string{
 		"One.md":        "---\ntags: [a]\n---\nBody one.\n",
@@ -178,7 +178,7 @@ func TestMarkdownExportIncludesFrontMatter(t *testing.T) {
 	}
 }
 
-// Plans that would write over a note are refused whole, with the Qt app's
+// Plans that would write over a note are refused whole, with the app's
 // messages (testMarkdownExportIntoTheVaultLeavesSourcesByteIdentical,
 // testMarkdownExportIntoASubfolderOfTheVaultIsRefused,
 // testCombinedExportOntoASourceIsRefused, testCollidingOutputsAreRefused).
@@ -237,7 +237,7 @@ func TestUnsafePlansAreRefused(t *testing.T) {
 	if !errors.As(err, &refusal) {
 		t.Errorf("a combined file onto a note found on disk: %v", err)
 	}
-	// Given the list, a note not on it is not protected, as in the Qt app.
+	// Given the list, a note not on it is not protected, as in the app.
 	_, err = Vault(VaultExport{Root: root, Notes: notes[:1], AllNotes: []string{"Kept.md"}, Dest: inside,
 		Format: FormatMarkdown, SingleFile: true})
 	if err != nil {

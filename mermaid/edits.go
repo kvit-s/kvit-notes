@@ -16,7 +16,7 @@ import (
 // new text of the fence, which the editor applies as one undo step, or the
 // reason it refused. A flowchart edit is refused rather than applied
 // approximately when its result would not parse with no more errors than
-// before. This is a port of the Qt app's mermaidedits.h and mermaidedits.cpp
+// before. This is a port of the app's mermaidedits.h and mermaidedits.cpp
 // (namespace Mermaid::Edits).
 
 // EditResult is the outcome of an edit.
@@ -37,9 +37,9 @@ func editFail(why string) EditResult { return EditResult{Error: why} }
 
 func editOK(source string) EditResult { return EditResult{OK: true, Source: source} }
 
-// ---- editing runes as QString does ----
+// ---- editing runes as string does ----
 
-// replaceRunes is QString::replace(pos, n, with): nothing when pos is past
+// replaceRunes is string::replace(pos, n, with): nothing when pos is past
 // the end, and n cut to what is there.
 func replaceRunes(rs []rune, pos, n int, with string) []rune {
 	if pos < 0 || pos > len(rs) {
@@ -435,7 +435,7 @@ func (ctx *editCtx) refTextInStatement(n *Node, s editStmt, stopAt int) string {
 	return n.ID
 }
 
-// qRound is Qt's qRound: the nearest int, halves away from zero.
+// qRound is the qRound: the nearest int, halves away from zero.
 func qRound(d float64) int {
 	if d >= 0 {
 		return int(d + 0.5)
@@ -448,7 +448,7 @@ func qRound(d float64) int {
 // in the `id=x,y` form obsidian-mermaid-flow writes. An id that form cannot
 // hold is left out.
 //
-// The Qt app builds each entry with chained QString::arg calls, which take a
+// The app builds each entry with chained string::arg calls, which take a
 // `%` followed by a digit inside an id (a flowchart id may hold one, as in
 // `n%2`) for a place marker and write a broken entry. Here the id is written
 // as it is.
@@ -605,7 +605,7 @@ func RenameNode(source, oldID, newID string) EditResult {
 	if n == nil {
 		return editFail("Unknown node: " + oldID)
 	}
-	// QRegularExpression's `$` also matches before a line break that ends
+	// regular expression's `$` also matches before a line break that ends
 	// the text, which the pattern's `\n?` allows for.
 	if !nodeIDPattern.MatchString(newID) {
 		return editFail("Node ids use letters, digits, `_`, and `-`")
@@ -834,7 +834,7 @@ func QuickAddNode(source, fromID string) EditResult {
 	return postChecked(&ctx, string(ctx.insertStatementAfter(anchor, fromID+" --> "+newID+"[New node]")), newID)
 }
 
-// colorName is QColor::name(): `#rrggbb` in lower case.
+// colorName is colour::name(): `#rrggbb` in lower case.
 func colorName(c Color) string { return fmt.Sprintf("#%02x%02x%02x", c.R, c.G, c.B) }
 
 var kvitClassStatement = regexp.MustCompile(`^class[\t\n\v\f\r ]+([^\t\n\v\f\r ]+)[\t\n\v\f\r ]+(kvit_style_[0-9]+)\n?$`)
@@ -865,7 +865,7 @@ func SetNodeStyle(source, nodeID string, fill, stroke Color) EditResult {
 	decl := strings.Join(decls, ",")
 
 	// A kvit_style classDef with the same declarations is used again. The
-	// Qt app takes the first one its hash gives; this takes the first by
+	// app takes the first one its hash gives; this takes the first by
 	// name, so the choice does not change from run to run.
 	defs := ctx.pr.Flowchart.ClassDefs
 	names := make([]string, 0, len(defs))

@@ -1,6 +1,6 @@
 package editor
 
-// Embeds (features.md 1.2.14, Kvit's mediakinds.cpp and EmbedBlock.qml): an
+// Embeds (features.md 1.2.14, Kvit's mediakinds.cpp and EmbedBlock): an
 // image line whose address is a web page rather than a picture or a media
 // file is drawn as a card: a picture, the page's title and the site. The
 // page is fetched only when the reader presses Load preview, since reading
@@ -179,7 +179,7 @@ func formatImageRef(ref ImageRef) string {
 }
 
 // SetEmbedURL rewrites an embed block's address, keeping its alt text, as
-// one undo step (the block menu's Edit URL…, EmbedBlock.qml editEmbedUrl).
+// one undo step (the block menu's Edit URL…, EmbedBlock editEmbedUrl).
 func (e *Editor) SetEmbedURL(id int64, url string) bool {
 	b := e.Doc.Block(id)
 	if b == nil {
@@ -203,7 +203,7 @@ func (e *Editor) SetEmbedURL(id int64, url string) bool {
 }
 
 // SetEmbedSize gives embed blocks a configured width and height in px, kept
-// in their attributes (EmbedBlock.qml embedWidth/embedHeight): 0 clears to
+// in their attributes (EmbedBlock embedWidth/embedHeight): 0 clears to
 // the default full-width card.
 func (e *Editor) SetEmbedSize(ids []int64, width, height int) {
 	set := func(id int64, key, value string) {
@@ -241,7 +241,7 @@ func (e *Editor) SetEmbedSize(ids []int64, width, height int) {
 }
 
 // videoHosts are the video addresses an embed card draws with a play
-// badge, opening externally (EmbedBlock.qml isVideo).
+// badge, opening externally (EmbedBlock isVideo).
 var videoHosts = []string{
 	"youtube.com", "youtu.be", "vimeo.com", "dailymotion.com",
 	"dai.ly", "tiktok.com", "twitch.tv", "peertube",
@@ -262,7 +262,7 @@ func isVideoHost(address string) bool {
 	return false
 }
 
-// The card in design pixels (EmbedBlock.qml): its height, padding and
+// The card in design pixels (EmbedBlock): its height, padding and
 // corner, and the picture's size.
 const (
 	embedHeight = 94
@@ -327,7 +327,7 @@ func (e *Editor) drawEmbed(gc *unison.Canvas, ref ImageRef, card geom.Rect) {
 	}
 	if isVideoHost(ref.Path) {
 		// The play affordance over a video host's thumbnail, as
-		// EmbedBlock.qml draws it; the card opens externally.
+		// EmbedBlock draws it; the card opens externally.
 		cx, cy := thumb.X+thumb.Width/2, thumb.Y+thumb.Height/2
 		rad := e.px(15)
 		gc.DrawOval(geom.NewRect(cx-rad, cy-rad, 2*rad, 2*rad), kvitui.Color(t.TextPrimary).Paint(gc, thumb, paintstyle.Fill))
@@ -369,7 +369,7 @@ func (e *Editor) drawEmbed(gc *unison.Canvas, ref ImageRef, card geom.Rect) {
 
 // embedCard is where the embed card of row i is, when the row is an embed
 // drawn as its card: the configured width and height from its attributes,
-// or the default full-width card (EmbedBlock.qml effectiveWidth).
+// or the default full-width card (EmbedBlock effectiveWidth).
 func (e *Editor) embedCard(i int) (geom.Rect, ImageRef, bool) {
 	ref, ok, shows := e.pictureBlock(i)
 	if !ok || !isEmbed(ref) {

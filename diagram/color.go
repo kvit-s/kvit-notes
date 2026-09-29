@@ -1,6 +1,6 @@
 package diagram
 
-// parseCssColor of the Qt app's src/content/diagrams/sequencelayout.cpp: the
+// parseCssColor of the app's src/content/diagrams/sequencelayout.cpp: the
 // colour a sequence diagram's `rect` block names.
 
 import (
@@ -43,8 +43,8 @@ func parseCSSColor(raw string) mermaid.Color {
 		}
 		c := mermaid.ColorRGB(rgb[0], rgb[1], rgb[2])
 		if c.Set && len(parts) >= 4 {
-			// Qt's toDouble reads no hexadecimal float, which ParseFloat
-			// does, and Qt's clamp turns NaN into 0.
+			// the toDouble reads no hexadecimal float, which ParseFloat
+			// does, and the clamp turns NaN into 0.
 			alpha := strings.TrimSpace(parts[3])
 			if a, err := strconv.ParseFloat(alpha, 64); err == nil && !strings.ContainsAny(alpha, "xX_") {
 				if math.IsNaN(a) {

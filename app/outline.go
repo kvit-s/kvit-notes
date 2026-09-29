@@ -1,6 +1,6 @@
 package app
 
-// The outline pane (features.md 17.1, Kvit's OutlinePanel.qml): the open
+// The outline pane (features.md 17.1, Kvit's OutlinePanel): the open
 // note's headings at the right of the editor, indented by level. Clicking
 // one scrolls the note to it; the section the caret is in is highlighted; a
 // heading with headings under it folds them away; and the H… menu chooses
@@ -22,7 +22,7 @@ import (
 	"github.com/richardwilkes/unison/enums/role"
 )
 
-// Outline row sizes in design pixels (OutlinePanel.qml).
+// Outline row sizes in design pixels (OutlinePanel).
 const (
 	outlineRow    = 26
 	outlineIndent = 14

@@ -1,6 +1,6 @@
 package app
 
-// The strip across the top of a window (Kvit's Toolbar.qml): the File and
+// The strip across the top of a window (Kvit's Toolbar): the File and
 // View menus, Back and Forward, the kind of block the caret is in, the
 // inline formats and text colour, alignment, and Insert.
 
@@ -43,7 +43,7 @@ type Toolbar struct {
 	groups []toolbarGroup
 }
 
-// toolbarGroup is one show/hide group of the strip (Kvit's Toolbar.qml
+// toolbarGroup is one show/hide group of the strip (Kvit's Toolbar
 // showBlockGroup and friends, persisted per group).
 type toolbarGroup struct {
 	key   string // settings key

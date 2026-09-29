@@ -1,9 +1,7 @@
 # kvit-notes-go
 
-The Go version of Kvit Notes, the Markdown block editor, built on the unison
-toolkit and kvit-ui-go. It replaces the Qt/QML app in `~/kvit-notes`, and
-takes over that repository's name when it does everything that one does
-(`PARITY.md`).
+Kvit Notes, the Markdown block editor, built on the unison toolkit and
+kvit-ui-go.
 
 It builds with cgo off and cross-compiles to Windows, macOS and Linux.
 Building needs Go 1.27; with an older Go installed, the `toolchain` line in
@@ -22,17 +20,14 @@ build/kvit-notes note.md # edit one note on its own
 ```
 
 **Status:** the app opens a vault, a folder of Markdown notes, in Kvit's
-window: the sidebar, the note list and the editor, with the Qt app's formats
-on disk, its lock, backups, recovery journal and trash, so both apps can be
-used on the same notes in turn. It follows and completes links, finds and
-replaces, searches across notes, and draws code in colour, pictures,
-callouts, tables, task boards, collection queries, Mermaid diagrams (edited
-on the drawing too) and typeset math, with the command menu for typing it.
-It has the Qt app's menus, settings, templates, export and import, tray
-icon and file associations, and packages for Windows, macOS and Linux
-(`packaging/README.md` says which of them have been tried).
-`PARITY.md` lists every feature of the Qt app with what exists and the test
-behind it, and what is still missing from each; `PLAN.md` says the order of
-the work and where it stands.
+window: the sidebar, the note list and the editor, with the app's formats
+on disk, its lock, backups, recovery journal and trash. It follows and
+completes links, finds and replaces, searches across notes, and draws code
+in colour, pictures, callouts, tables, task boards, collection queries,
+Mermaid diagrams (edited on the drawing too) and typeset math, with the
+command menu for typing it. It has the app's menus, settings, templates,
+export and import, tray icon and file associations, and packages for
+Windows, macOS and Linux (`packaging/README.md` says which of them have
+been tried).
 
-**Licence:** MPL-2.0, as for the Qt version.
+**Licence:** MPL-2.0.

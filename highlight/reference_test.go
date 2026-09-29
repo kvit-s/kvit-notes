@@ -53,7 +53,7 @@ func ids() []string {
 	return append(out, "mermaid")
 }
 
-// format writes spans as testdata/qt-spans.txt has them: start-end:class,
+// format writes spans as testdata/ref-spans.txt has them: start-end:class,
 // with K, T, S, C and N for the classes.
 func format(spans []Span) string {
 	parts := make([]string, len(spans))
@@ -64,11 +64,11 @@ func format(spans []Span) string {
 }
 
 // Every sample of the corpus, in every language, is coloured exactly as the
-// Qt app's highlighter colours it. testdata/qt-spans.txt is the Qt
-// highlighter's output, made by testdata/qtspans/main.cpp.
-func TestQtSpans(t *testing.T) {
+// app's highlighter colours it. testdata/ref-spans.txt is the
+// highlighter's output, kept as a frozen reference.
+func TestReferenceSpans(t *testing.T) {
 	samples := corpus(t)
-	data, err := os.ReadFile("testdata/qt-spans.txt")
+	data, err := os.ReadFile("testdata/ref-spans.txt")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,18 +76,18 @@ func TestQtSpans(t *testing.T) {
 	for _, l := range strings.Split(strings.TrimSuffix(string(data), "\n"), "\n") {
 		f := strings.SplitN(l, "\t", 3)
 		if len(f) != 3 {
-			t.Fatalf("qt-spans.txt: bad line %q", l)
+			t.Fatalf("ref-spans.txt: bad line %q", l)
 		}
 		want[f[0]+"\t"+f[1]] = f[2]
 	}
 	if n := len(samples) * len(ids()); len(want) != n {
-		t.Fatalf("qt-spans.txt has %d lines, the corpus makes %d; make it again with testdata/qtspans", len(want), n)
+		t.Fatalf("ref-spans.txt has %d lines, the corpus makes %d", len(want), n)
 	}
 	for _, s := range samples {
 		for _, id := range ids() {
 			w, ok := want[s.name+"\t"+id]
 			if !ok {
-				t.Errorf("qt-spans.txt has no line for %s in %s", s.name, id)
+				t.Errorf("ref-spans.txt has no line for %s in %s", s.name, id)
 				continue
 			}
 			if got := format(Highlight(id, s.text)); got != w {

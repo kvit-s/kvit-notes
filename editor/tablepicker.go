@@ -1,6 +1,6 @@
 package editor
 
-// The grid-size picker for inserting a table (Kvit's TableSizePicker.qml,
+// The grid-size picker for inserting a table (Kvit's TableSizePicker,
 // features.md 4.2): a hover grid up to 8x8, the arrows moving the selection
 // the same way the pointer does, Enter accepting it (3x3 until something
 // moves it). Choosing converts the target block to a table with an empty
@@ -99,7 +99,7 @@ func (e *Editor) openTablePicker(target int64, onPick func(cols, rows int)) {
 		OnEscape:       func() { e.closeTablePicker(); e.changed() },
 		OnPressOutside: func() { e.closeTablePicker(); e.changed() },
 		Place: func(bounds geom.Rect, size geom.Size) geom.Rect {
-			// Centred in the window, as the Qt picker centres in its
+			// Centred in the window, as the picker centres in its
 			// parent.
 			x := bounds.X + (bounds.Width-size.Width)/2
 			y := bounds.Y + (bounds.Height-size.Height)/2

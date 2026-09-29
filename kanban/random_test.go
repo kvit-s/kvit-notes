@@ -2,9 +2,9 @@ package kanban
 
 import "math/bits"
 
-// qtRandom reproduces Qt's QRandomGenerator constructed from one 32-bit seed,
+// qtRandom reproduces the QRandomGenerator constructed from one 32-bit seed,
 // so that TestMutationPreservationProperty builds the same 300 boards as
-// test_kanbandata.cpp. In Qt 6.10 (qrandom.h, qrandom.cpp) that generator is
+// test_kanbandata.cpp. In  6.10 (qrandom.h, qrandom.cpp) that generator is
 // a std::mt19937 seeded through a std::seed_seq holding the one seed value.
 type qtRandom struct {
 	state [624]uint32
@@ -90,7 +90,7 @@ func (r *qtRandom) bounded(highest int) int {
 	return int(uint64(r.generate()) * uint64(highest) >> 32)
 }
 
-// bounded64 is QRandomGenerator::bounded(qint64), which the Qt test calls
+// bounded64 is QRandomGenerator::bounded(qint64), which the test calls
 // with a list's size (a qsizetype): 64-bit outputs masked to the bits
 // highest needs, drawn again until one is below highest.
 func (r *qtRandom) bounded64(highest int) int {

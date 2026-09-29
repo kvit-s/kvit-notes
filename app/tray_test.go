@@ -41,7 +41,7 @@ func (s *session) shown() bool {
 	return shown
 }
 
-// features.md 15.2: the icon has the Qt app's tooltip and menu.
+// features.md 15.2: the icon has the app's tooltip and menu.
 func TestTheTrayIconAndItsMenu(t *testing.T) {
 	s := openVault(t, demo)
 	tr := s.withTray()
@@ -178,7 +178,7 @@ func waitDone(t *testing.T, s *session) {
 }
 
 // The General section of Settings, with the tray setting, is there only
-// with a tray, as the Qt app shows its tray setting only where one exists.
+// with a tray, as the app shows its tray setting only where one exists.
 func TestTheTraySettingIsShownOnlyWithATray(t *testing.T) {
 	s := openVault(t, demo)
 	s.press("File")

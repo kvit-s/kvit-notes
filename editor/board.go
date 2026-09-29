@@ -1,6 +1,6 @@
 package editor
 
-// Task boards (features.md 1.2.12, Kvit's KanbanBlock.qml): a code fence of
+// Task boards (features.md 1.2.12, Kvit's KanbanBlock): a code fence of
 // language "kanban" is drawn, while the caret is elsewhere, as columns of
 // cards. A card's box ticks it done; pressing its text edits its line in
 // place, where "#label" and "📅 YYYY-MM-DD" are written as the file holds
@@ -38,7 +38,7 @@ func (e *Editor) boardShows(i int) bool {
 	return isBoard(b) && !(e.Doc.Focused && e.Doc.Caret.Block == b.ID)
 }
 
-// The board in design pixels (KanbanBlock.qml).
+// The board in design pixels (KanbanBlock).
 const (
 	boardPad      = 8
 	boardFilterH  = 26
@@ -524,7 +524,7 @@ func (e *Editor) boardPress(i int, where geom.Point, right bool) bool {
 			return true
 		}
 		// The chip row answers chip by chip; a press there is never the
-		// card's (KanbanBlock.qml metaRow).
+		// card's (KanbanBlock metaRow).
 		if hit, ok := e.cardChipAt(c, p); ok {
 			e.actOnCardChip(i, c, hit)
 			return true

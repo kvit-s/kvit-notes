@@ -2,7 +2,7 @@
 // editor pane, over one vault. cmd/kvit-notes opens it.
 package app
 
-// The note list (Kvit's NoteListPane.qml): the notes in the current scope,
+// The note list (Kvit's NoteListPane): the notes in the current scope,
 // each a row with its title, a snippet of its text, and its date and word
 // count. One panel draws the rows in view, since a vault can hold thousands of
 // notes.
@@ -30,7 +30,7 @@ type ListItem struct {
 	Favorite bool
 }
 
-// The row's geometry in design pixels (NoteListPane.qml), and how far a
+// The row's geometry in design pixels (NoteListPane), and how far a
 // press moves before it drags a note.
 const (
 	dragStart    = 5

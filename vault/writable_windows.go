@@ -8,7 +8,7 @@ import (
 )
 
 // writable reports whether the vault's folder can be written. Windows says
-// little through permissions alone, so, as the Qt app does, it tries: it
+// little through permissions alone, so, as the app does, it tries: it
 // makes .kvit and a short-lived file in it.
 func writable(root string) bool {
 	dir := filepath.Join(root, ".kvit")

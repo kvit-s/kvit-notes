@@ -25,7 +25,7 @@ import (
 	"time"
 )
 
-// The settings keys, as in the Qt app.
+// The settings keys, as in the app.
 const (
 	autoLoadKey  = "network.autoLoadRemoteContent"
 	originsKey   = "network.allowedOrigins"

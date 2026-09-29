@@ -20,7 +20,7 @@ func TestSlug(t *testing.T) {
 		{"Chapter 12", "chapter-12"},
 		{"Café Ünïcode", "café-ünïcode"},
 		{"***", ""},
-		// Qt sees a character beyond the Basic Multilingual Plane as two
+		// sees a character beyond the Basic Multilingual Plane as two
 		// surrogates, neither a letter, so it is dropped.
 		{"𝐀bc 🙂 d", "bc-d"},
 		{"\u0130x", "ix"},
@@ -61,7 +61,7 @@ func TestAnchorsAreUnique(t *testing.T) {
 }
 
 // A link's #heading is heading text, made a slug before it is looked up
-// (qml/NoteSession.qml scrollToHeadingText).
+// (qml/NoteSession scrollToHeadingText).
 func TestFindHeading(t *testing.T) {
 	hs := headings("Getting Started", "Overview", "Overview", "Café")
 	cases := map[string]int{

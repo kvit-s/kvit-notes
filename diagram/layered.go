@@ -1,7 +1,7 @@
 package diagram
 
 // The layered core every family but the sequence diagram is placed with, and
-// the helpers the family layouts share: a port of the Qt app's
+// the helpers the family layouts share: a port of the app's
 // src/content/diagrams/diagramlayout.cpp apart from layoutFlowchart, which is
 // in flowchart.go.
 //
@@ -556,7 +556,7 @@ func prepared(opts LayoutOptions) LayoutOptions {
 	return opts
 }
 
-// newShape is a Shape with the Qt app's defaults: the node colours, a
+// newShape is a Shape with the app's defaults: the node colours, a
 // 1.5-pixel stroke and no source span.
 func newShape(kind ShapeKind, r Rect) Shape {
 	return Shape{
@@ -566,13 +566,13 @@ func newShape(kind ShapeKind, r Rect) Shape {
 	}
 }
 
-// newPath is a Path with the Qt app's defaults: the edge colour, a 1.5-pixel
+// newPath is a Path with the app's defaults: the edge colour, a 1.5-pixel
 // solid stroke, not selectable and no source span.
 func newPath(o Outline) Path {
 	return Path{Outline: o, StrokeRole: RoleEdgeStroke, StrokeWidth: 1.5, EdgeIndex: -1, Src: mermaid.NoSpan}
 }
 
-// newText is a Text with the Qt app's defaults: the label colour at 14
+// newText is a Text with the app's defaults: the label colour at 14
 // pixels, centred.
 func newText(text string, r Rect) Text {
 	return Text{Text: text, Rect: r, Role: RoleLabel, FontSize: 14}

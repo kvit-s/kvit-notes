@@ -2,11 +2,11 @@ package textdiagram
 
 import "strings"
 
-// fenceID is a fence's language as the Qt app compares it:
-// QString::trimmed and then QString::toLower. toLower differs from
-// strings.ToLower only for U+0130 (capital I with a dot), which Qt lowers
+// fenceID is a fence's language as the app compares it:
+// string::trimmed and then string::toLower. toLower differs from
+// strings.ToLower only for U+0130 (capital I with a dot), which  lowers
 // to "i" and a combining dot, so a language holding it never equals one of
-// the ASCII names below, as in Qt.
+// the ASCII names below, as in .
 func fenceID(lang string) string {
 	return strings.ToLower(strings.ReplaceAll(trimSpace(lang), "İ", "i̇"))
 }
@@ -22,7 +22,7 @@ func IsDiagramLanguage(lang string) bool {
 	return false
 }
 
-// Ingest is what the Qt app does to a code fence at every point where
+// Ingest is what the app does to a code fence at every point where
 // Markdown enters a note from outside it: a note opened, Markdown pasted,
 // text pasted into a code block, and a code block given a new language
 // (classifyFenceLanguage and ingestFence in

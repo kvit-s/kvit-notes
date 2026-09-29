@@ -1,23 +1,23 @@
 package editor
 
-// These tests are the diagram-block functions of the Qt app's
-// tests/tst_integration.qml, in that file's order, with the same notes and
+// These tests are the diagram-block functions of the app's
+// tests/tst_integration, in that file's order, with the same notes and
 // expectations: test_zx0h_ctrlEnterLeavesNoGapUnderAFoldingBlock (its
 // diagram case), test_zx0i_pastedFenceBecomesItsBlock,
 // test_zx0m_pastedDiagramLeavesTheRowsBelowInPlace,
 // test_zzy2_diagramFitFitsTallFlowchartAndShowsZoom,
 // test_zzy2b_diagramRightWhitespaceOpensEditor,
 // test_zzy3_mermaidSourceEnterKeepsIndent and
-// test_zzy5_mermaidSourceCtrlEnterLeavesTheBlock. The Qt tests look for
-// objects by name in the QML tree (diagramReadCanvas, mermaidSourceArea,
+// test_zzy5_mermaidSourceCtrlEnterLeavesTheBlock. The tests look for
+// objects by name in the view markup tree (diagramReadCanvas, mermaidSourceArea,
 // mermaidExitHint, diagramZoomText); here the same things are the read
 // canvas, the caret in the block, the preview's key hint and the zoom label.
-// Where the Qt tests measure the gaps between the list's delegates, these
+// Where the tests measure the gaps between the list's delegates, these
 // check that each row starts one block gap below the one before it.
 // test_zx0i's last check, that two lines of plain prose paste as two
 // blocks, is left out: the Go editor pastes them into one block with a
 // line break, which is the paste's behaviour rather than the diagram's. Three
-// of them skip in the Qt app's headless run, for want of a display, and run
+// of them skip in the app's headless run, for want of a display, and run
 // here.
 
 import (

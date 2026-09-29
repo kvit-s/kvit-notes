@@ -1,7 +1,7 @@
 package editor
 
 // The blank space between two blocks takes a caret of its own (features.md
-// 3.7, BlockGapCursor.qml): pointing at that space draws a line in it,
+// 3.7, BlockGapCursor): pointing at that space draws a line in it,
 // clicking turns the line into a blinking caret, and the next character typed
 // becomes a paragraph in that space holding it.
 
@@ -15,7 +15,7 @@ import (
 )
 
 // The gutter column, which the seam stops short of, and how far from a
-// seam's line the pointer still counts as being in it (BlockGapCursor.qml).
+// seam's line the pointer still counts as being in it (BlockGapCursor).
 const (
 	gapLeftInset  = 40
 	gapRightInset = 8
@@ -39,7 +39,7 @@ func (e *Editor) gapLineY(g int) float32 {
 	return e.tops[g] - e.gap()/2
 }
 
-// gapAt is the seam under a point, or -1. It mirrors BlockGapCursor.qml's
+// gapAt is the seam under a point, or -1. It mirrors BlockGapCursor's
 // gapUnder: the pointer must be in the seam strip, and past the blank space
 // itself a seam still yields to any text under the point.
 func (e *Editor) gapAt(where geom.Point) int {
@@ -160,7 +160,7 @@ func (e *Editor) gapInsert(typed string) {
 
 // dragGapAt is the drop gap under a drag at height Y: before the first row
 // above the list, after the last below it, and before or after the row in
-// view by its middle (BlockDragController.qml gapAt).
+// view by its middle (BlockDragController gapAt).
 func (e *Editor) dragGapAt(y float32) int {
 	n := len(e.Doc.Blocks)
 	if n == 0 {

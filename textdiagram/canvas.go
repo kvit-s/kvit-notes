@@ -24,7 +24,7 @@ const (
 )
 
 // Canvas is a grid of characters that diagrams are drawn onto as text,
-// ported from the Qt app's TextCanvas. It grows as cells are drawn, up to
+// ported from the app's TextCanvas. It grows as cells are drawn, up to
 // MaxCanvasRows, MaxCanvasCols and MaxCanvasCells; a cell beyond them is not
 // drawn. Where lines meet, the cell shows the junction their arms make. It
 // draws only the light box-drawing characters Repair recognizes, so Repair

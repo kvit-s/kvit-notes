@@ -1,7 +1,7 @@
 package export
 
 // Plain-text export, as src/application/documentexporter.cpp
-// (DocumentExporter::buildPlainText) and each Qt block kind's toPlainText
+// (DocumentExporter::buildPlainText) and each  block kind's toPlainText
 // write it: the text a reader sees, with a structural prefix where the
 // structure would otherwise be lost ("# " for a heading, "- " or "1. " for a
 // list item, "> " for a quote), each block followed by a blank line.
@@ -94,7 +94,7 @@ func (r *renderer) blockText(b block, ordinal int) string {
 	case kCode, kMath, kQuery:
 		// Code and TeX as written. A query is answered against the open
 		// vault, which this package does not have, so its spec is written, as
-		// the Qt exporter writes it when no vault is open.
+		// the exporter writes it when no vault is open.
 		return b.text
 	case kMermaid:
 		return "[mermaid diagram]\n" + b.text
@@ -212,7 +212,7 @@ func boardText(b board) string {
 
 // alignedTable is BlockText::alignedTable: the header row, a rule under it,
 // then the rows, each column as wide as its widest cell (counted in UTF-16
-// units, as Qt counts them).
+// units, as counts them).
 func alignedTable(headers []string, rows [][]string) string {
 	columns := len(headers)
 	for _, row := range rows {

@@ -147,7 +147,7 @@ func loadFont(path string) *mathFont {
 }
 
 // at is the canvas font at size pixels. Glyphs are placed where MicroTeX put
-// them, as the Qt app drew them as outlines: no hinting, and positions and
+// them, as the app drew them as outlines: no hinting, and positions and
 // the baseline kept at fractions of a pixel.
 func (f *mathFont) at(size float32) *cfont.Font {
 	fontsMu.Lock()
@@ -334,7 +334,7 @@ func drawGlyphs(gc *unison.Canvas, cmds []command, fg unison.Color) int {
 	return n
 }
 
-// Image draws tex into a new image, as the Qt app's MathRenderer::render
+// Image draws tex into a new image, as the app's MathRenderer::render
 // rasterised a formula: sizePx pixels per em, in fg, dpr device pixels per
 // logical pixel, with vpad transparent logical pixels above and below and
 // hpad left and right (SideBearingPadding says how much keeps overhanging

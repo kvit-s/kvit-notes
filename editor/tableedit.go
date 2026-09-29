@@ -1,7 +1,7 @@
 package editor
 
 // Editing a table's cells in its grid (features.md 1.2.11, Kvit's
-// TableBlock.qml): a press in a cell makes it live, opening one field over
+// TableBlock): a press in a cell makes it live, opening one field over
 // it; Tab walks the grid in reading order (adding a row past the last
 // cell), Enter moves down the column, Shift+Enter breaks the cell's line
 // (stored as <br> so the row stays one line of the file), Ctrl+Enter leaves
@@ -1012,7 +1012,7 @@ func (e *Editor) tableEndResize() {
 }
 
 // The + Row / + Column controls under a grid with a live cell (Kvit's
-// TableBlock.qml tableAddControls): they show only while a cell is being
+// TableBlock tableAddControls): they show only while a cell is being
 // edited, as in Kvit, and do what the right-click menu's insert does.
 const (
 	tableAddH   = 22

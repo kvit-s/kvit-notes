@@ -11,7 +11,7 @@ import (
 
 // The editor's geometry, in design pixels at the default interface size; each
 // is scaled with the interface size by px. They are Kvit's row metrics
-// (qml/EditableBlock.qml, qml/BlockGutter.qml), checked against the
+// (qml/EditableBlock, qml/BlockGutter), checked against the
 // screenshots of Kvit's own storyboards.
 const (
 	pageMargin   = 20 // around the document, and above its first block
@@ -36,7 +36,7 @@ const (
 	checkBoxSize   = 16
 	checkBoxRadius = 3
 
-	// The code panel (qml/EditableBlock.qml, qml/CodeBlockChrome.qml): its
+	// The code panel (qml/EditableBlock, qml/CodeBlockChrome): its
 	// inset from the row's left, top and bottom, the header holding the
 	// language and Copy, the padding above and below the code, the footer
 	// strip, and the code's inset from the panel's side.
@@ -51,11 +51,11 @@ const (
 	codePanelRadius = 4
 
 	// The quote bar runs from a little below the row's top to a little above
-	// its bottom (qml/QuoteDelegate.qml).
+	// its bottom (qml/QuoteDelegate).
 	quoteBarTop    = 4
 	quoteBarBottom = 8
 
-	// The gutter's four controls (qml/BlockGutter.qml): two columns, 7 px
+	// The gutter's four controls (qml/BlockGutter): two columns, 7 px
 	// below the row's top and centred in the gutter, 4 px apart. The first
 	// holds the add button over the delete button, 18 px square; the second
 	// the handle over the block-menu button, 14 px wide. Each column's
@@ -75,7 +75,7 @@ const (
 	menuBarHeight   = 1.5
 	menuBarGap      = 2
 
-	// The / menu (qml/BlockMenu.qml).
+	// The / menu (qml/BlockMenu).
 	menuWidth      = 300
 	menuMaxHeight  = 328
 	menuEntry      = 44
@@ -122,7 +122,7 @@ func headingRole(k Kind) tokens.FontRole {
 }
 
 // blockStyle is the base text style of a block: its family, size, weight
-// and colour before any inline formatting (qml/TextBlockDelegate.qml).
+// and colour before any inline formatting (qml/TextBlockDelegate).
 func (e *Editor) blockStyle(b *Block) text.Style {
 	ty, t := e.ui.Typography, e.tok()
 	st := text.Style{
@@ -161,7 +161,7 @@ func (e *Editor) monoFamily() string {
 
 // pitch is how far apart the lines of a block's text are: the document's line
 // height times the font's own line height, its ascent and descent rounded up
-// to a pixel, as Qt's text document spaces a block whose line height is
+// to a pixel, as the text document spaces a block whose line height is
 // proportional (QTextBlockFormat::ProportionalHeight, which Kvit's
 // BlockEditorEngine::applyLineHeight gives every block): 22.1 px at 14 px
 // and 1.3, 18 px at 15 px and 1.0.

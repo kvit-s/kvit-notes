@@ -1,7 +1,7 @@
 package editor
 
-// Completing wiki links (features.md 2.4, Kvit's WikiLinkCompletion.qml and
-// WikiLinkMenu.qml): typing "[[" opens a list under the caret of the notes
+// Completing wiki links (features.md 2.4, Kvit's WikiLinkCompletion and
+// WikiLinkMenu): typing "[[" opens a list under the caret of the notes
 // whose names hold what is typed after it, and after a "#", of that note's
 // headings. The arrows move through the list, Enter or Tab puts the choice
 // in and closes the link with "]]", and Escape closes the list. The editor
@@ -47,7 +47,7 @@ func (e *Editor) wikiQuery() (string, int, bool) {
 	}
 	r := []rune(b.Text)
 	c := min(d.Caret.Off, len(r))
-	// No completion inside inline math (or code): the Qt app's does not
+	// No completion inside inline math (or code): the app's does not
 	// open there either.
 	for _, sp := range parseInline(r) {
 		if (sp.Kind == sMath || sp.Kind == sCode) && c > sp.Start && c <= sp.End {
@@ -127,7 +127,7 @@ func (e *Editor) wikiKey(key unison.KeyCode) bool {
 	case unison.KeyEscape:
 		e.closeWikiMenu()
 	case unison.KeyUp:
-		// Held at either end, the highlight stays there (WikiLinkMenu.qml).
+		// Held at either end, the highlight stays there (WikiLinkMenu).
 		m.sel = max(0, m.sel-1)
 	case unison.KeyDown:
 		m.sel = max(0, min(len(m.items)-1, m.sel+1))

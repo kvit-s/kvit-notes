@@ -20,7 +20,7 @@ import (
 	"github.com/richardwilkes/unison/enums/mod"
 )
 
-// longNote is Kvit Notes' own documentation, from its Qt repository.
+// longNote is Kvit Notes' own documentation, from its  repository.
 func longNote(dir string) string {
 	var parts []string
 	for _, f := range []string{"features.md", "block-arch.md", "selection.md", "devel.md", "accessibility.md"} {

@@ -1,7 +1,7 @@
 package editor
 
 // Files, images and text dropped from other applications (features.md 5.4,
-// Kvit's drag handling in BlockEditorSurface and EditableBlock.qml): a file
+// Kvit's drag handling in BlockEditorSurface and EditableBlock): a file
 // manager's image lands as an image block where it is dropped, copied into
 // the vault's picture folder first; dropped text lands as blocks there, the
 // way pasted text does; a web address lands as an embed or an image. Note

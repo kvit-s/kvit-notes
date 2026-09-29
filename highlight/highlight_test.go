@@ -443,11 +443,11 @@ func TestStringsEndWithTheirLine(t *testing.T) {
 }
 
 // A letter or digit outside Unicode's Basic Multilingual Plane, such as 𝑥
-// or 𠀀, is a letter here, where Qt, which reads text as UTF-16 units, sees
+// or 𠀀, is a letter here, where , which reads text as UTF-16 units, sees
 // the two halves of its surrogate pair and takes neither for a letter. So
-// "if𝑥" is one word here, where Qt colours its "if" as a keyword, and an
-// HTML entity is at most ten runes long here, where Qt counts ten UTF-16
-// units. These are the only places the port differs from the Qt highlighter.
+// "if𝑥" is one word here, where  colours its "if" as a keyword, and an
+// HTML entity is at most ten runes long here, where  counts ten UTF-16
+// units. These are the only places the port differs from the highlighter.
 func TestLettersOutsideTheBMP(t *testing.T) {
 	expect(t, "python", "if𝑥 = 1 and 𠀀x(2)", []check{at("if", Plain), whole("𠀀x", Type)})
 	expect(t, "html", "&😀😀😀😀😀;", []check{whole("&😀😀😀😀😀;", Number)})

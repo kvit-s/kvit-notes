@@ -3,12 +3,16 @@
 // the note list and the editor, or edits one note file on its own.
 //
 //	kvit-notes [folder]                    open a vault: the folder, else the one
-//	                                       the Qt app had open last, else Documents/Kvit
+//
+// the app had open last, else Documents/Kvit
+//
 //	kvit-notes note.md                     edit one note file on its own
 //	kvit-notes --scenario all --out DIR    run the scripted scenarios headlessly
 //	kvit-notes --check 12s                 drive the editor in a real window, then close
 //	kvit-notes --tray-check 20s [folder]   show the tray icon and a notification, print
-//	                                       what the tray reports, then quit
+//
+// what the tray reports, then quit
+//
 //	kvit-notes --math-selftest             find the math library, draw one formula, say how it went
 //	kvit-notes --version                   print the version
 //	kvit-notes --help                      every option
@@ -38,7 +42,7 @@ func main() {
 	check := flag.Duration("check", 0, "open a window, drive the editor through a scripted check, print the result, and close after this long")
 	closeAfter := flag.Duration("close-after", 0, "close the window after this long, printing when it first drew")
 	trayCheck := flag.Duration("tray-check", 0, "open the vault with the tray icon, post a notification, print what the tray reports, and quit after this long")
-	bench := flag.String("bench", "", "time opening, scrolling and typing in 1,237 blocks of Kvit's documentation, read from this `directory` (Kvit's Qt repository), and exit")
+	bench := flag.String("bench", "", "time opening, scrolling and typing in 1,237 blocks of Kvit's documentation, read from this `directory`, and exit")
 	mathSelftest := flag.Bool("math-selftest", false, "find the math library and its resources, draw one formula, print where they were found and whether it drew, and exit")
 	showVersion := flag.Bool("version", false, "print the version and exit")
 	usage := flag.Usage
@@ -168,7 +172,7 @@ func main() {
 }
 
 // settingsPath is the Go app's settings file: the theme, typography, panes
-// and vaults, under the Qt app's keys. It starts as a copy of the Qt app's.
+// and vaults, under the app's keys. It starts as a copy of the app's.
 func settingsPath() string {
 	p := kvitui.DefaultSettingsPath("kvit-notes")
 	vault.SeedSettings(p)
@@ -176,7 +180,7 @@ func settingsPath() string {
 }
 
 // vaultRoot is the vault to open for the command-line argument: the folder
-// named, or with none named the vault the Qt app had open last, else
+// named, or with none named the vault the app had open last, else
 // Documents/Kvit. A file argument opens that file on its own instead.
 func vaultRoot(arg string) (string, bool) {
 	if arg != "" {

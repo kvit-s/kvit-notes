@@ -332,7 +332,7 @@ func TestAnUntitledNoteIsNamedAfterItsFirstBlock(t *testing.T) {
 }
 
 // A note that opens with a display equation keeps its automatic name, as the
-// Qt app's titleBearing (qml/NoteAutoTitle.qml) leaves a note that opens with
+// app's titleBearing (qml/NoteAutoTitle) leaves a note that opens with
 // code, a table or a picture.
 func TestAnUntitledNoteOpeningWithAnEquationKeepsItsName(t *testing.T) {
 	s := openVault(t, demo)

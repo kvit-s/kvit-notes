@@ -1,9 +1,9 @@
 package vault
 
-// .kvit/collection.json, the vault's workspace state, in the Qt app's format
+// .kvit/collection.json, the vault's workspace state, in the app's format
 // (src/repository/collectionstatestore.cpp): folder colours and which folders
 // are closed, the last note open, the manual order of notes in each folder,
-// and tag colours. The Qt app rebuilds the file from its own state on every
+// and tag colours. The app rebuilds the file from its own state on every
 // write, so every field it has is kept here too, whether or not this app
 // uses it yet.
 
@@ -19,7 +19,7 @@ import (
 )
 
 // Collection is what collection.json holds. Its fields are in the order
-// the Qt app writes them, which is alphabetical.
+// the app writes them, which is alphabetical.
 type Collection struct {
 	// Folders holds the folders with a colour or closed in the sidebar;
 	// a folder that is not here is open and has no colour.
@@ -40,11 +40,11 @@ type FolderState struct {
 	Expanded bool   `json:"expanded"`
 }
 
-// maxCollection is the largest collection.json read, as in the Qt app.
+// maxCollection is the largest collection.json read, as in the app.
 const maxCollection = 64 << 20
 
 // loadCollection reads collection.json; a missing, damaged or oversized file
-// gives the defaults, as in the Qt app.
+// gives the defaults, as in the app.
 func loadCollection(root string) *Collection {
 	c := &Collection{}
 	path := filepath.Join(root, ".kvit", "collection.json")
@@ -81,7 +81,7 @@ func (c *Collection) SetFolderExpanded(folder string, expanded bool) {
 	c.Folders[folder] = s
 }
 
-// encode writes the file as the Qt app does: indented by four spaces, keys
+// encode writes the file as the app does: indented by four spaces, keys
 // in order, ending with a line break.
 func (c *Collection) encode() ([]byte, error) {
 	var buf bytes.Buffer

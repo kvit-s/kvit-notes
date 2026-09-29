@@ -4,7 +4,7 @@
                   │   parsing · serializer · blocks · roundtrip    │
                   │            · auto saving / recovery            │
                   └───────────────────┬────────────────────────────┘
-                                      │ owns, saves off, greps 
+                                      │ owns, saves off, greps
    ┌──────────────────────────────────────────────────────────────────┐
    │   EDITING note  (ENG) — typed, deterministic, model-owned          │
    │   undos · blocks+wikilinks incremental · editor integrity ·        │

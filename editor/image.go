@@ -286,7 +286,7 @@ func (e *Editor) pictureRect(i int) geom.Rect {
 
 // pictureShift is how far right of the text's start a picture w wide is
 // drawn in block i, whose text is textW wide: in the middle, unless the block
-// is aligned left or right (features.md 9.2; ImageBlock.qml, imageAlign).
+// is aligned left or right (features.md 9.2; ImageBlock, imageAlign).
 func (e *Editor) pictureShift(i int, textW, w float32) float32 {
 	switch a, _ := e.Doc.Blocks[i].Attr("align"); a {
 	case "left":

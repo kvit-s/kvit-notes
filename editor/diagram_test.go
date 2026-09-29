@@ -1,19 +1,19 @@
 package editor
 
-// Mermaid diagram blocks. The first four tests are the functions of the Qt
+// Mermaid diagram blocks. The first four tests are the functions of the
 // app's tests/test_diagramlayout.cpp that exercise the DiagramCanvas item or
 // the painter, which the diagram port left for the editor:
 //   - canvasSelectionAndLinking, its half that does not edit the diagram:
-//     here through the editor's pointer and keys rather than the canvas's
-//     invokable methods, which the editor has no need to expose;
+// here through the editor's pointer and keys rather than the canvas's
+// invokable methods, which the editor has no need to expose;
 //   - resetSceneDropsLastGoodAcrossReuse: Kvit's list view reuses a delegate
-//     for another block, which the Go editor never does; the canvas's reset is
-//     tested as there, and so is the Go counterpart of the reported bug, a
-//     block turned into a diagram from another language;
+// for another block, which the Go editor never does; the canvas's reset is
+// tested as there, and so is the Go counterpart of the reported bug, a
+// block turned into a diagram from another language;
 //   - savePngWritesImage;
 //   - painterTypesetsRatherThanDrawingTheSource, with a stand-in DiagramMath,
-//     so the test does not depend on the math library being built: it checks
-//     that the painter takes the typesetting branch, as the Qt test does.
+// so the test does not depend on the math library being built: it checks
+// that the painter takes the typesetting branch, as the test does.
 // The tests after them are not ports: switching between the drawing and the
 // source, the preview that keeps the last valid diagram, zoom and panning,
 // Copy and Copy as text, the PNG control, what a screen reader is told,
@@ -43,7 +43,7 @@ import (
 	"github.com/richardwilkes/unison/enums/role"
 )
 
-// mermaidNote is a note holding the fence the Qt test renders, and a
+// mermaidNote is a note holding the fence the test renders, and a
 // paragraph after it.
 func mermaidNote(src string) string {
 	return "```mermaid\n" + src + "\n```\n\nAfter the diagram.\n"
@@ -243,7 +243,7 @@ func TestDiagramResetSceneDropsLastGood(t *testing.T) {
 		}
 	})
 
-	// The Go counterpart of the Qt bug: a block turned from a text diagram
+	// The Go counterpart of the bug: a block turned from a text diagram
 	// into Mermaid must not show the drawing the block had before.
 	s.Do(func() {
 		e.Doc.SetCodeLanguage(e.Doc.Blocks[i].ID, "diagram")
@@ -710,7 +710,7 @@ func TestDiagramSourceKeys(t *testing.T) {
 
 // TestDiagramScreenshots writes, when KVIT_DIAGRAM_SHOTS names a folder,
 // a flowchart and a sequence diagram as the editor draws them, the
-// flowchart beside the Qt app's picture of the same note.
+// flowchart beside the app's picture of the same note.
 func TestDiagramScreenshots(t *testing.T) {
 	dir := os.Getenv("KVIT_DIAGRAM_SHOTS")
 	if dir == "" {

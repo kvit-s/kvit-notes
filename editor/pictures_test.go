@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// Where a document's pictures are found, after the Qt core's
+// Where a document's pictures are found, after the core's
 // ImageAssets::resolveSource, and where a pasted one is written, after its
 // AssetStore.
 

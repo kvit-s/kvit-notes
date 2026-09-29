@@ -1,6 +1,6 @@
 package diagram
 
-// Not a port: the Qt tests do not check the cache's bound or calls from
+// Not a port: the tests do not check the cache's bound or calls from
 // several threads at once, which Render promises, nor the colour of a
 // sequence diagram's rect block.
 
@@ -81,7 +81,7 @@ func TestRenderFromManyGoroutines(t *testing.T) {
 	}
 }
 
-// Not a port: the colour of a sequence diagram's rect block, as the Qt
+// Not a port: the colour of a sequence diagram's rect block, as the
 // app's parseCssColor reads it.
 func TestRectBlockColour(t *testing.T) {
 	for in, want := range map[string]mermaid.Color{

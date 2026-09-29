@@ -1,17 +1,20 @@
 // Package ignore decides which files and folders a walk over a vault leaves
-// out. It is a port of the Qt app's src/platform/ignorerules.h and
+// out. It is a port of the app's src/platform/ignorerules.h and
 // ignorerules.cpp, and the scan, the file watcher and the file tree all use
 // the same rules, so a file excluded from one is excluded from all.
 //
 // The patterns use gitignore syntax and come from three places, applied in
 // this order:
 //   - git's exclude file, .git/info/exclude, when the vault folder is a git
-//     repository or a git worktree;
+//
+// repository or a git worktree;
 //   - the .gitignore file in the vault folder and in each folder below it,
-//     each applying to the paths under its own folder;
+//
+// each applying to the paths under its own folder;
 //   - a list of patterns the user sets for the vault, kept in the app's
-//     settings under SettingsKey, for folders that are not repositories or
-//     that need exclusions beyond git's.
+//
+// settings under SettingsKey, for folders that are not repositories or
+// that need exclusions beyond git's.
 //
 // A path is excluded when the last pattern that matches it is not a
 // negation (a line starting with "!"), as in git. Because the settings list
@@ -26,7 +29,7 @@
 //
 // Relative paths are relative to the vault folder and use "/"; a backslash
 // is also taken as a separator on Windows. Absolute paths returned by this
-// package use "/" on every system, as the Qt app's do, since the settings
+// package use "/" on every system, as the app's do, since the settings
 // list is keyed by the vault folder's path in that form.
 package ignore
 
@@ -49,7 +52,7 @@ import (
 //	"vault.ignorePatternsByRoot": {"/home/me/Notes": ["node_modules/", "dist/**"]}
 const SettingsKey = "vault.ignorePatternsByRoot"
 
-// Rules is one vault's exclusion policy (the QObject IgnoreRules): the
+// Rules is one vault's exclusion policy (the object IgnoreRules): the
 // vault folder and the additional patterns from the settings. The ignore
 // files themselves are read by Snapshot, so a changed .gitignore applies
 // from the next Snapshot on. The methods may be called from any goroutine.
@@ -84,7 +87,7 @@ func (r *Rules) RootPath() string {
 // the folder changed. When it did not, the patterns are left as they are.
 //
 // Revision does not change: the owner that moves the rules to another vault
-// walks the new vault itself, which is what the Qt app's only caller,
+// walks the new vault itself, which is what the app's only caller,
 // NoteCollection, asks for by passing notify=false.
 func (r *Rules) SetRootPath(root string, additional []string) bool {
 	normalized := normalizedRoot(root)
@@ -230,7 +233,7 @@ func StoreAdditionalPatterns(value any, root string, patterns []string) map[stri
 	return roots
 }
 
-// stringList reads a settings value as a list of strings, as Qt's
+// stringList reads a settings value as a list of strings, as the
 // QVariant::toStringList does for the values JSON holds: a list gives its
 // elements, with numbers and booleans written as text, and a single string
 // gives a list of one.
@@ -372,7 +375,7 @@ func readRuleFile(file, baseDir string) ruleGroup {
 	if err != nil {
 		return ruleGroup{baseDir: baseDir}
 	}
-	// The Qt app reads the file through a QTextStream set to UTF-8, which
+	// The app reads the file through a QTextStream set to UTF-8, which
 	// skips a byte order mark and decodes invalid bytes as U+FFFD, and it
 	// opens the file in text mode, which drops the "\r" of a "\r\n" line
 	// end. compileRule removes that "\r" here.
@@ -427,8 +430,8 @@ func firstLine(file string) string {
 
 // cleanRelative puts a relative path in the form the rules match against:
 // "/" as the separator, no leading "./", no "." or empty segments, and ""
-// for the vault folder itself (cleanRelative in the Qt source, which uses
-// QDir::cleanPath).
+// for the vault folder itself (cleanRelative in the source, which uses
+// cleanPath).
 func cleanRelative(p string) string {
 	p = filepath.ToSlash(p)
 	for strings.HasPrefix(p, "./") {
@@ -467,7 +470,7 @@ func normalizedPatterns(patterns []string) []string {
 
 // absoluteFilePath returns p made absolute against the working folder and
 // cleaned, with "/" as the separator, as QFileInfo::absoluteFilePath
-// returns it. On Windows Qt writes the drive letter in upper case, and so
+// returns it. On Windows  writes the drive letter in upper case, and so
 // does this, so that the settings list is found under the same key.
 func absoluteFilePath(p string) string {
 	abs, err := filepath.Abs(filepath.FromSlash(p))
@@ -480,15 +483,15 @@ func absoluteFilePath(p string) string {
 	return filepath.ToSlash(abs)
 }
 
-// isAbsolute reports whether p is absolute in the sense of Qt's
-// QDir::filePath: it starts with "/", or it is absolute on this system,
+// isAbsolute reports whether p is absolute in the sense of the
+// directory::filePath: it starts with "/", or it is absolute on this system,
 // such as "C:/Notes" on Windows.
 func isAbsolute(p string) bool {
 	return strings.HasPrefix(p, "/") || filepath.IsAbs(filepath.FromSlash(p))
 }
 
 // joinPath returns name inside the folder dir, or name itself when it is
-// absolute, as QDir(dir).filePath(name) does. The result is not cleaned.
+// absolute, as directory(dir).filePath(name) does. The result is not cleaned.
 func joinPath(dir, name string) string {
 	if isAbsolute(name) {
 		return name

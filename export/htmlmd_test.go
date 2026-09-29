@@ -8,7 +8,7 @@ import (
 )
 
 // htmlMDCases are Kvit's HtmlToMarkdown tests (tests/test_htmltomarkdown.cpp)
-// that compare the whole result, one row per input, named after the Qt test.
+// that compare the whole result, one row per input, named after the test.
 var htmlMDCases = []struct{ name, html, want string }{
 	{"testHeadings/h1", "<h1>Title</h1>", "# Title"},
 	{"testHeadings/h2", "<h2>Section</h2>", "## Section"},
@@ -56,7 +56,7 @@ func TestHTMLToMarkdown(t *testing.T) {
 	}
 }
 
-// The rest of the Qt converter's tests, which check parts of the result.
+// The rest of the converter's tests, which check parts of the result.
 func TestHTMLToMarkdownParts(t *testing.T) {
 	fenced := HTMLToMarkdown("<pre>int main() {}</pre>")
 	if !strings.HasPrefix(fenced, "```") || !strings.Contains(fenced, "int main() {}") || !strings.HasSuffix(fenced, "```") {
@@ -184,7 +184,7 @@ func TestImagesBecomeMarkdownImages(t *testing.T) {
 	}
 }
 
-// What QTextDocument does with HTML the Qt tests do not cover, and the
+// What QTextDocument does with HTML the tests do not cover, and the
 // converter therefore sees: a <br> is a line separator inside the paragraph,
 // whitespace between elements makes no paragraph, and a list's items are
 // numbered within it.

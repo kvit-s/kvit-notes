@@ -1,32 +1,32 @@
 package search
 
-// Searching every note of a vault (features.md 8.4). The rules are the Qt
+// Searching every note of a vault (features.md 8.4). The rules are the
 // app's: src/search/searchindexdb.cpp (SearchIndexDb::query and the
 // SearchMatching functions), src/search/collectionsearchindex.cpp
 // (parseNote) and src/application/collectionsearch.cpp.
 //
-// The Qt app keeps its index in an SQLite database under the cache
+// The app keeps its index in an SQLite database under the cache
 // directory, with FTS5 word and trigram indexes that only propose candidate
 // blocks, and checks every candidate against the note's text. This index is
 // in memory and is rebuilt from the notes whenever the app opens a vault, so
-// nothing on disk has to agree with the Qt app's database. What it keeps for
+// nothing on disk has to agree with the app's database. What it keeps for
 // each note, when the note is added:
 //
 //   - the text of every block with each character case-folded, joined into
-//     one string with a NUL between blocks, so a query is one strings.Index
-//     loop over the note;
+// one string with a NUL between blocks, so a query is one strings.Index
+// loop over the note;
 //   - each word of at most two characters, with how often it occurs and
-//     where its first ten occurrences are, so a one- or two-character
-//     query, which must match whole words, is answered without reading the
-//     note;
+// where its first ten occurrences are, so a one- or two-character
+// query, which must match whole words, is answered without reading the
+// note;
 //   - a Bloom filter of the byte trigrams in that string, so a longer query
-//     skips the notes that cannot hold it without reading them. The filter
-//     can say a note may hold a query when it does not, never the reverse,
-//     and every note it lets through is scanned, so results stay exact.
+// skips the notes that cannot hold it without reading them. The filter
+// can say a note may hold a query when it does not, never the reverse,
+// and every note it lets through is scanned, so results stay exact.
 //
 // A query goes through the notes in path order, on as many goroutines as
 // there are processors when the vault is large, and builds each result the
-// way the Qt app builds it after its database has proposed the note.
+// way the app builds it after its database has proposed the note.
 
 import (
 	"runtime"
@@ -42,11 +42,11 @@ import (
 type Note struct {
 	// Path is vault-relative with forward slashes: "Recipes/Bread.md".
 	Path string
-	// Title is what the results list shows for the note. The Qt app uses the
+	// Title is what the results list shows for the note. The app uses the
 	// file name without ".md" (TitleFolder).
 	Title string
 	// Folder is the folder the note is in, "" at the top of the vault. The
-	// Qt app uses the path up to the last slash (TitleFolder).
+	// app uses the path up to the last slash (TitleFolder).
 	Folder string
 	// Tags are the note's front-matter tags.
 	Tags []string
@@ -58,7 +58,7 @@ type Note struct {
 	Blocks []string
 }
 
-// TitleFolder is the title and folder the Qt app gives a note from its path
+// TitleFolder is the title and folder the app gives a note from its path
 // (CollectionSearchIndex::parseNote): the file name without a ".md" in any
 // case, and everything before the last slash.
 func TitleFolder(path string) (title, folder string) {
@@ -85,7 +85,7 @@ type Index struct {
 // entry is one note in the index.
 type entry struct {
 	note     Note
-	modified int64            // the modification time in milliseconds, as the Qt app stores it
+	modified int64            // the modification time in milliseconds, as the app stores it
 	title    string           // the title, folded
 	body     string           // every block's text, folded, with a NUL between blocks
 	starts   []int            // where each block starts in body
@@ -163,9 +163,9 @@ func (x *Index) position(path string) (int, bool) {
 	return i, i < len(x.list) && x.list[i].note.Path == path
 }
 
-// compareUTF16 orders two strings as QString's operator< does, by their
+// compareUTF16 orders two strings as string's operator< does, by their
 // UTF-16 code units. That is the order of Go's byte comparison except that
-// a character beyond the Basic Multilingual Plane (a surrogate pair to Qt)
+// a character beyond the Basic Multilingual Plane (a surrogate pair to )
 // sorts before the characters from U+E000 to U+FFFF.
 func compareUTF16(a, b string) int {
 	i := 0
@@ -346,7 +346,7 @@ func decode(s string, i int) (rune, int) {
 }
 
 // Query finds a query in the notes (SearchIndexDb::query). The results are
-// in path order, as the Qt app lists them; it does not rank notes.
+// in path order, as the app lists them; it does not rank notes.
 func (x *Index) Query(q Query) Results {
 	p := newPlan(q)
 	if p == nil {

@@ -15,8 +15,8 @@ import (
 )
 
 // TestCompareWithQt writes, when KVIT_MATH_COMPARE names a PNG file, the
-// formulas behind the Qt app's screenshots/math_render_0*.png and its
-// reference corpus sheet as the Qt app drew them (left, read from the Qt
+// formulas behind the app's screenshots/math_render_0*.png and its
+// reference corpus sheet as the app drew them (left, read from the
 // repository's screenshots) beside the same drawn here (right), to be looked
 // at side by side.
 func TestCompareWithQt(t *testing.T) {
@@ -66,7 +66,7 @@ func TestCompareWithQt(t *testing.T) {
 	}
 	page, err := unison.NewImageFromDrawing(width, height, 72, func(gc *unison.Canvas) {
 		gc.DrawRect(geom.NewRect(0, 0, float32(width), float32(height)), unison.White.Paint(gc, geom.Rect{}, paintstyle.Fill))
-		head("Qt app: MicroTeX painted by QPainter").Draw(gc, margin, margin/2)
+		head("Reference: MicroTeX painted by the system painter").Draw(gc, margin, margin/2)
 		head("Go: the kvitmath library, drawn on a unison canvas").Draw(gc, float32(margin+colW+gap), margin/2)
 	})
 	if err != nil {
@@ -92,7 +92,7 @@ func readPNG(t *testing.T, path string) *image.NRGBA {
 	t.Helper()
 	f, err := os.Open(path)
 	if err != nil {
-		t.Skipf("the Qt app's image is not there: %v", err)
+		t.Skipf("the reference image is not there: %v", err)
 	}
 	defer f.Close()
 	img, err := png.Decode(f)

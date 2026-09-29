@@ -1,10 +1,10 @@
 package query
 
-// Checks beyond the Qt suite. The expected values in these tables were
-// produced by running Qt 6.10.1 on the same inputs (QDateTime::fromString
-// and QDate::fromString with Qt::ISODate, QString::toDouble,
-// QString::compare and QString::contains with Qt::CaseInsensitive), so they
-// hold this package to what the Qt app does in the cases the Qt suite does
+// Checks beyond the suite. The expected values in these tables were
+// produced by running  6.10.1 on the same inputs (date-time::fromString
+// and QDate::fromString with ::ISODate, string::toDouble,
+// string::compare and string::contains with ::CaseInsensitive), so they
+// hold this package to what the app does in the cases the suite does
 // not reach. The error messages are the strings in querydata.cpp.
 
 import (
@@ -99,9 +99,9 @@ func TestParseCondition(t *testing.T) {
 			t.Errorf("parseCondition(%q) = %+v, want %+v", c.text, got, c.want)
 		}
 	}
-	// Qt matches the word operators case-insensitively in ASCII only, so a
+	// matches the word operators case-insensitively in ASCII only, so a
 	// long s does not stand for "s" there; it does in the " exists" suffix,
-	// which Qt matches as a QString.
+	// which  matches as a string.
 	if _, err := parseCondition("title ſontainſ x"); err == nil {
 		t.Error("long s matched the contains operator")
 	}
@@ -263,7 +263,7 @@ func TestSortNotesUsesUTF16Order(t *testing.T) {
 	}
 }
 
-// typedCases lists how Qt 6.10.1 reads each text: "date" with the wall-clock
+// typedCases lists how  6.10.1 reads each text: "date" with the wall-clock
 // time and "local", "utc" or the UTC offset in seconds; "number" with the
 // value; or "text".
 var typedCases = []struct{ text, kind, detail string }{
@@ -502,7 +502,7 @@ func TestCompareFoldMatchesQt(t *testing.T) {
 		{"İ", "i", 1, false},
 		{"ı", "I", 1, false},
 		{"ǅ", "ǆ", 0, true},
-		// Folds Qt 6.10 has and Go's unicode tables lack or add.
+		// Folds  6.10 has and Go's unicode tables lack or add.
 		{"ΐ", "ΐ", 0, true},
 		{"ﬅ", "ﬆ", 0, true},
 		{"Ꭰ", "ꭰ", 0, true},

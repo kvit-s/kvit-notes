@@ -1,6 +1,6 @@
 package vault
 
-// Keeping work safe, in the Qt app's formats: the crash-recovery journal in
+// Keeping work safe, in the app's formats: the crash-recovery journal in
 // .kvit/recovery (src/repository/recoveryjournalstore.cpp), the backups in
 // .kvit/backups (notebackupstore.cpp), and the trash in .kvit/trash
 // (notetrashstore.cpp).
@@ -22,7 +22,7 @@ import (
 // A journal still there when a vault opens is what an interrupted session
 // left: the reader is offered it back.
 
-// journalName is a note path as the Qt app names its journal file: every
+// journalName is a note path as the app names its journal file: every
 // byte percent-encoded except the unreserved characters, as
 // QUrl::toPercentEncoding does, so the directory stays flat.
 func journalName(rel string) string {
@@ -39,7 +39,7 @@ func journalName(rel string) string {
 }
 
 // journalPath decodes a journal file's name back to a note path, or "" for
-// a name the Qt app would not have written: it must encode back to itself
+// a name the app would not have written: it must encode back to itself
 // and decode to a plain relative path ending in .md.
 func journalPath(name string) string {
 	var b []byte

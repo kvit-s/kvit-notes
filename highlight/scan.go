@@ -10,7 +10,7 @@ import (
 )
 
 // generic is the scanner most languages share (scanGeneric): Python,
-// JavaScript, TypeScript, C++, C#, Java, Go, Rust, QML, SQL, Bash and JSON,
+// JavaScript, TypeScript, C++, C#, Java, Go, Rust, view markup, SQL, Bash and JSON,
 // told apart only by their rules.
 func (sc *scan) generic(r *rules, st state) state {
 	s, n, i := sc.s, len(sc.s), 0
@@ -155,7 +155,7 @@ func (sc *scan) generic(r *rules, st state) state {
 			}
 			word := string(s[i:j])
 			if r.foldCase {
-				// Qt lowers İ to an i and a combining dot, as Unicode's
+				// lowers İ to an i and a combining dot, as Unicode's
 				// full case mapping does, where strings.ToLower makes it a
 				// plain i, and so "İN" would be the keyword "in".
 				word = strings.ToLower(strings.ReplaceAll(word, "İ", "i̇"))

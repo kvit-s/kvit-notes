@@ -1,6 +1,6 @@
 package editor
 
-// Mermaid diagrams (features.md 1.2.17, Kvit's qml/DiagramBlock.qml and
+// Mermaid diagrams (features.md 1.2.17, Kvit's qml/DiagramBlock and
 // src/content/diagrams/diagramcanvas.cpp): a code block whose language is
 // `mermaid` keeps its source as its text, and is drawn as the diagram the
 // source describes.
@@ -100,7 +100,7 @@ func (e *Editor) diagramOptions() diagram.LayoutOptions {
 }
 
 // diagramCanvas is one rendered diagram: the source asked for, the last
-// valid scene, and what went wrong with the newest source. It is the Qt
+// valid scene, and what went wrong with the newest source. It is the
 // app's DiagramCanvas apart from the painting, which diagramdraw.go does.
 type diagramCanvas struct {
 	e       *Editor
@@ -440,7 +440,7 @@ func (e *Editor) syncDiagram(i int) *diagramView {
 	return v
 }
 
-// The diagram block in design pixels (qml/DiagramBlock.qml).
+// The diagram block in design pixels (qml/DiagramBlock).
 const (
 	diagramRowTop      = 8   // above the panel
 	diagramRowBottom   = 8   // below the last part

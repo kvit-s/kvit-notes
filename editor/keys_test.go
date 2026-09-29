@@ -83,7 +83,7 @@ func TestCtrlEnterAfterSelectedBlocks(t *testing.T) {
 
 // Ctrl+V of a crooked drawing into a code block straightens it and tags the
 // block `diagram`, and Ctrl+Z takes both back in one step
-// (tst_integration.qml's test_69h4, through the keyboard).
+// (tst_integration's test_69h4, through the keyboard).
 func TestCtrlVStraightensADiagramPastedIntoCode(t *testing.T) {
 	s, e := openEditor(t, "```\n```\n")
 	s.Do(func() {
@@ -250,7 +250,7 @@ func TestLanguageMenuDeclaresAndOptsOut(t *testing.T) {
 
 // Tab in a code block pads to the next four-column stop, Shift+Tab takes a
 // stop back off, and over several lines they indent or outdent every line
-// touched (Qt's indentCodeLines).
+// touched (the indentCodeLines).
 func TestTabStopsInCode(t *testing.T) {
 	const body = "  ab\ncd\n\n  ef\n"
 	s, e := openEditor(t, "```\n"+body+"```")

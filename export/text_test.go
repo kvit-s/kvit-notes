@@ -8,7 +8,7 @@ import (
 )
 
 // textCases are Kvit's plain-text exporter tests
-// (tests/test_documentexporter.cpp), one row per input, named after the Qt
+// (tests/test_documentexporter.cpp), one row per input, named after the
 // test.
 var textCases = []struct {
 	name string
@@ -60,7 +60,7 @@ func TestTextExport(t *testing.T) {
 	}
 }
 
-// The whole text of a small note, blank line after every block, as the Qt
+// The whole text of a small note, blank line after every block, as the
 // exporter writes it.
 func TestTextShape(t *testing.T) {
 	got := TextFromMarkdown("# Title\n\nSome *text*.\n\n1. a\n2. b\n  - c\n3. d\n\n> q\n>\n> r\n\n---", Options{})

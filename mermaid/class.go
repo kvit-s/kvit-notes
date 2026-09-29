@@ -14,7 +14,7 @@ import (
 // annotations, one level of namespaces, notes, direction, and classDef,
 // style and cssClass. Interactivity (click, callback, link, href) is kept
 // with a warning, never refused as an unknown statement. It is a port of the
-// Qt app's mermaidclass.cpp.
+// app's mermaidclass.cpp.
 
 // stripClassComment cuts a `%%` comment off a line, outside quotes and
 // backquotes.
@@ -265,7 +265,7 @@ func (p *classParser) parseRelation(line string, lineNo int) bool {
 
 	// Quoted cardinalities next to the relation.
 	if strings.HasSuffix(left, `"`) {
-		// QString::lastIndexOf from size-2; from -1 searches the whole of a
+		// string::lastIndexOf from size-2; from -1 searches the whole of a
 		// one-character string.
 		open := 0
 		if len(left) > 1 {

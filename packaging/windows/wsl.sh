@@ -14,7 +14,7 @@ win_path() {
     wslpath -w "$1"
 }
 
-# Inno Setup 6, looked for in the Qt build script's order after an explicit
+# Inno Setup 6, looked for in the build script's order after an explicit
 # KVIT_ISCC (a WSL or Windows path): ISCC.exe on the PATH; the two
 # machine-wide Program Files folders; the per-user install that Inno's own
 # installer and winget make without administrator rights,

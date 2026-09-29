@@ -1,6 +1,6 @@
 package editor
 
-// The commands a window's toolbar gives the editor (Kvit's Toolbar.qml):
+// The commands a window's toolbar gives the editor (Kvit's Toolbar):
 // the kind of the caret's block, alignment, inline formats and text colour,
 // and inserting a new block of a kind below the caret's.
 
@@ -17,15 +17,15 @@ type KindChoice struct {
 }
 
 // ToolbarKinds are the kinds the toolbar's block type list offers, in its
-// order (Toolbar.qml, typeNames).
+// order (Toolbar, typeNames).
 var ToolbarKinds = []KindChoice{
 	{"Text", Paragraph}, {"Heading 1", Heading1}, {"Heading 2", Heading2}, {"Heading 3", Heading3},
 	{"Heading 4", Heading4}, {"Bulleted List", Bullet}, {"Numbered List", Numbered}, {"To-do", Todo},
 	{"Quote", Quote}, {"Code Block", Code}, {"Callout", Callout}, {"Divider", Divider},
 }
 
-// TextColors are the colours the text colour menus offer, as the Qt app
-// names and writes them (EditorContextMenus.qml).
+// TextColors are the colours the text colour menus offer, as the app
+// names and writes them (EditorContextMenus).
 var TextColors = []struct{ Name, Value string }{
 	{"Red", "#e05c5c"}, {"Orange", "#e0a04c"}, {"Green", "#58a866"},
 	{"Blue", "#4a90d9"}, {"Purple", "#9068c8"}, {"Pink", "#d06ca8"},

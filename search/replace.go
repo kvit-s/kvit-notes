@@ -3,7 +3,7 @@ package search
 // Replacing in one note: the find bar's replace field (features.md 7.2). The
 // rules are src/domain/documentsearch.cpp's (finalReplacement,
 // substituteCaptures, applyPreserveCase, replaceCurrent, replaceAll and
-// previewReplacements). The Qt app applies a replacement as one undo step;
+// previewReplacements). The app applies a replacement as one undo step;
 // here the functions compute the new Markdown and the caller applies it.
 
 import (
@@ -38,8 +38,8 @@ func Replacement(replacement string, m Match, text string, opts Options) string 
 // captures (DocumentSearch::substituteCaptures): $1 to $9 are groups, $& is
 // the whole match, $$ is a dollar sign, and anything else is literal ($0
 // included). A group the match does not have is empty. The digit is any
-// decimal digit Qt's QChar::isDigit knows, so a zero in another script
-// names the whole match, as in the Qt app.
+// decimal digit the QChar::isDigit knows, so a zero in another script
+// names the whole match, as in the app.
 func SubstituteCaptures(replacement string, captures []string) string {
 	capture := func(i int) string {
 		if i < len(captures) {
@@ -78,9 +78,9 @@ func SubstituteCaptures(replacement string, captures []string) string {
 // case, a match with a capital first and no other capital makes it
 // capitalised, and a match with mixed case or no letters leaves it as
 // typed. Characters are classified one UTF-16 code unit at a time, as in
-// Qt, so a letter beyond the Basic Multilingual Plane counts as no letter.
-// Changing case uses Go's per-character mappings, where Qt's QString uses the
-// full ones: "ß" stays "ß" in capitals here and becomes "SS" in the Qt app.
+// , so a letter beyond the Basic Multilingual Plane counts as no letter.
+// Changing case uses Go's per-character mappings, where the string uses the
+// full ones: "ß" stays "ß" in capitals here and becomes "SS" in the app.
 func PreserveCase(replacement, matched string) string {
 	hasLetter, allUpper, allLower := false, true, true
 	for _, c := range matched {
@@ -124,7 +124,7 @@ func PreserveCase(replacement, matched string) string {
 // ReplaceOne replaces one match (DocumentSearch::replaceCurrent), as
 // selecting it and typing the replacement would (Block.Replace). It returns
 // the block's new Markdown and the Markdown offset just after the
-// replacement. The Qt app then searches again with the caret there, which
+// replacement. The app then searches again with the caret there, which
 // makes the next remaining match current: parse the new Markdown's spans,
 // map the offset with Block.DisplayPos, and pass it to Nearest.
 func ReplaceOne(b Block, m Match, replacement string, opts Options) (markdown string, after int) {
@@ -143,7 +143,7 @@ type Edit struct {
 // first, so the display offsets of the matches still to be replaced stay
 // where they were. The matches are the ones Find returned for these blocks.
 // Between two replacements in one block the Markdown has changed, so its
-// spans are found again with parse, the editor's parser (the Qt app parses
+// spans are found again with parse, the editor's parser (the app parses
 // again at every replacement too). It returns one edit per block that
 // changed, and how many matches were replaced.
 func ReplaceAll(blocks []Block, matches []Match, replacement string, opts Options,
@@ -244,7 +244,7 @@ func runeSlice(s string, a, b int) string {
 
 // isLetter, isLower, isUpper and isDigit are QChar's, asked of one UTF-16
 // code unit: a character beyond the Basic Multilingual Plane is a surrogate
-// pair to Qt, and a surrogate is none of them.
+// pair to , and a surrogate is none of them.
 func isLetter(r rune) bool { return r <= 0xFFFF && unicode.IsLetter(r) }
 func isLower(r rune) bool  { return r <= 0xFFFF && unicode.Is(unicode.Ll, r) }
 func isUpper(r rune) bool  { return r <= 0xFFFF && unicode.Is(unicode.Lu, r) }

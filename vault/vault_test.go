@@ -59,7 +59,7 @@ func TestFrontMatterIsRecognisedAsKvitDoes(t *testing.T) {
 	}
 }
 
-// A change to one key rewrites that key in the Qt app's form and leaves every
+// A change to one key rewrites that key in the app's form and leaves every
 // other line as it was.
 func TestFrontMatterEditsKeepForeignLines(t *testing.T) {
 	src := "---\ntitle: \"Kept: exactly\"\naliases:\n  - one\n  - two\ntags:\n  - alpha\n  - \"b,c\"\ncustom: 1\n---\n# Body\n"
@@ -80,7 +80,7 @@ func TestFrontMatterEditsKeepForeignLines(t *testing.T) {
 		t.Errorf("removing keys: %q", got)
 	}
 	// A note with no front matter gets one only when a key is set, in the
-	// Qt app's order.
+	// app's order.
 	q := parsePage("Just text\n")
 	q.SetFavorite(true)
 	q.SetTags([]string{"x"})
@@ -128,7 +128,7 @@ func TestOpenScansNotesAndSkipsKvitsOwnFolders(t *testing.T) {
 	}
 }
 
-// The lock is flock on .kvit/vault.lock, as the Qt app takes it, so a second
+// The lock is flock on .kvit/vault.lock, as the app takes it, so a second
 // opener, in this process or another, is refused.
 func TestTheVaultLockExcludesOtherOpeners(t *testing.T) {
 	root := t.TempDir()
@@ -201,7 +201,7 @@ func TestSaveBacksUpAndKeepsABakOnlyWhenTheEditorReshapes(t *testing.T) {
 // `diagram` and the drawing straightened (textdiagram.Ingest, which the
 // editor's parser runs). Saving it therefore changes the file, so the first
 // save keeps the note as it was in "<note>.md.bak", and later saves leave
-// that file alone, as the Qt app's one-time backup does.
+// that file alone, as the app's one-time backup does.
 func TestOpeningADiagramRetagsItAndTheFirstSaveKeepsABak(t *testing.T) {
 	crooked := "Before the drawing.\n\n```\n" +
 		"┌──────────┐\n" +
@@ -335,7 +335,7 @@ func TestMoveFolder(t *testing.T) {
 	}
 }
 
-// collection.json is written as the Qt app writes it, keeping the fields
+// collection.json is written as the app writes it, keeping the fields
 // this app does not use yet.
 func TestCollectionStateRoundTrips(t *testing.T) {
 	root := t.TempDir()
@@ -375,7 +375,7 @@ func TestCollectionStateRoundTrips(t *testing.T) {
 	}
 }
 
-// The recovery journal is named as the Qt app names it: the note path
+// The recovery journal is named as the app names it: the note path
 // percent-encoded into one flat file name.
 func TestTheRecoveryJournal(t *testing.T) {
 	if got := journalName("Ideas/Reading list é.md"); got != "Ideas%2FReading%20list%20%C3%A9.md" {

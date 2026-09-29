@@ -1,5 +1,5 @@
 // Package highlight colours the text of a code block by language, as Kvit's
-// code blocks do (features.md 1.2.7). It is a port of the Qt app's
+// code blocks do (features.md 1.2.7). It is a port of the app's
 // src/content/codelanguages.cpp: a table of words and of comment and string
 // markers for each language, read by one scanner shared by most languages,
 // and scanners of their own for HTML and XML, CSS, Markdown and Mermaid. Each
@@ -10,7 +10,7 @@
 // A code block is coloured a line at a time. A block comment, an HTML
 // comment or a Python triple-quoted string left open at the end of a line
 // continues on the next, so each line starts in the state the line before it
-// ended in, as the Qt highlighter's block state does.
+// ended in, as the highlighter's block state does.
 package highlight
 
 // Class is what a token is drawn as. Each class but Plain is one of the

@@ -1,7 +1,7 @@
 package diagram
 
 // Not a port: checks of the QPainterPath and QRectF behaviour geometry.go
-// reproduces, with the values Qt gives for the same calls, and of the
+// reproduces, with the values  gives for the same calls, and of the
 // outlines and markers in outlines.go.
 
 import (
@@ -41,7 +41,7 @@ func TestOutlinePercentAlongPolyline(t *testing.T) {
 	if p := o.PointAtPercent(0.5); !near(p.X, 10) || !near(p.Y, 10) {
 		t.Errorf("middle = %v, want (10, 10)", p)
 	}
-	// Down the page is 270 degrees, as Qt measures with y up.
+	// Down the page is 270 degrees, as measures with y up.
 	if a := o.AngleAtPercent(0.5); !near(a, 270) {
 		t.Errorf("angle = %g, want 270", a)
 	}
@@ -64,7 +64,7 @@ func TestOutlineBoundsAreTight(t *testing.T) {
 	if !near(b.H, 50) || !near(b.W, 100) {
 		t.Errorf("bounds = %v, want 100 x 50", b)
 	}
-	// Qt keeps a quadratic curve as the cubic whose control points are two
+	// keeps a quadratic curve as the cubic whose control points are two
 	// thirds of the way to the quadratic's, and measures those.
 	if cb := o.ControlBounds(); !near(cb.H, 200.0/3) {
 		t.Errorf("control bounds = %v", cb)

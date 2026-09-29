@@ -2,10 +2,10 @@ package app
 
 // The app's own settings: which panes and modes are on, the panes' widths,
 // the note list's order, and the vaults opened recently. They are kept in
-// the same settings file as the theme and typography, under the Qt app's
+// the same settings file as the theme and typography, under the app's
 // keys ("view.outline", "panels.sidebarWidth", "session.recentVaults"). The
-// file is the Go app's own, which starts as a copy of the Qt app's
-// (vault.SeedSettings), so a trial of the Go app never changes what the Qt
+// file is the Go app's own, which starts as a copy of the app's
+// (vault.SeedSettings), so a trial of the Go app never changes what the
 // app opens. Without a settings file, as in tests, they last as long as the
 // process.
 

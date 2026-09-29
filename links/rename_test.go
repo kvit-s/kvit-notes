@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-// move does to the index and the table what the Qt app does when a note
+// move does to the index and the table what the app does when a note
 // is renamed or moved, with its links updated or left alone.
 func move(ix *Index, bodies map[string]string, from, to string, updateLinks bool) {
 	bodies[to] = bodies[from]
@@ -24,7 +24,7 @@ func move(ix *Index, bodies map[string]string, from, to string, updateLinks bool
 	}
 }
 
-// rewritePass is the Qt app's background rewrite after a rename: every note
+// rewritePass is the app's background rewrite after a rename: every note
 // that links through the table is rewritten, and then the table keeps only
 // what is still needed. It returns the links and notes it changed.
 func rewritePass(ix *Index, bodies map[string]string) (links, notes int) {

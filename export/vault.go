@@ -1,6 +1,6 @@
 package export
 
-// Exporting several notes of a vault: the Qt export dialog's "Selected notes"
+// Exporting several notes of a vault: the export dialog's "Selected notes"
 // and "Whole collection" scopes (DocumentExporter::exportNotes and
 // exportCollection in src/application/documentexporter.cpp). Each note
 // becomes one file under the destination, at its path in the vault with the
@@ -24,13 +24,13 @@ type VaultNote struct {
 	// "Sub/Beta.md".
 	RelPath string
 	// Text is the note's file as saved, front matter included. For the note
-	// open in the editor, pass its unsaved state, as the Qt app does
+	// open in the editor, pass its unsaved state, as the app does
 	// (DocumentExporter::setLiveNote): exporting reads what the reader sees
 	// and does not save it.
 	Text string
 	// Title is the note's title, used for an HTML page's title and a
 	// combined Markdown file's headings; "" means the file name without
-	// ".md", which is the Qt app's title.
+	// ".md", which is the app's title.
 	Title string
 }
 
@@ -65,8 +65,8 @@ type File struct {
 	Content []byte
 }
 
-// Refusal is an export the Qt app would refuse before writing anything, with
-// the Qt app's message saying why.
+// Refusal is an export the app would refuse before writing anything, with
+// the app's message saying why.
 type Refusal struct {
 	Reason string
 }
@@ -99,7 +99,7 @@ func Vault(e VaultExport) ([]File, error) {
 	return files, nil
 }
 
-// noteTitle is the Qt app's title for a note: its file name without ".md".
+// noteTitle is the app's title for a note: its file name without ".md".
 func noteTitle(n VaultNote) string {
 	if n.Title != "" {
 		return n.Title
@@ -122,7 +122,7 @@ func (e VaultExport) noteOptions(n VaultNote) Options {
 
 // one is a note's own file (DocumentExporter::exportOneNote). A Markdown
 // export is the note itself, so it includes the note's front matter in the
-// form the Qt app writes it; the other formats leave the front matter out.
+// form the app writes it; the other formats leave the front matter out.
 func (e VaultExport) one(n VaultNote) string {
 	s := splitFrontMatter(n.Text)
 	opt := e.noteOptions(n)

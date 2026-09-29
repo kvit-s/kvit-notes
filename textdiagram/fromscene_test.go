@@ -1,12 +1,12 @@
 package textdiagram
 
-// These tests are the Qt app's tests/test_textdiagram.cpp, one Go test per
+// These tests are the app's tests/test_textdiagram.cpp, one Go test per
 // test function there and in the same order, with the same sources and
 // expectations; each name starts with FromScene so it cannot meet the
-// package's other tests. The Qt tests lay the sources out with a real font,
+// package's other tests. The tests lay the sources out with a real font,
 // sans-serif at 14 pixels; these lay them out through diagram.Render with a
 // fixed advance of 8 pixels a character and a line of 17, close to that
-// font. Where a Qt test counts characters of the text, it counts UTF-16
+// font. Where a test counts characters of the text, it counts UTF-16
 // units; every character counted here is one unit, so a rune count is the
 // same number, and the size limit is checked in UTF-16 units with utf16Len.
 
@@ -359,7 +359,7 @@ func TestFromSceneDeterminism(t *testing.T) {
 
 // A note's arrangement comment decides where nodes sit, and so how large a
 // grid "Copy as text" builds. Two nodes pinned far apart on both axes made
-// a grid of about 2 × 10^8 cells in the Qt app, about 500 MiB. The canvas
+// a grid of about 2 × 10^8 cells in the app, about 500 MiB. The canvas
 // now stops at a cell limit, so the work and the text are bounded by the
 // limit rather than by the coordinates.
 func TestFromSceneExtremePinnedCoordinatesStayBounded(t *testing.T) {

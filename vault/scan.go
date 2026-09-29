@@ -1,6 +1,6 @@
 // Package vault is a Kvit Notes vault on disk: a folder of Markdown notes,
 // with Kvit's own state in a .kvit directory beside them. It reads and writes
-// the same files in the same formats as the Qt app, so the two can be used on
+// the same files in the same formats as the app, so the two can be used on
 // one vault in turn, and takes the same lock, so they never have it open at
 // once.
 package vault
@@ -44,7 +44,7 @@ var controlDirs = map[string]bool{".kvit": true, "assets": true}
 // scan walks the note tree: every .md file and every folder, not following
 // symbolic links, and leaving out hidden entries, the vault's own
 // directories, and what the ignore rules exclude (.git/info/exclude, each
-// folder's .gitignore, and the patterns set for the vault), as the Qt app's
+// folder's .gitignore, and the patterns set for the vault), as the app's
 // scan does.
 func scan(root string, rules ignore.Snapshot) (notes []Note, folders []Folder, err error) {
 	var walk func(dir string, rules ignore.Snapshot) error

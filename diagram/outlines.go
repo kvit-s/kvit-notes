@@ -1,6 +1,6 @@
 package diagram
 
-// The geometry of the Qt app's src/content/diagrams/diagrampainter.cpp,
+// The geometry of the app's src/content/diagrams/diagrampainter.cpp,
 // without the painting: each shape kind's outline, the actor's stick figure,
 // and the markers at the ends of paths, as outlines the editor strokes and
 // fills and hit tests against. Layout measures markers here too
@@ -248,7 +248,7 @@ func GroupOutline(g Group) Outline {
 }
 
 // GroupTitleRect is where a group's title is drawn, at the left and centred
-// from top to bottom; the Qt app draws it bold at 12 pixels.
+// from top to bottom; the app draws it bold at 12 pixels.
 func GroupTitleRect(g Group) Rect {
 	return Rect{g.Rect.Left() + 8, g.Rect.Top() + 2, g.Rect.W - 16, 16}
 }

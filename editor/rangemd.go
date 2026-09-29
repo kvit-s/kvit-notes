@@ -1,6 +1,6 @@
 package editor
 
-// A selection as Markdown that stands on its own, as the Qt core's
+// A selection as Markdown that stands on its own, as the core's
 // DocumentSelection::rangeMarkdown and InlineMarkdown::markdownForRange give
 // it: what "comment", "send to chat" and "ask in" quote, and what a drawn
 // document copies.

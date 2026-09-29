@@ -54,7 +54,7 @@ type calloutKind struct {
 	color       func(t tokens.Tokens) palette.Color
 }
 
-// calloutKinds are Kvit's callout types (EditableBlock.qml, calloutSpec).
+// calloutKinds are Kvit's callout types (EditableBlock, calloutSpec).
 // "toggle" is the foldable type with no chrome of its own.
 var calloutKinds = map[string]calloutKind{
 	"info":    {"i", "Info", func(t tokens.Tokens) palette.Color { return t.Accent }},
@@ -91,7 +91,7 @@ func (e *Editor) calloutColor(b *Block) palette.Color {
 	return calloutKindOf(b.Lang).color(e.tok())
 }
 
-// The callout panel in design pixels (CalloutBlockChrome.qml): the header's
+// The callout panel in design pixels (CalloutBlockChrome): the header's
 // height, the body text's inset from the panel's left and the space under
 // it, the bar down the left, the header's parts, and the colour dot.
 const (
@@ -177,7 +177,7 @@ func (e *Editor) drawCallout(gc *unison.Canvas, i int) {
 	words, st := b.Title, e.calloutHeaderStyle(b)
 	if words == "" {
 		// An untitled callout shows its type's name, faint, where the title
-		// goes, as the Qt app's empty title field shows it.
+		// goes, as the app's empty title field shows it.
 		words = k.label
 		st.Color = colour(t.TextFaint)
 		st.Color.A = 178

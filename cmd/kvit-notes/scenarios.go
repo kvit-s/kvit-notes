@@ -1,7 +1,7 @@
 package main
 
 // Scripted scenarios. Each one replays a storyboard from Kvit's
-// tests/tst_visual.qml with the same note and the same key presses and
+// tests/tst_visual with the same note and the same key presses and
 // pointer moves, checks the resulting note, and saves screenshots under the
 // same file names as Kvit's reference images, so the two can be compared.
 // They run on unison's headless screen: the real event loop, drawing and
@@ -308,10 +308,10 @@ var scenarios = []scenario{
 		dr.clearFocus()
 		dr.shot("visual_04_nested_03_rendered_again.png")
 	}},
-	{"05_links", withLine("Docs at [Qt site](https://qt.io) and bare https://kde.org too."), func(dr *driver) {
+	{"05_links", withLine("Docs at [Example site](https://example.com) and bare https://kde.org too."), func(dr *driver) {
 		dr.clearFocus()
 		dr.shot("visual_05_links_01_rendered.png")
-		dr.focus(1, runeIndex(dr.text(1), "Qt site")+1)
+		dr.focus(1, runeIndex(dr.text(1), "Example site")+1)
 		dr.shot("visual_05_links_02_revealed.png")
 		dr.clearFocus()
 		dr.shot("visual_05_links_03_rendered_again.png")
@@ -625,7 +625,7 @@ var scenarios = []scenario{
 		dr.expect(dr.popups() == 1, "the language menu should be open")
 		dr.key(unison.KeyEscape, mod.None)
 		// A long line scrolls horizontally (wrap off): the caret follows
-		// to the end of a line wider than the panel (Qt test_31_code).
+		// to the end of a line wider than the panel ( test_31_code).
 		longLine := "result = compute(alpha, beta, gamma, delta, epsilon, zeta, eta, theta)  # a deliberately long single line that exceeds the panel width"
 		dr.do(func() {
 			d := dr.doc()
@@ -642,7 +642,7 @@ var scenarios = []scenario{
 		dr.clearFocus()
 	}},
 	{"36_tables", "# Tables\n\n| Name | Role | Age |\n| :--- | :--- | ---: |\n| Alice | **Lead** | 30 |\n| Bob | Dev | 25 |\n| Carol | Design | 41 |", func(dr *driver) {
-		// Kvit's tests/tst_visual.qml test_36_tables: the grid rendered,
+		// Kvit's tests/tst_visual test_36_tables: the grid rendered,
 		// one live cell, sorting by a header, and the grid-size picker.
 		dr.expect(dr.kind(1) == editor.Table, "the second block should be a table: %s", dr.blocks())
 		dr.clearFocus()

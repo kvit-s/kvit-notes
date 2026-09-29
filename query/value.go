@@ -3,7 +3,7 @@ package query
 // Typed field values. A query compares two values as dates when both read as
 // dates, as numbers when both read as numbers, and as case-insensitive
 // strings otherwise (querydata.cpp, TypedValue and compareTyped). Reading a
-// string as a date or a number follows what Qt 6.10 accepts, because a value
+// string as a date or a number follows what  6.10 accepts, because a value
 // that is a date in one app and text in the other would sort differently.
 
 import (
@@ -73,8 +73,8 @@ func compareTyped(a, b typedValue) int {
 }
 
 // parseDate reads text the way typedFromString in querydata.cpp does: first
-// QDateTime::fromString(text, Qt::ISODate), and when that fails,
-// QDate::fromString(text, Qt::ISODate) at the start of that day in local
+// date-time::fromString(text, ::ISODate), and when that fails,
+// QDate::fromString(text, ::ISODate) at the start of that day in local
 // time. The second step matters: QDate only looks at the first ten
 // characters and rejects a digit after them, so "2026-08-01 is the day" and
 // "2026-08-01T24:30" read as the date 2026-08-01.
@@ -89,7 +89,7 @@ func parseDate(text string) (time.Time, bool) {
 	return time.Time{}, false
 }
 
-// isoDate is QDate::fromString(s, Qt::ISODate) in Qt 6.10: four digits, any
+// isoDate is QDate::fromString(s, ::ISODate) in 6.10: four digits, any
 // punctuation character, two digits, punctuation, two digits, and then
 // either the end of the string or anything that is not a digit. The year
 // must be 1 to 9999 and the day must exist. "2026/08/01" and "2026_08_01"
@@ -114,7 +114,7 @@ func isoDate(s []rune) (year, month, day int, ok bool) {
 }
 
 // isPunctUnit is QChar::isPunct on one UTF-16 code unit. A character above
-// U+FFFF takes two units in Qt, and a lone surrogate is not punctuation.
+// U+FFFF takes two units in , and a lone surrogate is not punctuation.
 func isPunctUnit(r rune) bool {
 	return r <= 0xFFFF && unicode.IsPunct(r)
 }
@@ -125,7 +125,7 @@ func isDigitUnit(r rune) bool {
 	return r <= 0xFFFF && unicode.IsDigit(r)
 }
 
-// readInt is readInt in Qt's qdatetime.cpp: a non-empty run made only of
+// readInt is readInt in the qdatetime.cpp: a non-empty run made only of
 // ASCII digits, and its value. No sign and no spaces.
 func readInt(s []rune) (uint64, bool) {
 	if len(s) == 0 {
@@ -146,7 +146,7 @@ func daysIn(year, month int) int {
 	return time.Date(year, time.Month(month)+1, 0, 0, 0, 0, 0, time.UTC).Day()
 }
 
-// isoDateTime is QDateTime::fromString(s, Qt::ISODate) in Qt 6.10: a date as
+// isoDateTime is date-time::fromString(s, ::ISODate) in 6.10: a date as
 // isoDate reads it from exactly the first ten characters, then either
 // nothing (the start of that day, local time) or "T", "t" or a space, a time,
 // and optionally "Z" for UTC or a UTC offset such as "+02:00", "+0200" or
@@ -204,7 +204,7 @@ func isoDateTime(s []rune) (time.Time, bool) {
 	return time.Date(y, time.Month(m), d, hour, minute, second, msec*int(time.Millisecond), loc), true
 }
 
-// isoOffset is fromOffsetString in Qt's qdatetime.cpp: a sign, hours, and
+// isoOffset is fromOffsetString in the qdatetime.cpp: a sign, hours, and
 // optionally minutes after a colon or directly after two hour digits, as
 // seconds east of UTC. Hours above 23 or minutes above 59 are rejected.
 func isoOffset(s []rune) (int, bool) {
@@ -246,14 +246,14 @@ func isoOffset(s []rune) (int, bool) {
 	return sign * (hour*60 + minute) * 60, true
 }
 
-// qtToInt is QStringView::toInt: a decimal integer with an optional sign,
+// qtToInt is stringView::toInt: a decimal integer with an optional sign,
 // surrounding whitespace allowed.
 func qtToInt(s string) (int, bool) {
 	v, err := strconv.ParseInt(strings.TrimSpace(s), 10, 32)
 	return int(v), err == nil
 }
 
-// isoTime is fromIsoTimeString in Qt's qdatetime.cpp for Qt::ISODate: "HH",
+// isoTime is fromIsoTimeString in the qdatetime.cpp for ::ISODate: "HH",
 // "HH:mm" or "HH:mm:ss", optionally followed by "." or "," and a fraction of
 // the last field given. A fraction of an hour or a minute is converted to
 // minutes and seconds, a fraction of a second to milliseconds, rounded.
@@ -367,7 +367,7 @@ func indexOfRune(s []rune, r rune) int {
 	return -1
 }
 
-// powTenthTable holds pow(0.1, n) for small n. Qt computes a fraction's
+// powTenthTable holds pow(0.1, n) for small n.  computes a fraction's
 // value with std::pow(0.1, digits), which glibc rounds correctly; Go's
 // math.Pow is off by a unit in the last place for four digits and more, which
 // can move a millisecond that sits on a rounding boundary.
@@ -399,7 +399,7 @@ func exactPowTenth(n int) float64 {
 	return f
 }
 
-// parseNumber is QString::toDouble in Qt 6.10 on already trimmed text: a
+// parseNumber is string::toDouble in 6.10 on already trimmed text: a
 // decimal number with an optional sign, fraction and exponent (".5", "5.",
 // "1e5", "-.5e2"), or "nan", "inf", "+inf", "-inf" in any letter case. No
 // hexadecimal, no digit grouping, no "infinity". A value too large for a

@@ -15,7 +15,7 @@ import (
 // dragState is a press on a block's handle: a click selects the block, and
 // moving the pointer further than dragThreshold drags it. A press on the
 // handle of a selected block drags the whole selection, showing a gap
-// indicator instead of live-moving one row (BlockDragController.qml).
+// indicator instead of live-moving one row (BlockDragController).
 type dragState struct {
 	id      int64
 	start   geom.Point
@@ -655,7 +655,7 @@ func (e *Editor) posAtPoint(p geom.Point) (Pos, bool) {
 	}
 	if e.mathReads(best) {
 		// A press on a typeset equation opens its TeX with the caret at
-		// the end (MathBlock.qml, focusAtEnd).
+		// the end (MathBlock, focusAtEnd).
 		b := &d.Blocks[best]
 		return Pos{b.ID, len(runes(b.Text))}, true
 	}

@@ -1,6 +1,6 @@
 package editor
 
-// The / menu (Kvit's BlockMenu.qml, features.md 4.1–4.3): typing "/" in an
+// The / menu (Kvit's BlockMenu, features.md 4.1–4.3): typing "/" in an
 // empty block, or the gutter's +, opens a list of block kinds under the
 // caret, grouped, with recently used kinds first. What is typed after the
 // "/" filters it, the arrows move the highlight, and Enter or Tab turns the
@@ -47,7 +47,7 @@ var menuItems = []menuItem{
 	{"Advanced", "Code", "Code block with syntax colouring", "<>", Code, "pre fence", nil, 0},
 	{"Advanced", "Divider", "Horizontal rule", "—", Divider, "hr rule line", nil, 0},
 	{"Advanced", "Table", "Grid of rows and columns", "▦", Table, "grid spreadsheet",
-		func(b *Block) {}, 0}, // No seed: the insert flow opens the grid picker (Qt containerkinds.cpp).
+		func(b *Block) {}, 0}, // No seed: the insert flow opens the grid picker ( containerkinds.cpp).
 	{"Advanced", "Callout", "Highlighted info/warning/tip box", "!", Callout, "callout admonition note info warning [!",
 		func(b *Block) { b.Lang = "info" }, 0},
 	{"Advanced", "Toggle", "Collapsible section", "▸", Callout, "toggle collapse fold details",

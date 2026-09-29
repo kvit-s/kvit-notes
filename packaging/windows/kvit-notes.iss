@@ -7,11 +7,11 @@
 ; tree to install and the output folder:
 ;   ISCC.exe /DKvitVersion=2.0.0 /DStageDir=<stage> /DOutputDir=<dist> kvit-notes.iss
 ;
-; The Go version is the same product as the Qt version it replaces: the same
+; The Go version is the same product as the  version it replaces: the same
 ; AppId, name, per-user folder, Start-menu group and .md association. Run on a
-; machine with the Qt Kvit Notes installed, it upgrades that installation in
+; machine with the  Kvit Notes installed, it upgrades that installation in
 ; place: Inno finds the earlier installation by the AppId, installs into its
-; folder, deletes the Qt runtime files the Go program does not use (the
+; folder, deletes the  runtime files the Go program does not use (the
 ; [InstallDelete] section), and extends the same uninstaller.
 ;
 ; packaging/windows/test-windows.sh builds a variant with its own AppId,
@@ -34,7 +34,7 @@
   #define KvitVersionNumeric KvitVersion
 #endif
 ; The product's identity. The defaults are the real product's, those of the
-; Qt installer; never change them. A leading "{{" in AppId is Inno's way of
+;  installer; never change them. A leading "{{" in AppId is Inno's way of
 ; writing one "{".
 #ifndef KvitAppId
   #define KvitAppId "{{7B3D2E1A-9C64-4F58-A2D7-0E5F1B8C6A34}"
@@ -89,11 +89,11 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "associatemd"; Description: "Open .md files with {#KvitAppName}"; GroupDescription: "File associations:"
 
 [InstallDelete]
-; The Qt runtime of an earlier Qt installation in the same folder: Qt and
-; FFmpeg libraries, the Visual C++ runtime, Qt's plugin and QML folders, and
-; Qt's licence texts (packaging/manifests/windows-1.0.0.txt of the Qt
+; The  runtime of an earlier  installation in the same folder:  and
+; FFmpeg libraries, the Visual C++ runtime, the plugin and view markup folders, and
+; the licence texts (packaging/manifests/windows-1.0.0.txt of the 
 ; repository lists them). The Go program uses none of them. math-res is
-; removed so the new one replaces it whole. Every name is specific to the Qt
+; removed so the new one replaces it whole. Every name is specific to the 
 ; build, so nothing else in the folder is touched; entries that do not exist
 ; are skipped.
 Type: files; Name: "{app}\Qt6*.dll"

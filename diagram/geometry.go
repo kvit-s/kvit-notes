@@ -1,7 +1,7 @@
 package diagram
 
-// The geometry the layouts need from Qt's QPointF, QRectF and QPainterPath,
-// written to give the same answers as Qt's qpointf.h, qrect.cpp,
+// The geometry the layouts need from the QPointF, QRectF and QPainterPath,
+// written to give the same answers as the qpointf.h, qrect.cpp,
 // qpainterpath.cpp and qbezier.cpp for the paths layout builds: the fuzzy
 // comparisons, a rectangle that touches another without overlapping it, the
 // point and angle part way along a path, its length and bounds, and whether
@@ -17,7 +17,7 @@ func fuzzyCompare(a, b float64) bool {
 // fuzzyIsNull is qFuzzyIsNull for doubles.
 func fuzzyIsNull(d float64) bool { return math.Abs(d) <= 1e-12 }
 
-// fuzzyEqual compares one coordinate as Qt 6 compares QPointF's.
+// fuzzyEqual compares one coordinate as 6 compares QPointF's.
 func fuzzyEqual(a, b float64) bool {
 	if a == 0 || b == 0 {
 		return fuzzyIsNull(a - b)
@@ -283,7 +283,7 @@ func (o *Outline) AddRoundedRect(r Rect, rx, ry float64) {
 }
 
 // ellipsePoint is the point at angle degrees on the ellipse filling r,
-// counting anticlockwise from three o'clock as Qt does.
+// counting anticlockwise from three o'clock as does.
 func ellipsePoint(r Rect, deg float64) Point {
 	a := deg * math.Pi / 180
 	c := r.Center()
@@ -301,7 +301,7 @@ func (o *Outline) ArcMoveTo(r Rect, deg float64) {
 // ArcTo draws part of the ellipse filling r, from start degrees through sweep
 // degrees (anticlockwise when positive), with a line first from the current
 // point to where the arc starts. Each quarter turn or less is one cubic
-// curve, which gives the same curves as Qt for arcs in whole quarter turns.
+// curve, which gives the same curves as for arcs in whole quarter turns.
 func (o *Outline) ArcTo(r Rect, start, sweep float64) {
 	if r.IsNull() {
 		return
@@ -338,7 +338,7 @@ type element struct {
 }
 
 // elements turns the outline into QPainterPath's elements: a quadratic curve
-// becomes the cubic Qt stores for it, and a Close becomes a line back to the
+// becomes the cubic  stores for it, and a Close becomes a line back to the
 // start of its subpath, left out when the pen is already there.
 func (o Outline) elements() []element {
 	var out []element
@@ -425,7 +425,7 @@ func (o Outline) Clone() Outline {
 // bezier is a cubic curve through four points.
 type bezier struct{ p1, p2, p3, p4 Point }
 
-// lineBezier is the straight line from a to b as a cubic, as Qt makes one to
+// lineBezier is the straight line from a to b as a cubic, as makes one to
 // walk a line and a curve alike.
 func lineBezier(a, b Point) bezier {
 	d := b.Sub(a)
@@ -491,7 +491,7 @@ func (o Outline) Length() float64 {
 	return total
 }
 
-// bezierAtPercent is Qt's bezierAtT: the line or curve where the fraction t
+// bezierAtPercent is the bezierAtT: the line or curve where the fraction t
 // of the outline's length falls, the length before it, and its own length.
 func (o Outline) bezierAtPercent(t float64) (b bezier, before, own float64, ok bool) {
 	els := o.elements()
@@ -723,7 +723,7 @@ func (o Outline) Contains(p Point) bool {
 	return winding%2 != 0
 }
 
-// lineCrossesRect is Qt's qt_painterpath_isect_line_rect: whether the line
+// lineCrossesRect is the qt_painterpath_isect_line_rect: whether the line
 // from a to b crosses the border of r. A line wholly inside r does not.
 func lineCrossesRect(a, b Point, r Rect) bool {
 	const (
@@ -824,7 +824,7 @@ func onRectEdge(r Rect, p Point) bool {
 // QPainterPath::intersects decides it: a line or curve crosses r's border, a
 // subpath runs from outside r to inside it, r's centre is inside the area the
 // outline encloses (each subpath closed), or r holds a subpath's start. The
-// closing line of an open outline counts, as it does in Qt.
+// closing line of an open outline counts, as it does in .
 func (o Outline) Intersects(r Rect) bool {
 	els := o.elements()
 	if len(els) == 1 && r.Contains(els[0].end()) {
@@ -853,7 +853,7 @@ func (o Outline) Intersects(r Rect) bool {
 	return false
 }
 
-// crossesRect is Qt's qt_painterpath_check_crossing over the outline as
+// crossesRect is the qt_painterpath_check_crossing over the outline as
 // polylines.
 func (o Outline) crossesRect(r Rect) bool {
 	const (

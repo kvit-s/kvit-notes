@@ -1,7 +1,7 @@
 package editor
 
 // The block editor sized like a text field: a message box, a comment field
-// (Qt core/qml/CompactEditor.qml under Kvit Works' qml/agent/GrowingInput.qml).
+// ( core/qml/CompactEditor under Kvit Works' qml/agent/GrowingInput).
 // What is typed is a document, drawn as it means: a heading is a heading, a
 // list is a list, a picture is the picture. What leaves the box is the
 // Markdown that document is written as.
@@ -33,16 +33,16 @@ type CompactOptions struct {
 	MaximumLines int
 	// Margin is the space between the box's edges and its text, in design
 	// pixels. Kvit Works draws the box's frame and padding itself and uses
-	// 0; Qt's CompactEditor on its own uses 6.
+	// 0; the CompactEditor on its own uses 6.
 	Margin float32
 	// Placeholder is what an empty paragraph says the box is for.
 	Placeholder string
 	// EnterMakesBlocks gives Enter back to the editor, where it makes the
-	// next block, as a capture box wants (Qt returnSubmits false). Enter
+	// next block, as a capture box wants ( returnSubmits false). Enter
 	// sends when it is false.
 	EnterMakesBlocks bool
 	// ShowPictureLine shows an image block's Markdown line under the
-	// picture while the caret is in it (Qt showImageEditPanel true). Kvit
+	// picture while the caret is in it ( showImageEditPanel true). Kvit
 	// Works leaves it off: the path is a file the box named itself, and a
 	// click on the picture then opens it rather than moving the caret.
 	ShowPictureLine bool
@@ -123,7 +123,7 @@ func NewCompact(ui *kvitui.UI, o CompactOptions) *Compact {
 }
 
 // SetReturnSubmits makes Enter send (true) or gives it back to the editor,
-// where it makes the next block (Qt returnSubmits).
+// where it makes the next block ( returnSubmits).
 func (c *Compact) SetReturnSubmits(on bool) {
 	emb, _ := c.Editor.Embedded()
 	emb.ReturnPressed = nil
@@ -405,7 +405,7 @@ func (l compactLayout) PerformLayout(target *unison.Panel) {
 	l.c.scroll.SetFrameRect(target.ContentRect(false))
 }
 
-// The width a box is laid out at before it is given one (Qt implicitWidth),
+// The width a box is laid out at before it is given one ( implicitWidth),
 // and the narrowest it lays out at.
 const (
 	compactWidth    = 240

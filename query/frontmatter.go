@@ -2,7 +2,7 @@ package query
 
 // Reading a front matter value as a query sees it. Note.Fields holds each
 // key's value as written in the file; these helpers are the typed accessors
-// the Qt query code calls on it, from src/content/notefrontmatter.cpp
+// the query code calls on it, from src/content/notefrontmatter.cpp
 // (NoteFrontMatter::Metadata::fieldString and fieldList, with the quote
 // handling they share with the tags parser).
 

@@ -1,6 +1,6 @@
 // Package mathcmd is the list of math commands behind the menu a backslash
 // opens while typing TeX (features.md 1.2.15), and the ranking that filters
-// it as letters are typed. It is a port of the Qt app's
+// it as letters are typed. It is a port of the app's
 // src/content/mathcommandmodel.{h,cpp} and knows nothing of the editor or of
 // the math engine.
 //
@@ -18,7 +18,7 @@
 // braces. Recently accepted commands lead the categories.
 //
 // Offsets are rune offsets. Every template is ASCII, so they are also the
-// Qt app's UTF-16 offsets.
+// app's UTF-16 offsets.
 package mathcmd
 
 import (
@@ -628,7 +628,7 @@ func (m *Model) NoteUsed(name string) {
 }
 
 // RecentCommands are the recently accepted commands' names, most recent
-// first: what the application saves (the Qt app's setting
+// first: what the application saves (the app's setting
 // math.recentCommands).
 func (m *Model) RecentCommands() []string { return slices.Clone(m.recent) }
 

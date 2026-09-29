@@ -1,14 +1,14 @@
-// The port of the Qt app's tests/test_mathrenderer.cpp: one test for each of
+// The port of the app's tests/test_mathrenderer.cpp: one test for each of
 // its test functions, in the same order, with the same formulas, sizes and
-// expected numbers. A Qt test that checked the QImage MathRenderer::render
+// expected numbers. A test that checked the QImage MathRenderer::render
 // made checks the image Image draws here, headless through unison's raster
 // canvas, and one that painted into a QPainter draws a Formula onto a canvas.
-// Where Qt read the image's device pixel ratio, these read the image's size.
+// Where  read the image's device pixel ratio, these read the image's size.
 //
 // The tests need the library build.sh builds into build/ (it needs zig); they
 // are skipped, saying so, when it is not there.
 //
-// KVIT_SHOT_DIR, when set, is where the images the Qt tests saved are
+// KVIT_SHOT_DIR, when set, is where the images the tests saved are
 // written: the four canonical formulas and the reference corpus sheet.
 package mathtex
 
@@ -217,7 +217,7 @@ func newtxCharterReferenceCorpus() []corpusEntry {
 	}
 }
 
-// corpusSheet lays the corpus out as the Qt test's composeCorpusSheet did:
+// corpusSheet lays the corpus out as the test's composeCorpusSheet did:
 // each entry's number, title and TeX on the left, its image on the right.
 func corpusSheet(t *testing.T, images []*image.NRGBA, title string) *image.NRGBA {
 	fs := fonts(t)
@@ -471,7 +471,7 @@ func TestAvailableCommandsEnumerates(t *testing.T) {
 	}
 }
 
-// Seen in the Qt app on Windows: after a failed parse of a half-typed
+// Seen in the app on Windows: after a failed parse of a half-typed
 // command, a formula that rendered before stopped rendering for the rest of
 // the session. A parse error must not spoil later renders. The cache is
 // cleared before each render so each one reaches the engine.
@@ -515,7 +515,7 @@ func TestResourceRootResolves(t *testing.T) {
 	}
 }
 
-// canonicalExpressions are the formulas behind the Qt app's
+// canonicalExpressions are the formulas behind the app's
 // screenshots/math_render_0*.png.
 var canonicalExpressions = []struct{ name, tex, file string }{
 	{"power", `x^2`, "math_render_01_power.png"},
@@ -946,9 +946,9 @@ func TestGeneratedNewtxSupplementalSymbolsRender(t *testing.T) {
 }
 
 // The reference corpus renders with ink inside its images. With
-// KVIT_SHOT_DIR set the sheet is saved as the Qt test saved it; the Qt test
+// KVIT_SHOT_DIR set the sheet is saved as the test saved it; the test
 // then compared it with pages typeset by LaTeX, which are optional and not
-// in the Qt repository, so that part is skipped as it was there.
+// in the repository, so that part is skipped as it was there.
 func TestNewtxCharterReferenceCorpusArtifacts(t *testing.T) {
 	needEngine(t)
 	const textSize = 26
@@ -980,7 +980,7 @@ func TestNewtxCharterReferenceCorpusArtifacts(t *testing.T) {
 	}
 }
 
-// qtRepo is the Qt app's repository: KVIT_QT_REPO, or ~/kvit-notes.
+// qtRepo is the app's repository: KVIT_REF_REPO, or the archived notes sources.
 func qtRepo() string {
 	if dir := os.Getenv("KVIT_QT_REPO"); dir != "" {
 		return dir

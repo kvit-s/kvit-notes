@@ -1,7 +1,7 @@
 package editor
 
 // Horizontal scrolling for code blocks (features.md 1.2.7, Kvit's
-// EditableBlock.qml codeChrome and CodeBlockChrome.qml): long lines do not
+// EditableBlock codeChrome and CodeBlockChrome): long lines do not
 // wrap, the panel clips them, and the text scrolls under a fixed gutter and
 // a scrollbar at the panel's bottom. The caret follows along a long line,
 // and the wheel and the scrollbar move it.
@@ -17,7 +17,7 @@ import (
 	"github.com/richardwilkes/unison/enums/mod"
 )
 
-// The scrollbar in design pixels (CodeBlockChrome.qml hScrollBar, 8 px,
+// The scrollbar in design pixels (CodeBlockChrome hScrollBar, 8 px,
 // across the panel's bottom past the gutter).
 const (
 	codeBarH      = 8
@@ -120,7 +120,7 @@ func (e *Editor) codeViewportRect(i int) geom.Rect {
 }
 
 // ensureCodeCaretVisible scrolls block i's code so the caret shows, as
-// Qt's onCursorRectangleChanged does: past the right edge scrolls it in
+// the onCursorRectangleChanged does: past the right edge scrolls it in
 // with room, back past the left edge scrolls it home.
 func (e *Editor) ensureCodeCaretVisible(i int) {
 	d := e.Doc

@@ -1,7 +1,7 @@
 package editor
 
 // The math typing aids through the keyboard, on a headless screen. The tests
-// named after tests/tst_integration.qml's (test_zzq to test_zzy4) port them
+// named after tests/tst_integration's (test_zzq to test_zzy4) port them
 // with the same notes and keys. The rest cover what those tests do not
 // reach: the slot walk, Ctrl+Space, browsing the categories, a table cell
 // and a code block.

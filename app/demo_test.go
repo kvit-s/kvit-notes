@@ -7,13 +7,13 @@ import (
 	"testing"
 )
 
-// TestTheQtDemoVault opens a copy of the Qt repository's demo vault, when
+// TestTheQtDemoVault opens a copy of the repository's demo vault, when
 // it is on this machine, and draws each note: a check that notes written by
-// the Qt app open and draw without failing.
+// the app open and draw without failing.
 func TestTheQtDemoVault(t *testing.T) {
 	src := filepath.Join(os.Getenv("HOME"), "kvit-notes", "screenshots", "demo-vault")
 	if _, err := os.Stat(src); err != nil {
-		t.Skip("the Qt repository's demo vault is not on this machine")
+		t.Skip("the reference demo vault is not on this machine")
 	}
 	n := notes{}
 	_ = filepath.WalkDir(src, func(p string, d os.DirEntry, err error) error {

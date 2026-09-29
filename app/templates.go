@@ -1,7 +1,7 @@
 package app
 
-// Note templates (features.md 18.1, Kvit's FileMenu.qml and
-// TemplateDialog.qml): File, New from template makes a note named after the
+// Note templates (features.md 18.1, Kvit's FileMenu and
+// TemplateDialog): File, New from template makes a note named after the
 // template, with the template's text filled in and its tags and favourite
 // mark; File, Manage templates edits, adds and deletes the templates in
 // .kvit/templates, and saves the open note as one.

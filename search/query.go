@@ -4,13 +4,13 @@ package search
 // SearchIndexDb::query, SearchMatching::scanOccurrences and buildMatch in
 // src/search/searchindexdb.cpp.
 //
-// The Qt search box has no query syntax: what is typed is looked for
+// The search box has no query syntax: what is typed is looked for
 // literally, quotes and colons included. A query of one or two characters
 // matches whole words only ("an" is not found in "and"), and a longer one
 // matches anywhere ("row" is found in "brown"). Either way case is ignored
 // and accents are not ("cafe" does not find "café"). The folder, the tag
 // and the dates are separate filters the window sets from the sidebar and
-// the results' date menu (qml/main.qml, qml/SearchResultsView.qml).
+// the results' date menu (qml/main, qml/SearchResultsView).
 
 import (
 	"slices"
@@ -38,11 +38,11 @@ type Query struct {
 	Now time.Time
 }
 
-// Dates is the results' date menu (SearchResultsView.qml).
+// Dates is the results' date menu (SearchResultsView).
 type Dates int
 
 // The date filters. The last days are counted back from the current time in
-// whole days of 24 hours, a year as 365 of them, as the Qt app does.
+// whole days of 24 hours, a year as 365 of them, as the app does.
 const (
 	AnyTime     Dates = iota // every note
 	Today                    // modified since midnight

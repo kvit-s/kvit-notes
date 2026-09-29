@@ -4,7 +4,7 @@ package editor
 // names is found, and where a picture pasted into a message box is written.
 // The editor itself only asks Editor.LoadImage for a picture by the path the
 // document writes and Editor.PasteImage for a pasted one; these are what a
-// program without a vault of its own gives it (Qt's documentDirectory,
+// program without a vault of its own gives it (the documentDirectory,
 // assetRoot, siteRoot and assetSink on BlockEditorSurface).
 
 import (
@@ -30,21 +30,21 @@ import (
 // PictureFolders are the folders a document's pictures are looked up in.
 type PictureFolders struct {
 	// Base is the folder a relative path is written against: the folder
-	// the document is in, or for a transcript the session folder (Qt
+	// the document is in, or for a transcript the session folder (
 	// baseDir, documentDirectory).
 	Base string
 	// Root is the folder a path is also looked up in when it is not beside
 	// the document: a note in a subfolder names assets/a.png from the
-	// project's top (Qt assetRoot). For a file from a track's copy it is
+	// project's top ( assetRoot). For a file from a track's copy it is
 	// that copy, so the pictures drawn are the copy's own.
 	Root string
 	// Site is the folder a path starting with "/" is looked up in, as a
-	// website names a file at its root: static/ in a Hugo site (Qt
+	// website names a file at its root: static/ in a Hugo site (
 	// siteRoot). Root when empty.
 	Site string
 }
 
-// Resolve is the file a stored picture path names, by the Qt core's rule
+// Resolve is the file a stored picture path names, by the core's rule
 // (ImageAssets::resolveSource): beside the document, then from the top of
 // Root, then as written, and a path starting with "/" from the site folder
 // last, the first that is a file. A web address comes back as it is, and a
@@ -184,7 +184,7 @@ type svgPicture struct{ *unison.SVG }
 
 func (s svgPicture) LogicalSize() geom.Size { return s.Size() }
 
-// SavePastedPicture writes the picture on the clipboard into dir, as Qt's
+// SavePastedPicture writes the picture on the clipboard into dir, as the
 // AssetStore does for an editor given an asset sink: into dir/folder as
 // "<slug>-<yyyyMMdd-HHmmss>.png", with "-1", "-2" and so on added when that
 // name is taken, and answers the path from dir, which is what the image

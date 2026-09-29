@@ -6,7 +6,7 @@ import (
 	"unicode"
 )
 
-// Heading anchors, from the Qt app's src/domain/documentoutline.cpp. A
+// Heading anchors, from the app's src/domain/documentoutline.cpp. A
 // [[note#Heading]] link is followed by opening the note and turning the
 // heading text into a slug, which is looked up among the slugs of the
 // note's headings; [text](#slug) links look the slug up directly.
@@ -16,7 +16,7 @@ import (
 // hyphen, and none at either end; every other character dropped.
 // "Section 2: Details (v1)" becomes "section-2-details-v1". A character
 // outside the Basic Multilingual Plane is dropped even when it is a letter,
-// as in the Qt app, which sees it as two surrogates.
+// as in the app, which sees it as two surrogates.
 func Slug(text string) string {
 	var b strings.Builder
 	pending := false

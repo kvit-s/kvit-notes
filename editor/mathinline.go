@@ -1,6 +1,6 @@
 package editor
 
-// Inline math (features.md 1.2.15, Kvit's qml/InlineMathOverlay.qml and the
+// Inline math (features.md 1.2.15, Kvit's qml/InlineMathOverlay and the
 // reservation in src/qml/blockeditorengine.cpp): a $…$ span away from the
 // caret is typeset in text style, the size TeX sets a formula in running
 // prose, and drawn in place of its source with its baseline on the line's.

@@ -1,6 +1,6 @@
 package editor
 
-// The math command menu (Kvit's MathCommandMenu.qml): the popup a backslash
+// The math command menu (Kvit's MathCommandMenu): the popup a backslash
 // opens in math (mathassist.go). On a bare backslash it shows the
 // categories of package mathcmd down its left side and the highlighted
 // category's commands as a grid of pictures, with the highlighted command's
@@ -24,7 +24,7 @@ import (
 	"github.com/kvit-s/kvit-notes/mathtex"
 )
 
-// The menu in design pixels (MathCommandMenu.qml).
+// The menu in design pixels (MathCommandMenu).
 const (
 	mathListWidth   = 320 // completion mode
 	mathListRow     = 36
@@ -392,7 +392,7 @@ func (m *mathMenu) at(where geom.Point) (row, cat, cell int) {
 }
 
 // hover highlights what the pointer is over; over a category it shows that
-// category, as the Qt menu does.
+// category, as the menu does.
 func (m *mathMenu) hover(where geom.Point) {
 	row, cat, cell := m.at(where)
 	switch {

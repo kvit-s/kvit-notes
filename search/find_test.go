@@ -9,12 +9,12 @@ import (
 )
 
 // The tests in this file are ported from Kvit's tests/test_documentsearch.cpp;
-// each names the Qt test it comes from. The Qt tests that exercise the find
+// each names the test it comes from. The tests that exercise the find
 // bar's object (its revision counter, recomputing on model signals, undo,
 // block ids surviving moves) have no counterpart, because these are pure
 // functions and the caller owns that state.
 
-// spansOf stands in for the editor's parser, enough for the Qt tests'
+// spansOf stands in for the editor's parser, enough for the tests'
 // notes: **bold** and *italic*, not nested.
 func spansOf(md string) []Span {
 	rs := []rune(md)
@@ -228,7 +228,7 @@ func TestZeroLengthMatchesSkipped(t *testing.T) {
 	}
 }
 
-// testEmojiContentIsSearchable: the rocket is one rune here where Qt counts
+// testEmojiContentIsSearchable: the rocket is one rune here where  counts
 // two UTF-16 code units.
 func TestEmojiContentIsSearchable(t *testing.T) {
 	blocks := append(fixture(), para("launch 🚀 checklist"))
@@ -504,7 +504,7 @@ func TestReplaceAllRespectsDomain(t *testing.T) {
 }
 
 // Between two replacements in one block the spans are found again, as the
-// Qt app parses the block again for each one: after the second "fox" is
+// app parses the block again for each one: after the second "fox" is
 // deleted the span is shorter, and the first "fox" is cut from inside it.
 // With the spans found before the first replacement, it would be cut from
 // the wrong place.
