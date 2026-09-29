@@ -27,7 +27,7 @@ components:
 
   - name: Kvit UI (kvit-ui)
     go_module: github.com/kvit-s/kvit-ui
-    version: local replacement (../kvit-ui-go)
+    version: local replacement (../kvit-ui)
     spdx: MPL-2.0
     origin: https://github.com/kvit-s/kvit-ui (the Kvit component library, the
       same project as Kvit Notes)
@@ -147,7 +147,7 @@ components:
 
   - name: go-text typesetting (Kvit's patched copy)
     go_module: github.com/go-text/typesetting
-    version: local replacement (../kvit-ui-go/third_party/typesetting)
+    version: local replacement (../kvit-ui/third_party/typesetting)
     spdx: Unlicense OR BSD-3-Clause
     origin: https://github.com/go-text/typesetting v0.3.5, with Kvit's patch
       kvit-ui-go/third_party/typesetting-fontscan-face-loader.patch

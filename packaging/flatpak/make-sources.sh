@@ -4,7 +4,7 @@
 #   dist/Kvit_Notes-<version>-flatpak-sources.tar.gz, one top folder holding
 #     vendor/     every Go module the program is built from, as `go mod vendor`
 #                 writes it, including kvit-ui and the patched typesetting that
-#                 go.mod takes from ../kvit-ui-go
+#                 go.mod takes from ../kvit-ui
 #     licenses/   the licence folder of the Linux packages
 #   dist/flatpak/org.kvit.Notes.yaml, the manifest with this version and the
 #     archive's digest filled in (the git commit is set when the tag exists)
@@ -14,7 +14,7 @@
 # Run packaging/linux/build-linux.sh first; its licence folder is reused.
 # `go mod vendor` runs in a copy of the checkout, so the repository does not
 # change. The copy is then built the way the Flatpak builds it: from vendor/,
-# with module downloads off (GOPROXY=off) and without ../kvit-ui-go.
+# with module downloads off (GOPROXY=off) and without ../kvit-ui.
 set -euo pipefail
 source "$(dirname "$0")/../lib.sh"
 release_version
@@ -34,7 +34,7 @@ git ls-files -z --cached --others --exclude-standard |
     tar --null --ignore-failed-read -T - -cf - 2> /dev/null | tar -xf - -C "$SRC"
 
 echo "== go mod vendor"
-# go.mod's replacements by relative path (../kvit-ui-go and a folder inside
+# go.mod's replacements by relative path (../kvit-ui and a folder inside
 # it) must resolve from the copy while vendoring. The first folder of each
 # gets one link beside the copy, to the real folder beside the checkout, and
 # the links are removed afterwards.

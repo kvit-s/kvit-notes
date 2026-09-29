@@ -6,14 +6,14 @@
 # release asset Kvit_Notes-<version>-flatpak-sources.tar.gz, which
 # packaging/flatpak/make-sources.sh makes: vendor/ (the output of
 # `go mod vendor`, including kvit-ui and its patched typesetting, which go.mod
-# takes from ../kvit-ui-go) and licenses/ (the licence folder of the Linux
+# takes from ../kvit-ui) and licenses/ (the licence folder of the Linux
 # packages). make-sources.sh also writes dist/flatpak/org.kvit.Notes.yaml,
 # this file with the version and that archive's digest filled in; submit that
 # copy, after setting the commit below.
 #
 # flatpak-builder was not installed where this was written, so the manifest
 # has not been built. What was checked: make-sources.sh builds the program
-# from a copy of the source with vendor/, without ../kvit-ui-go and with the
+# from a copy of the source with vendor/, without ../kvit-ui and with the
 # module download turned off (GOPROXY=off), as the build here does.
 #
 # The golang extension must provide Go 1.27 or later (go.mod's go line), and
