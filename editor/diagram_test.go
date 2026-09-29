@@ -23,8 +23,6 @@ import (
 	"bytes"
 	"fmt"
 	"image"
-	"image/color"
-	"image/draw"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -709,8 +707,7 @@ func TestDiagramSourceKeys(t *testing.T) {
 }
 
 // TestDiagramScreenshots writes, when KVIT_DIAGRAM_SHOTS names a folder,
-// a flowchart and a sequence diagram as the editor draws them, the
-// flowchart beside the app's picture of the same note.
+// a flowchart and a sequence diagram as the editor draws them.
 func TestDiagramScreenshots(t *testing.T) {
 	dir := os.Getenv("KVIT_DIAGRAM_SHOTS")
 	if dir == "" {
@@ -721,9 +718,9 @@ func TestDiagramScreenshots(t *testing.T) {
 	seq := "# Saving a note\n\n```mermaid\nsequenceDiagram\n    autonumber\n    participant U as User\n    participant E as Editor\n" +
 		"    participant S as Serializer\n    U->>E: type a heading\n    activate E\n    E->>S: block changed\n    S-->>E: markdown\n" +
 		"    deactivate E\n    Note over S: debounced save\n```\n"
-	for _, shot := range []struct{ name, md, qt string }{
-		{"mermaid-flowchart", flow, filepath.Join(os.Getenv("HOME"), "kvit-notes/screenshots/press/mermaid-flowchart.png")},
-		{"mermaid-sequence", seq, ""},
+	for _, shot := range []struct{ name, md string }{
+		{"mermaid-flowchart", flow},
+		{"mermaid-sequence", seq},
 	} {
 		t.Run(shot.name, func(t *testing.T) {
 			var e *Editor
@@ -735,43 +732,16 @@ func TestDiagramScreenshots(t *testing.T) {
 			waitRendered(s, e, i)
 			s.Sync()
 			img := s.Capture()
-			out := img
-			if shot.qt != "" {
-				if qt, err := readImage(shot.qt); err == nil {
-					out = beside(qt, img)
-				}
-			}
 			f, err := os.Create(filepath.Join(dir, shot.name+".png"))
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer f.Close()
-			if err := png.Encode(f, out); err != nil {
+			if err := png.Encode(f, img); err != nil {
 				t.Fatal(err)
 			}
 		})
 	}
-}
-
-func readImage(path string) (image.Image, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	return png.Decode(f)
-}
-
-// beside is two pictures side by side on white, the first on the left.
-func beside(a, b image.Image) image.Image {
-	w := a.Bounds().Dx() + b.Bounds().Dx() + 16
-	h := max(a.Bounds().Dy(), b.Bounds().Dy())
-	out := image.NewRGBA(image.Rect(0, 0, w, h))
-	draw.Draw(out, out.Bounds(), &image.Uniform{C: color.White}, image.Point{}, draw.Src)
-	draw.Draw(out, a.Bounds().Sub(a.Bounds().Min), a, a.Bounds().Min, draw.Src)
-	off := image.Pt(a.Bounds().Dx()+16, 0)
-	draw.Draw(out, b.Bounds().Sub(b.Bounds().Min).Add(off), b, b.Bounds().Min, draw.Src)
-	return out
 }
 
 // As code turns the diagram into a code block tagged plain, in one step

@@ -946,9 +946,7 @@ func TestGeneratedNewtxSupplementalSymbolsRender(t *testing.T) {
 }
 
 // The reference corpus renders with ink inside its images. With
-// KVIT_SHOT_DIR set the sheet is saved as the test saved it; the test
-// then compared it with pages typeset by LaTeX, which are optional and not
-// in the repository, so that part is skipped as it was there.
+// KVIT_SHOT_DIR set the sheet is saved as the test saved it.
 func TestNewtxCharterReferenceCorpusArtifacts(t *testing.T) {
 	needEngine(t)
 	const textSize = 26
@@ -974,19 +972,6 @@ func TestNewtxCharterReferenceCorpusArtifacts(t *testing.T) {
 		sheet := corpusSheet(t, images, "NewTX/XCharter reference corpus - "+label)
 		savePNG(t, sheet, filepath.Join(dir, stem+"_corpus_png.png"))
 	}
-	refDir := filepath.Join(qtRepo(), "docs", "math-render-experiments", "2026-07-09-newtx-charter-reference")
-	if !isFile(filepath.Join(refDir, "refs-1.png")) || !isFile(filepath.Join(refDir, "refs-2.png")) {
-		t.Skipf("optional NewTX/XCharter reference PNGs are not installed in %s", refDir)
-	}
-}
-
-// qtRepo is the app's repository: KVIT_REF_REPO, or the archived notes sources.
-func qtRepo() string {
-	if dir := os.Getenv("KVIT_QT_REPO"); dir != "" {
-		return dir
-	}
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, "kvit-notes")
 }
 
 func TestMalformedExpressionMetricsReportError(t *testing.T) {
