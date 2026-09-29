@@ -16,7 +16,7 @@ Kvit component library (`~/kvit-ui-go`).
 | `mathcmd` | The math command menu's list and ranking |
 | `third_party/microtex` | MicroTeX (cLaTeXMath) at a pinned commit, with Kvit's fonts and fixes; its `res/` is what goes beside the program as `math-res` |
 | `app` | The vault window. `window.go` ties the panes to a vault and the editor and arranges them; the sidebar's scopes (`sidebar.go`), the note list (`notelist.go`), the tag strip, the toolbar (`toolbar.go`), the File and View menus (`menus.go`), the note and folder menus and dialogs (`actions.go`), keeping work safe (`safety.go`), moving between notes (`navigate.go`), the outline (`outline.go`) and backlinks (`backlinks.go`) panes, the find bar (`find.go`), search across notes (`searchview.go`), links (`links.go`) and renames that keep them working (`rename.go`), templates, settings, statistics, quick capture, export and import (`templates.go`, `settings.go`, `stats.go`, `capture.go`, `exchange.go`), pictures (`images.go`), embed previews (`embed.go`), query blocks' notes (`queries.go`), acting on several notes (`bulk.go`), PDF export (`pdf.go`), HTML on the clipboard (`clipboard.go`), the ranking of notes by name (`fuzzy.go`), the tray icon's menu and closing to the tray (`tray.go`), note files dropped on a window (`drop.go`), where a diagram's picture is saved and what the status bar says after a diagram gesture (`diagram.go`), the math command menu's list shared by every window (`mathcommands.go`) and the keyboard shortcuts list (`shortcuts.go`); `prefs.go` reads and writes the app's settings |
-| `cmd/kvit-notes` | The program: a vault window, or one note file on its own (`window.go`), one running copy (`instance.go`) and what a later copy or macOS's Finder and Dock ask it to open (`openPath` in `main.go`), the tray icon with the app's icon from `icons/` and `--tray-check`, which shows it on a real desktop (`tray.go`), the version it reports (`version.go`), a console for its output when started from one on Windows (`console_*.go`), and the Windows icon, version and manifest in `rsrc_windows_amd64.syso`; with the scripted scenarios (`scenarios.go`, the math storyboards in `scenarios_math.go`), the real-window check (`check.go`), the benchmark (`bench.go`), the screenshot comparison (`compare.go`) and `--math-selftest`, which renders formulas with the packaged math library |
+| `cmd/kvit-notes` | The program: a vault window, or one note file on its own (`window.go`), one running copy (`instance.go`) and what a later copy or macOS's Finder and Dock ask it to open (`openPath` in `main.go`), the tray icon with the app's icon from `icons/` and `--tray-check`, which shows it on a real desktop (`tray.go`), the version it reports (`version.go`), a console for its output when started from one on Windows (`console_*.go`), and the Windows icon, version and manifest in `rsrc_windows_amd64.syso`; with the scripted scenarios (`scenarios.go`, the math storyboards in `scenarios_math.go`), the real-window check (`check.go`), the benchmark (`bench.go`) and `--math-selftest`, which renders formulas with the packaged math library |
 | `packaging` | The downloads: `build-all.sh` makes the Windows installer and zip, the macOS app, the Linux tar.gz, AppImage and AUR package, and the Flatpak sources into `dist/`; `packaging/README.md` says what each holds and how each is tried |
 | `tools/win-check.ps1` | Reads what Windows' UI Automation reports about the check window, and saves a picture of it |
 | `tools/tray-check.ps1` | Opens the tray icon's menu, chooses a line and clicks the icon by posting to the app's own windows while `kvit-notes --tray-check` runs, and says where the shell has the icon |
@@ -58,8 +58,8 @@ rewritten for unison).
 - **`collection.json`** is rewritten whole, so every field it has is kept in `Collection`, used or not.
 - **Never reuse** `.kvit/index.json`, `.kvit/embedcache/` or `.kvit/cache/index.json`: the first two are deleted on every open and the third is trusted by size and time.
 - **Tests and trial runs never touch a real vault.** `./build.sh --win` opens
-  a copy of the demo vault; `kvit-notes` with no argument opens the vault
-  last had open.
+  an empty notes folder beside the Windows build (`try-vault`); `kvit-notes`
+  with no argument opens the vault last had open.
 - **The settings are the app's own file** (`ui.json` in the user's
   configuration folder, under `kvit-notes`).
 - **`.kvit/redirects.json` and `.kvit/settings.json`:** the table of renamed
@@ -71,7 +71,7 @@ rewritten for unison).
 ./build.sh               # build every package, the math library and build/kvit-notes
 ./build.sh --test        # also gofmt check, go vet and the headless tests
 ./build.sh --shots       # the scenarios' screenshots into build/shots
-./build.sh --bench       # open, scroll and type in 1,237 blocks of Kvit's docs
+./build.sh --bench       # open, scroll and type in 1,237 blocks of Kvit's docs (KVIT_BENCH_VAULT names the folder)
 ./build.sh --cross       # also kvit-notes for Windows, macOS (both) and Linux
 ./build.sh --win # kvit-notes for Windows onto D:, started on the Windows desktop
 ./build.sh --win-check   # the same, driven through a scripted check, read through UI Automation

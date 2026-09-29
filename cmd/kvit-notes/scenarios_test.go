@@ -8,8 +8,8 @@ import (
 )
 
 // TestScenarios replays Kvit's storyboards headlessly; see scenarios.go.
-// `kvit-notes --scenario all --out DIR --compare DIR` runs the same ones and
-// saves their screenshots.
+// `kvit-notes --scenario all --out DIR` runs the same ones and saves their
+// screenshots.
 func TestScenarios(t *testing.T) {
 	for _, scn := range scenarios {
 		t.Run(scn.name, func(t *testing.T) {

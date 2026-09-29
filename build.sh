@@ -5,15 +5,15 @@
 #   ./build.sh --test        also check formatting, run go vet and the headless tests
 #   ./build.sh --cross       also build kvit-notes for windows/amd64, darwin/arm64,
 #                            darwin/amd64 and linux/amd64 into build/<os>-<arch>/
-#   ./build.sh --win         build kvit-notes for Windows onto D: and start it there, on a
-#                            copy of the repository's demo vault (not your own notes)
+#   ./build.sh --win         build kvit-notes for Windows onto D: and start it there, on an
+#                            empty notes folder beside the build, try-vault (not your
+#                            own notes)
 #   ./build.sh --win-check   the same, driving the editor through a scripted check in
 #                            its window, reading what Windows' screen-reader interface
 #                            reports, saving a picture of the window and its memory
-#   ./build.sh --shots       run the scenarios, write their screenshots into build/shots,
-#                            and stack each image above Kvit's of the same name into
-#                            build/shots/compare
-#   ./build.sh --bench       time opening, scrolling and typing in 1,237 blocks
+#   ./build.sh --shots       run the scenarios and write their screenshots into build/shots
+#   ./build.sh --bench       time opening, scrolling and typing in 1,237 blocks of Kvit's
+#                            documentation, read from the folder KVIT_BENCH_VAULT names
 #   ./build.sh --run         start kvit-notes here (needs a display)
 #
 # LaTeX math is drawn by MicroTeX, a C++ engine built as a shared library the
@@ -29,9 +29,9 @@
 # build is what gets shipped.
 #
 # Everything builds with cgo off. KVIT_WIN_DIR overrides where Windows builds go
-# (default /mnt/d/projects/kvit-notes-go); KVIT_REF_SHOTS overrides where the
-# storyboard screenshots for --compare come from; KVIT_REF_REPO overrides where
-# the documentation --bench reads comes from.
+# (default /mnt/d/projects/kvit-notes-go). KVIT_BENCH_VAULT is the notes folder
+# --bench reads, one holding Kvit's features.md, block-arch.md, selection.md,
+# devel.md and accessibility.md; it has no default, and --bench stops without it.
 set -euo pipefail
 cd "$(dirname "$0")"
 export CGO_ENABLED=0
@@ -45,10 +45,15 @@ for a in "$@"; do
         --shots) shots=1 ;;
         --bench) bench=1 ;;
         --run) run=1 ;;
-        -h|--help) sed -n '2,31p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help) sed -n '2,34p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "unknown option: $a" >&2; exit 2 ;;
     esac
 done
+if [ $bench = 1 ] && [ -z "${KVIT_BENCH_VAULT:-}" ]; then
+    echo "build.sh: --bench needs KVIT_BENCH_VAULT set to a notes folder holding Kvit's" \
+        "documentation (features.md, block-arch.md, selection.md, devel.md, accessibility.md)" >&2
+    exit 1
+fi
 
 # mathres copies the math library's resources into a folder beside a program.
 mathres() {
@@ -112,11 +117,10 @@ if [ $win = 1 ]; then
     tools/build-mathlib.sh windows/amd64 "$dest/kvitmath.dll"
     mathres "$dest"
     if [ $check = 0 ]; then
-        # A copy of the app's demo vault, so trying the build never touches
-        # the vault you write in; kvit-notes.exe with no argument opens that.
-        demo=${KVIT_REF_REPO:-$HOME/kvit-reference/kvit-notes-demo}/screenshots/demo-vault
-        [ -d "$dest/demo-vault" ] || cp -r "$demo" "$dest/demo-vault"
-        "$dest/kvit-notes.exe" "$(wslpath -w "$dest/demo-vault")" &
+        # An empty notes folder beside the build, kept between runs, so trying
+        # the build never touches the notes you write in.
+        mkdir -p "$dest/try-vault"
+        "$dest/kvit-notes.exe" "$(wslpath -w "$dest/try-vault")" &
         disown
     else
         cp tools/win-check.ps1 "$dest/"
@@ -147,15 +151,12 @@ if [ $win = 1 ]; then
 fi
 
 if [ $shots = 1 ]; then
-    ref=${KVIT_REF_SHOTS:-$HOME/kvit-reference/kvit-notes-storyboards}
     rm -rf build/shots
-    compare=()
-    [ -d "$ref" ] && compare=(--compare "$ref")
-    build/kvit-notes --scenario all --out build/shots "${compare[@]}"
+    build/kvit-notes --scenario all --out build/shots
 fi
 
 if [ $bench = 1 ]; then
-    build/kvit-notes --bench "${KVIT_REF_REPO:-$HOME/kvit-reference/kvit-notes-docs}"
+    build/kvit-notes --bench "$KVIT_BENCH_VAULT"
 fi
 
 if [ $run = 1 ]; then

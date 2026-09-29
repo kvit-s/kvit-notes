@@ -37,7 +37,6 @@ import (
 func main() {
 	scenario := flag.String("scenario", "", "run a scripted scenario headlessly, by name or `all`, and exit")
 	out := flag.String("out", "", "with --scenario: write the scenarios' screenshots into this directory")
-	compare := flag.String("compare", "", "with --scenario and --out: stack each screenshot under Kvit's of the same name from this directory, into OUT/compare")
 	theme := flag.String("theme", "", "light, dark, sepia or highContrast; the desktop's choice unless set")
 	check := flag.Duration("check", 0, "open a window, drive the editor through a scripted check, print the result, and close after this long")
 	closeAfter := flag.Duration("close-after", 0, "close the window after this long, printing when it first drew")
@@ -73,16 +72,7 @@ func main() {
 	}
 
 	if *scenario != "" {
-		err := runScenarios(*scenario, *out, *theme)
-		if *compare != "" && *out != "" {
-			n, cerr := writeComparisons(*out, *compare, filepath.Join(*out, "compare"))
-			if cerr != nil {
-				fmt.Fprintln(os.Stderr, cerr)
-				os.Exit(1)
-			}
-			fmt.Printf("%d comparison images in %s\n", n, filepath.Join(*out, "compare"))
-		}
-		if err != nil {
+		if err := runScenarios(*scenario, *out, *theme); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}

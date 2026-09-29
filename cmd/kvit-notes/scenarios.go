@@ -3,7 +3,7 @@ package main
 // Scripted scenarios. Each one replays a storyboard from Kvit's
 // tests/tst_visual with the same note and the same key presses and
 // pointer moves, checks the resulting note, and saves screenshots under the
-// same file names as Kvit's reference images, so the two can be compared.
+// same file names as Kvit's reference images.
 // They run on unison's headless screen: the real event loop, drawing and
 // screen-reader tree, with the input injected.
 
