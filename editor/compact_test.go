@@ -462,9 +462,9 @@ func TestTheBoxAnnouncesGrowthWhileTheCaretIsIn(t *testing.T) {
 	}
 }
 
-// The box spaces its lines as the transcript does, the font's own line height
+// The box spaces its lines as every editor does, the font's own line height
 // times the line height, so an empty box is one such line and its row's
-// padding tall (50 px at 14 px, where the note's spacing gives 46).
+// padding tall (50 px at 14 px and 1.3), as Qt's is.
 func TestTheBoxSpacesLinesAsTheTranscriptDoes(t *testing.T) {
 	s, c := openCompact(t, CompactOptions{})
 	s.Sync()
@@ -479,9 +479,6 @@ func TestTheBoxSpacesLinesAsTheTranscriptDoes(t *testing.T) {
 		want := e.px(rowPadTop+rowPadBottom) + float32(math.Floor(float64(pitch)+1e-3))
 		if got := c.FrameRect().Height; got != want || c.ContentHeight() != want {
 			t.Errorf("an empty box is %v tall (content %v), want %v", got, c.ContentHeight(), want)
-		}
-		if e.seams.emb.CentredPictures {
-			t.Error("the box centres its pictures")
 		}
 	})
 }

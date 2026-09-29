@@ -1,6 +1,8 @@
 package editor
 
 import (
+	"sync"
+
 	kvitui "github.com/kvit-s/kvit-ui"
 	"github.com/kvit-s/kvit-ui/palette"
 	"github.com/kvit-s/kvit-ui/text"
@@ -157,13 +159,46 @@ func (e *Editor) monoFamily() string {
 	return text.Monospace
 }
 
-// pitch is how far apart the lines of a block's text are: its size times the
-// document's line height, as Qt's text document spaces them.
+// pitch is how far apart the lines of a block's text are: the document's line
+// height times the font's own line height, its ascent and descent rounded up
+// to a pixel, as Qt's text document spaces a block whose line height is
+// proportional (QTextBlockFormat::ProportionalHeight, which Kvit's
+// BlockEditorEngine::applyLineHeight gives every block): 22.1 px at 14 px
+// and 1.3, 18 px at 15 px and 1.0.
 func (e *Editor) pitch(st text.Style) float32 {
-	if p, ok := e.fontPitch(st); ok {
-		return p
+	return e.naturalLine(st) * float32(e.ui.Typography.LineHeight())
+}
+
+// lineKey is what a font's own line height depends on.
+type lineKey struct {
+	fonts        *text.Fonts
+	family       string
+	size, weight float32
+	italic       bool
+}
+
+var (
+	naturalMu    sync.Mutex
+	naturalLines = map[lineKey]float32{}
+)
+
+// naturalLine is the font's own line height in style st: one line laid out
+// at a line height of 1, which is its ascent and descent rounded up to a
+// pixel. It is measured once per font and size.
+func (e *Editor) naturalLine(st text.Style) float32 {
+	key := lineKey{e.ui.Fonts, st.Family, st.Size, float32(st.Weight), st.Italic}
+	naturalMu.Lock()
+	h, ok := naturalLines[key]
+	naturalMu.Unlock()
+	if ok {
+		return h
 	}
-	return st.Size * float32(e.ui.Typography.LineHeight())
+	plain := text.Style{Family: st.Family, Size: st.Size, Weight: st.Weight, Italic: st.Italic}
+	_, h = e.ui.Fonts.Layout([]text.Span{{Text: " ", Style: plain}}, text.Options{}).Size()
+	naturalMu.Lock()
+	naturalLines[key] = h
+	naturalMu.Unlock()
+	return h
 }
 
 // chrome is the style of the editor's own labels in one of the interface's

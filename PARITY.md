@@ -26,7 +26,10 @@ kvit-ui-go's `platform` package for the tray.
 - [x] 1.1 Core block concept: a note is a flat list of blocks with a kind, an
   indent level and Markdown source. Evidence: `TestMarkdownRoundTrip`, `TestEnterAndBackspace`
 - 1.2 Block types
-  - [x] 1.2.1 Paragraph. Evidence: `01_reveal`, `visual_01_reveal_*`
+  - [x] 1.2.1 Paragraph, with Shift+Enter breaking the line inside it (on a
+    heading Shift+Enter is Enter; a list item takes a continuation line and
+    no empty one, as `EditableBlock.qml` does). Evidence: `01_reveal`,
+    `visual_01_reveal_*`, `TestShiftEnterBreaksTheLineInsideTheBlock`
   - [x] 1.2.2 Headings 1–4. Evidence: `07_block_types`, `visual_07_types_01`. Heading 1's
     row is 1 px taller than Qt's (see "Differences" below)
   - [x] 1.2.3 To-do with check box, click and Ctrl+Enter to tick. Evidence: `07_block_types`,
@@ -51,7 +54,11 @@ kvit-ui-go's `platform` package for the tray.
     `TestLanguageMenuDeclaresAndOptsOut`, `TestTabStopsInCode`,
     `TestCodeFooterHint`, `TestCodeLongLinesDoNotWrap`,
     `TestCodeCaretScrollsIntoView`, `TestCodeBarDragScrolls`,
-    `TestPrintingWrapsCode`.
+    `TestPrintingWrapsCode`. A fence closes only on a line of its opener's
+    character alone, at least as long as the opener, with spaces around it,
+    and a closer carrying Kvit's older trailing tag still closes it (the Qt
+    parser's `isClosingFence`), so a line such as "``` | y |" is code:
+    `TestAFenceClosesOnlyOnALineOfFenceCharacters`.
   - [x] 1.2.8 Image and media: an image line drawn as its picture (beside the
     note, from the top of the vault, or from the site folder for a path
     starting with "/"), at its width, with its caption; the line shown for
@@ -60,7 +67,9 @@ kvit-ui-go's `platform` package for the tray.
     after the note; the effects (rounded with its radius, shadow, border with
     an optional colour) from the block menu, drawn as Kvit draws them; a click
     on a resolved picture opening it full-size over the note (Escape or a press
-    closing it). Evidence: `TestPicturesAreDrawn`, `TestAPictureFromOutsideIsCopiedIntoAssets`,
+    closing it); a picture centred unless its block is aligned left or right,
+    as `ImageBlock.qml` places it. Evidence: `TestPicturesAreDrawn`,
+    `TestANoteCentresItsPictures`, `TestAPictureFromOutsideIsCopiedIntoAssets`,
     `TestPictureFolders`, `TestImageEffectsRoundTrip`, `TestLightboxOpensAndCloses`,
     `TestBlockMenuHasExport`. Playing inline has no Go toolkit behind it, so a
     sound or video opens in the reader's player instead; see "Differences" below
@@ -474,7 +483,14 @@ kvit-ui-go's `platform` package for the tray.
 - [x] 10.1 The four themes. Evidence: `TestScenariosInTheOtherThemes`
 - [x] 10.2 Typography: family, base size, line height, block spacing, the
   maximum content width (centred) and the code family, from kvit-ui's
-  typography settings. Evidence: `TestSettingsChangeTheEditor`
+  typography settings. A paragraph's lines are the line height times the
+  font's own line height apart (its ascent and descent rounded up to a
+  pixel), as Qt's text document spaces a block of proportional line height:
+  22.1 px at 14 px and 1.3, 24 px at 20 px and 1.0. Evidence:
+  `TestSettingsChangeTheEditor`, `TestANoteSpacesLinesByTheFontsLineHeight`,
+  `25_typography` and `visual_25_settings_03_base_size_20`,
+  `visual_25_settings_04_max_width_500` (the wrapped paragraph's lines at
+  Kvit's rows)
 - [x] 10.3 Customisation: the settings dialog's Appearance (theme, accent and
   highlight colours, interface size, motion), Typography (with a list of the
   installed fonts beside the family field), General (the tray where there is
@@ -655,12 +671,14 @@ kvit-ui-go's `platform` package for the tray.
 
 ## Differences from Kvit's storyboard screenshots
 
-- **Text is about 7% narrower.** Kvit's screenshots were taken on Linux, where
-  Qt rounds each glyph's advance to a whole pixel; kvit-ui's text layer keeps
-  the font's own advances, as Qt does on Windows with DirectWrite. Lines wrap
-  at different words as a result.
-- **Heading 1's row is 1 px taller** (39 px of text at 30 px against Qt's
-  38), so every row below a Heading 1 sits 1 px lower.
+- **The scenarios run at the storyboards' typography**, 15 px at a line
+  height of 1.0 with 4 px between blocks (Kvit's settings page,
+  `visual_25_settings_02_typography_page`), where the app's defaults are
+  14 px and 1.3. At those settings text is as wide as Kvit's, and a row of
+  text starts within a pixel of Kvit's wherever none of the differences
+  below applies.
+- **Heading 1's row is 1 px taller**, so every row below a Heading 1 sits
+  1 px lower (`visual_01_reveal_01`).
 - **The note is narrower by the scroll bar's strip.** kvit-ui's region keeps
   its scroll bar in a strip of its own; Kvit's document draws its bar over the
   text.

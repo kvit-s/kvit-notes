@@ -61,9 +61,11 @@ rewritten for unison).
   scroll it; it takes the width it is given and is as tall as the note plus a
   third of the window.
 - **Line spacing follows Qt's text documents,** not Qt's labels: lines are
-  `size × line height` apart with the baseline at the font's ascent
+  the line height times the font's own line height (its ascent and descent
+  rounded up to a pixel) apart, with the baseline at the font's ascent
   (`text.Options.Pitch`), and each block's text height is rounded down to a
-  whole pixel, which is what keeps rows at Kvit's positions.
+  whole pixel, which is what keeps rows at Kvit's positions. The scenarios
+  run at the typography Kvit's storyboards were taken at, 15 px and 1.0.
 - **Screen readers see each block as an editable text** (a virtual child of
   the editor's node), and the keyboard focus is reported on the block with
   the caret (`FocusChild`). Text, lines and caret are in drawn offsets, so they

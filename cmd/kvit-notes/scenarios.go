@@ -27,6 +27,10 @@ import (
 const (
 	storyWidth  = 1100
 	storyHeight = 720
+	// storyBaseSize and storyLineHeight are the typography of Kvit's
+	// storyboards.
+	storyBaseSize   = 15
+	storyLineHeight = 1.0
 )
 
 // driver runs one note window on a headless screen.
@@ -50,6 +54,11 @@ func startDriver(md, theme string, width, height float32) (*driver, error) {
 		ui.Theme.SetThemeID(theme)
 	}
 	ui.Theme.SetReducedMotion(true)
+	// The typography Kvit's storyboards were taken at (their settings
+	// page, visual_25_settings_02_typography_page): 15 px at a line height
+	// of 1.0, with 4 px between blocks.
+	ui.Typography.SetBaseSize(storyBaseSize)
+	ui.Typography.SetLineHeight(storyLineHeight)
 	doc := editor.NewDoc(editor.ParseMarkdown(md))
 	// Typing merges into one undo step while keystrokes are under 500 ms
 	// apart; the scenarios' keystrokes arrive on a clock 100 ms apart.
@@ -587,6 +596,21 @@ var scenarios = []scenario{
 		dr.hoverRow(1)
 		dr.click(p, mod.None)
 		dr.expect(dr.caret().Block == dr.blockID(5), "the Settings entry should put the caret in its heading, it is in the block of id %d", dr.caret().Block)
+	}},
+	{"25_typography", "# Typography sample\n\nBody text with **bold**, ==highlight==, `inline code`, and a [link](https://kvit.example) to preview the scale\n\n## A section heading\n\n```\nmonospace = code()\n```\n", func(dr *driver) {
+		// Kvit's test_25 after its settings dialog: a larger base size
+		// scales the whole note, and a capped width wraps the paragraph.
+		dr.clearFocus()
+		dr.do(func() { dr.ui.Typography.SetBaseSize(20) })
+		dr.shot("visual_25_settings_03_base_size_20.png")
+		dr.do(func() { dr.ui.Typography.SetMaxContentWidth(500) })
+		dr.shot("visual_25_settings_04_max_width_500.png")
+		var first, last geom.Point
+		dr.do(func() {
+			first = dr.ed().TextPoint(1, 0)
+			last = dr.ed().TextPoint(1, len([]rune(dr.text(1))))
+		})
+		dr.expect(last.Y > first.Y, "at 500 px the paragraph should wrap: its first line at %v, its end at %v", first.Y, last.Y)
 	}},
 	{"31_code", "# Code highlighting\n\n```python\ndef greet(name):  # say hello\n    msg = f\"Hi {name}\"\n    return msg  # 42 done\n```\n\n```javascript\nconst nums = [1, 2, 3];  // a list\nfunction total(xs) { return xs.reduce((a, b) => a + b, 0); }\n```\n\n```cpp\n#include <vector>\nint main() {\n    std::vector<int> v = {1, 2};  /* init */\n    return 0;\n}\n```\n", func(dr *driver) {
 		dr.clearFocus()

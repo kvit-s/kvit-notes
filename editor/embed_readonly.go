@@ -77,7 +77,7 @@ func NewDocument(ui *kvitui.UI, o DocumentOptions) *Document {
 	e.Accessibility.Name = "Document"
 	e.LoadImage = o.Pictures.Loader()
 	e.Embed(Embedding{NoGutter: true, Margin: o.Margin, BlockSpacing: o.BlockSpacing, ReadOnlyLook: true,
-		CopyFragments: true, OpenPicture: o.OpenPicture, FontLineSpacing: true, CentredPictures: true})
+		CopyFragments: true, OpenPicture: o.OpenPicture})
 	d.Editor = e
 	if o.Scrolls {
 		d.region = kvitui.NewRegion(ui, e)

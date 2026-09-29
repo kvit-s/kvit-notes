@@ -202,7 +202,13 @@ func (e *Editor) handleKey(key unison.KeyCode, ctrl, shift, alt bool) bool {
 			d.Edit("fold", func() { b.Checked = !b.Checked })
 		}
 	case key == unison.KeyReturn && shift:
-		d.InsertText("\n")
+		// A line break inside the block where the block holds one; a
+		// heading, code and the source kinds take Enter's meaning.
+		if softBreaks(b.Kind) {
+			e.softBreak(b)
+		} else {
+			d.Enter()
+		}
 	case key == unison.KeyReturn:
 		d.Enter()
 	case key == unison.KeyBackspace:
@@ -243,6 +249,35 @@ func (e *Editor) handleKey(key unison.KeyCode, ctrl, shift, alt bool) bool {
 	}
 	e.afterStructural()
 	return true
+}
+
+// softBreak is Shift+Enter in a block that holds line breaks: a line break
+// at the caret, replacing any selection inside the block. A list item takes
+// no empty line, which would read back as a second block, so a break that
+// would make one is refused (EditableBlock.qml).
+func (e *Editor) softBreak(b *Block) {
+	d := e.Doc
+	d.Edit("insert", func() {
+		if d.HasSelection() {
+			d.deleteSelection()
+		}
+		b = d.CaretBlock()
+		r := runes(b.Text)
+		off := min(d.Caret.Off, len(r))
+		empty := off == 0 || r[off-1] == '\n' || off < len(r) && r[off] == '\n'
+		if b.Kind.IsList() && empty {
+			return
+		}
+		b.Text = string(r[:off]) + "\n" + string(r[off:])
+		d.SetCaret(b.ID, off+1)
+	})
+}
+
+// softBreaks reports whether Shift+Enter writes a line break inside a block
+// of kind k (EditableBlock.qml acceptsSoftBreak): a heading is one line, so
+// there Shift+Enter is Enter.
+func softBreaks(k Kind) bool {
+	return k == Paragraph || k == Quote || k == Callout || k.IsList()
 }
 
 // direction is -1 for Up and 1 for Down.

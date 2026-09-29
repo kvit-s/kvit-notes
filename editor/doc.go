@@ -306,9 +306,10 @@ func displayLine(s string) string {
 }
 
 // insert is InsertText and Paste. fences reads several lines opening a
-// fence as blocks; ingest runs the fence step over a code block pasted into.
-// Flat multi-line text becomes a paragraph per line, as Qt's in-block paste
-// does; a plain paste strips each line first.
+// fence as blocks; ingest, which only a paste asks for, runs the fence step
+// over a code block pasted into and makes flat multi-line text a paragraph
+// per line, as Qt's in-block paste does (a plain paste strips each line
+// first). Typed text with a line break stays in its block.
 func (d *Doc) insert(text string, fences, ingest bool) {
 	kind := "typing"
 	if d.HasSelection() || strings.Contains(text, "\n") || ingest && d.ingestChanges(text) {
@@ -330,7 +331,7 @@ func (d *Doc) insert(text string, fences, ingest bool) {
 			d.pasteBlocks(text)
 			return
 		}
-		if b.Kind.HasInline() && multi {
+		if b.Kind.HasInline() && multi && ingest {
 			if plain {
 				lines := strings.Split(text, "\n")
 				for i := range lines {

@@ -14,7 +14,6 @@ package editor
 import (
 	"slices"
 
-	"github.com/kvit-s/kvit-ui/text"
 	"github.com/richardwilkes/toolbox/v2/geom"
 	"github.com/richardwilkes/unison"
 )
@@ -62,18 +61,6 @@ type Embedding struct {
 	// clipboard as RangeMarkdown gives it: a partly selected block as a
 	// fragment whose inline markers are balanced, as Qt's copy does.
 	CopyFragments bool
-	// FontLineSpacing spaces a block's lines by the line height times the
-	// font's own line height (its ascent and descent, rounded up to a
-	// pixel), as Qt's text documents space a block whose line height is
-	// proportional: at 14 px DejaVu Sans and 1.3 that is 22.1 px. Without it
-	// lines are the line height times the font size apart, 18.2 px, which
-	// is how the note editor spaces them.
-	FontLineSpacing bool
-	// CentredPictures draws a picture in the middle of its row, or at its
-	// left or right when its block says align=left or align=right, as Qt's
-	// image block does (features.md 9.2). Without it a picture starts
-	// where the text does, which is how the note editor draws it.
-	CentredPictures bool
 	// Laid, when set, runs each time the rows have been measured again,
 	// for a host that places things over them (Qt's layoutTick). It may ask
 	// where things are, and must not change the editor.
@@ -84,8 +71,6 @@ type Embedding struct {
 type seams struct {
 	emb  *Embedding
 	deco *Decorations
-	// pitches are FontLineSpacing's line spacings, by font.
-	pitches map[pitchKey]float32
 	// relayoutPending is set while a re-measure asked for by a decoration
 	// waits for the next pass of the event loop.
 	relayoutPending bool
@@ -98,7 +83,6 @@ func (e *Editor) Embed(emb Embedding) {
 		e.seams = &seams{}
 	}
 	e.seams.emb = &emb
-	clear(e.seams.pitches)
 	e.laidWidth = 0
 	clear(e.layouts)
 	e.relayout()
@@ -146,52 +130,6 @@ func (e *Editor) embeddedGap() (float32, bool) {
 		return 0, false
 	}
 	return e.px(float32(e.seams.emb.BlockSpacing)), true
-}
-
-// pitchKey is what a font's natural line height depends on.
-type pitchKey struct {
-	family       string
-	size, weight float32
-	italic       bool
-}
-
-// fontPitch is FontLineSpacing's spacing of lines in style st, and false
-// when the embedding does not ask for it.
-func (e *Editor) fontPitch(st text.Style) (float32, bool) {
-	if !e.seams.framed() || !e.seams.emb.FontLineSpacing {
-		return 0, false
-	}
-	key := pitchKey{st.Family, st.Size, float32(st.Weight), st.Italic}
-	natural, ok := e.seams.pitches[key]
-	if !ok {
-		// One line at a line height of 1 is the font's ascent and descent
-		// rounded up to a pixel.
-		plain := st
-		plain.Rise, plain.Box = 0, text.Box{}
-		_, natural = e.ui.Fonts.Layout([]text.Span{{Text: " ", Style: plain}}, text.Options{}).Size()
-		if e.seams.pitches == nil {
-			e.seams.pitches = map[pitchKey]float32{}
-		}
-		e.seams.pitches[key] = natural
-	}
-	return natural * float32(e.ui.Typography.LineHeight()), true
-}
-
-// pictureShift is how far right of the text's start a picture w wide is
-// drawn in block i, whose text is textW wide: nothing for the note editor,
-// and for CentredPictures the middle unless the block is aligned left or
-// right.
-func (e *Editor) pictureShift(i int, textW, w float32) float32 {
-	if !e.seams.framed() || !e.seams.emb.CentredPictures {
-		return 0
-	}
-	switch a, _ := e.Doc.Blocks[i].Attr("align"); a {
-	case "left":
-		return 0
-	case "right":
-		return max(0, textW-w)
-	}
-	return max(0, (textW-w)/2)
 }
 
 // focusBarX is where the bar beside the caret's block is drawn: just past
@@ -321,10 +259,6 @@ func (e *Editor) embeddedKey(key unison.KeyCode, ctrl, shift, alt bool) bool {
 	if e.pictureHoldsKeyboard() {
 		return e.pictureKey(key, ctrl, shift, i)
 	}
-	if key == unison.KeyReturn && shift && !ctrl && softBreaks(b.Kind) {
-		e.softBreak(b)
-		return true
-	}
 	report := e.seams.emb.ReturnPressed
 	if report == nil || key != unison.KeyReturn {
 		return false
@@ -348,35 +282,6 @@ func (e *Editor) embeddedKey(key unison.KeyCode, ctrl, shift, alt bool) bool {
 	}
 	report(i)
 	return true
-}
-
-// softBreak is Shift+Enter in a block that holds line breaks: a line break
-// at the caret, replacing any selection inside the block. A list item takes
-// no empty line, which would read back as a second block, so a break that
-// would make one is refused (EditableBlock.qml).
-func (e *Editor) softBreak(b *Block) {
-	d := e.Doc
-	d.Edit("insert", func() {
-		if d.HasSelection() {
-			d.deleteSelection()
-		}
-		b = d.CaretBlock()
-		r := runes(b.Text)
-		off := min(d.Caret.Off, len(r))
-		empty := off == 0 || r[off-1] == '\n' || off < len(r) && r[off] == '\n'
-		if b.Kind.IsList() && empty {
-			return
-		}
-		b.Text = string(r[:off]) + "\n" + string(r[off:])
-		d.SetCaret(b.ID, off+1)
-	})
-}
-
-// softBreaks reports whether Shift+Enter writes a line break inside a block
-// of kind k (EditableBlock.qml acceptsSoftBreak): a heading is one line, so
-// there Shift+Enter is Enter.
-func softBreaks(k Kind) bool {
-	return k == Paragraph || k == Quote || k == Callout || k.IsList()
 }
 
 // pictureKey is a key pressed while a picture holds the keyboard: Backspace

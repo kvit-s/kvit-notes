@@ -331,7 +331,7 @@ func TestTwoDocumentsMarkTheirOwnText(t *testing.T) {
 
 // A read-only document spaces a paragraph's lines as Qt's text documents do:
 // the line height times the font's own line height, rather than times its
-// size as a note does.
+// size.
 func TestADocumentSpacesLinesByTheFontsLineHeight(t *testing.T) {
 	s, d := openDocument(t, DocumentOptions{}, accessNote, 0)
 	s.Do(func() {
@@ -355,20 +355,8 @@ func TestADocumentSpacesLinesByTheFontsLineHeight(t *testing.T) {
 	})
 }
 
-// A note keeps the spacing of lines it has always had.
-func TestANoteSpacesLinesByTheFontSize(t *testing.T) {
-	s, e := openEditor(t, accessNote)
-	s.Do(func() {
-		st := e.blockStyle(&e.Doc.Blocks[1])
-		if got, want := e.pitch(st), st.Size*float32(e.ui.Typography.LineHeight()); got != want {
-			t.Errorf("a note's lines are %v apart, want %v", got, want)
-		}
-	})
-}
-
 // A picture is drawn in the middle of its row unless its block is aligned
-// left or right, as Qt's image block draws it; a note's starts where its
-// text does.
+// left or right, as Qt's image block draws it.
 func TestADocumentCentresItsPictures(t *testing.T) {
 	root := t.TempDir()
 	writePicture(t, filepath.Join(root, "p.png"))
@@ -389,13 +377,6 @@ func TestADocumentCentresItsPictures(t *testing.T) {
 		}
 		if spots := d.PictureSpots(); spots[0].Rect.X != d.fromEditor(centre).X {
 			t.Errorf("the spot %v is not where the picture is drawn", spots[0].Rect)
-		}
-		// The same editor without the option draws it where the text starts.
-		emb, _ := e.Embedded()
-		emb.CentredPictures = false
-		e.Embed(emb)
-		if got := e.pictureRect(0).X; got != e.textOrigin(0).X {
-			t.Errorf("without centring the picture is at %v", got)
 		}
 	})
 }

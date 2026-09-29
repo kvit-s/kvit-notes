@@ -101,10 +101,7 @@ func NewCompact(ui *kvitui.UI, o CompactOptions) *Compact {
 	e.Accessibility.Name = o.Placeholder
 	e.LoadImage = o.Pictures.Loader()
 	e.PasteImage = o.PasteImage
-	// Lines spaced as the transcript's, since Qt's box is the same editor
-	// as its read-only document.
-	e.Embed(Embedding{NoGutter: true, Margin: o.Margin, HideImageLine: !o.ShowPictureLine, OpenPicture: o.OpenPicture,
-		FontLineSpacing: true})
+	e.Embed(Embedding{NoGutter: true, Margin: o.Margin, HideImageLine: !o.ShowPictureLine, OpenPicture: o.OpenPicture})
 	e.OnChange = c.changed
 	c.Editor = e
 	c.SetReturnSubmits(!o.EnterMakesBlocks)

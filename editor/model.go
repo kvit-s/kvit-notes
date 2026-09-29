@@ -125,8 +125,51 @@ var (
 	reNumbered = regexp.MustCompile(`^([ \t]*)\d+[.)] (.*)$`)
 	reQuote    = regexp.MustCompile(`^> ?(.*)$`)
 	reDivider  = regexp.MustCompile(`^(\*{3,}|-{3,}|_{3,})\s*$`)
-	reFence    = regexp.MustCompile("^(```+|~~~+)\\s*(\\S*)")
 )
+
+// fenceOpen reads a code fence's opening line as the Qt parser does
+// (DocumentSerializer's fenceLength): three or more backticks or tildes and
+// an info string. A backtick fence's info string cannot hold a backtick, so
+// such a line opens nothing; a tilde fence's may, and the backticks are
+// dropped. It answers the fence's character, its length and the info
+// string.
+func fenceOpen(line string) (ch byte, n int, info string, ok bool) {
+	if line == "" || (line[0] != '`' && line[0] != '~') {
+		return 0, 0, "", false
+	}
+	ch = line[0]
+	for n < len(line) && line[n] == ch {
+		n++
+	}
+	if n < 3 {
+		return 0, 0, "", false
+	}
+	info = strings.TrimSpace(line[n:])
+	if strings.Contains(info, "`") {
+		if ch == '`' {
+			return 0, 0, "", false
+		}
+		info = strings.TrimSpace(strings.ReplaceAll(info, "`", ""))
+	}
+	return ch, n, info, true
+}
+
+// fenceCloses reports whether a line closes a fence of n characters ch
+// (DocumentSerializer's isClosingFence): with the spaces around it taken
+// off, it is ch alone, at least n of it. A line that only starts with the
+// fence ("``` | y |") is the fence's content.
+func fenceCloses(line string, ch byte, n int) bool {
+	t := strings.TrimSpace(line)
+	if len(t) < n {
+		return false
+	}
+	for i := 0; i < len(t); i++ {
+		if t[i] != ch {
+			return false
+		}
+	}
+	return true
+}
 
 // reTag is Kvit's attribute tag at the end of a line
 // (src/content/blockattributes.cpp).
@@ -197,9 +240,15 @@ func indentOf(ws string) int {
 	return min(n/2, MaxIndent)
 }
 
+// opensFence reports whether a line opens a code fence.
+func opensFence(line string) bool {
+	_, _, _, ok := fenceOpen(line)
+	return ok
+}
+
 func startsBlock(line string) bool {
 	return reHeading.MatchString(line) || reBullet.MatchString(line) || reNumbered.MatchString(line) ||
-		reQuote.MatchString(line) || reDivider.MatchString(line) || reFence.MatchString(line) ||
+		reQuote.MatchString(line) || reDivider.MatchString(line) || opensFence(line) ||
 		strings.HasPrefix(line, "|") || strings.HasPrefix(line, "$$")
 }
 
@@ -232,20 +281,32 @@ func ParseMarkdown(src string) []Block {
 			i++
 			continue
 		}
-		if m := reFence.FindStringSubmatch(line); m != nil {
-			fence := m[1]
+		if ch, n, info, ok := fenceOpen(line); ok {
 			j := i + 1
-			for j < len(lines) && !strings.HasPrefix(strings.TrimSpace(lines[j]), fence) {
-				j++
+			for ; j < len(lines); j++ {
+				if fenceCloses(lines[j], ch, n) {
+					break
+				}
+				// Kvit once wrote a fence's tag after its closer, so a
+				// closer with a tag still closes, and gives the fence its
+				// tag when the opener has none; the tag on any other line
+				// is content.
+				if bare, legacy := stripTag(lines[j]); legacy != "" && fenceCloses(bare, ch, n) {
+					if attrs == "" {
+						attrs = legacy
+					}
+					break
+				}
 			}
 			b := NewBlock(Code, strings.Join(lines[i+1:min(j, len(lines))], "\n"))
-			b.Lang = m[2]
+			if words := strings.Fields(info); len(words) > 0 {
+				b.Lang = words[0]
+			}
 			b.Attrs = attrs
 			// A fence arriving from outside the note (a note opened,
 			// Markdown pasted) holding a character diagram is tagged and
 			// straightened, as in the Qt app's parse. Its whole info
 			// string decides, as there, though only its first word is kept.
-			info := strings.TrimSpace(line[len(fence):])
 			lang, text := textdiagram.Ingest(info, b.Text)
 			if lang != info {
 				b.Lang = lang

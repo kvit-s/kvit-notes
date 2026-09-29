@@ -284,6 +284,19 @@ func (e *Editor) pictureRect(i int) geom.Rect {
 	return geom.NewRect(o.X, o.Y, size.Width, size.Height)
 }
 
+// pictureShift is how far right of the text's start a picture w wide is
+// drawn in block i, whose text is textW wide: in the middle, unless the block
+// is aligned left or right (features.md 9.2; ImageBlock.qml, imageAlign).
+func (e *Editor) pictureShift(i int, textW, w float32) float32 {
+	switch a, _ := e.Doc.Blocks[i].Attr("align"); a {
+	case "left":
+		return 0
+	case "right":
+		return max(0, textW-w)
+	}
+	return max(0, (textW-w)/2)
+}
+
 // pictureHeight is the height an image block adds below its line: the
 // picture and its caption, and the gap above the picture when the line
 // shows.
