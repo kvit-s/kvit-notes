@@ -160,6 +160,9 @@ func (e *Editor) monoFamily() string {
 // pitch is how far apart the lines of a block's text are: its size times the
 // document's line height, as Qt's text document spaces them.
 func (e *Editor) pitch(st text.Style) float32 {
+	if p, ok := e.fontPitch(st); ok {
+		return p
+	}
 	return st.Size * float32(e.ui.Typography.LineHeight())
 }
 

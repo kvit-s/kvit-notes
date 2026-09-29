@@ -12,6 +12,9 @@ import (
 )
 
 func (e *Editor) keyDown(key unison.KeyCode, mods mod.Modifiers, _ bool) bool {
+	if e.yieldsKey() {
+		return false
+	}
 	used := e.handleKey(key, mods.OSMenuCommandDown(), mods.ShiftDown(), mods.OptionDown())
 	if used {
 		e.changed()
@@ -91,6 +94,10 @@ func (e *Editor) handleKey(key unison.KeyCode, ctrl, shift, alt bool) bool {
 		// Any other shortcut ends the seam caret and runs normally below.
 		e.dismissGap()
 	}
+	if e.embeddedKey(key, ctrl, shift, alt) {
+		e.afterStructural()
+		return true
+	}
 
 	// Shortcuts that act on the whole note.
 	switch {
@@ -146,7 +153,7 @@ func (e *Editor) handleKey(key unison.KeyCode, ctrl, shift, alt bool) bool {
 		return true
 	case ctrl && (key == unison.KeyC || key == unison.KeyX):
 		if d.HasSelection() {
-			e.copyMarkdown(d.SelectedMarkdown())
+			e.copyMarkdown(e.copiedSelection())
 			if key == unison.KeyX {
 				d.DeleteSelection()
 				e.afterStructural()
@@ -679,6 +686,9 @@ func (e *Editor) selectRange(from, to int64) {
 }
 
 func (e *Editor) runeTyped(ch rune) bool {
+	if used, stop := e.embeddedRune(); stop {
+		return used
+	}
 	if e.gapArmed >= 0 && !e.Doc.ReadOnly {
 		if ch >= 0x20 && ch != 0x7f {
 			e.gapInsert(string(ch))

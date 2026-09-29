@@ -193,6 +193,8 @@ type Editor struct {
 	blinkOff  bool      // the caret is in the off half of its blink
 	blinkFrom time.Time // when the caret last moved, which restarts the blink
 	blinking  bool
+
+	seams *seams // an embedding and decorations (seams.go), nil for a note
 }
 
 type cachedLayout struct {
@@ -397,6 +399,9 @@ func (e *Editor) bodyLeft() float32 {
 	if e.Printing {
 		return 0
 	}
+	if e.seams.noGutter() {
+		return e.side() + e.px(focusBar)
+	}
 	return e.side() + e.px(gutterWidth+focusBar)
 }
 
@@ -413,7 +418,7 @@ func (e *Editor) side() float32 {
 	if e.Printing {
 		return 0
 	}
-	s := e.px(pageMargin)
+	s := e.margin()
 	limit := float32(e.ui.Typography.MaxContentWidth())
 	if limit <= 0 && e.Centered {
 		limit = focusColumn
@@ -425,7 +430,12 @@ func (e *Editor) side() float32 {
 }
 
 // gap is the space between rows: the reader's block spacing.
-func (e *Editor) gap() float32 { return e.px(float32(e.ui.Typography.ParagraphSpacing())) }
+func (e *Editor) gap() float32 {
+	if g, ok := e.embeddedGap(); ok {
+		return g
+	}
+	return e.px(float32(e.ui.Typography.ParagraphSpacing()))
+}
 
 // textLeft is how far a block's text starts from the body's left edge.
 func (e *Editor) textLeft(b *Block) float32 {
@@ -603,12 +613,12 @@ func (e *Editor) measure() {
 	n := len(d.Blocks)
 	e.tops = e.tops[:0]
 	e.heights = e.heights[:0]
-	y := e.px(pageMargin)
+	y := e.margin()
 	for i := 0; i < n; i++ {
 		h := e.rowHeight(i)
 		e.tops = append(e.tops, y)
 		e.heights = append(e.heights, h)
-		y += h + e.gap()
+		y += h + e.measureDecorations(i) + e.gap()
 	}
 	e.pruneDiagrams()
 	// Forget the layouts of blocks that are gone.
@@ -635,6 +645,7 @@ func (e *Editor) measure() {
 			}
 		}
 	}
+	e.afterMeasure()
 }
 
 // total is the height of every row, with the space above the first.
@@ -643,13 +654,16 @@ func (e *Editor) total() float32 {
 		return 0
 	}
 	n := len(e.tops) - 1
-	return e.tops[n] + e.heights[n]
+	return e.tops[n] + e.heights[n] + e.decorationSpace(n)
 }
 
 // tail is the space below the last block, a third of the window, so the
 // last lines of a note can be read in the middle of the screen, and a press
 // there puts the caret at the end.
 func (e *Editor) tail() float32 {
+	if t, ok := e.embeddedTail(); ok {
+		return t
+	}
 	h := float32(600)
 	if w := e.Window(); w != nil {
 		h = w.ContentRect().Height
@@ -660,7 +674,7 @@ func (e *Editor) tail() float32 {
 func (e *Editor) sizes(hint geom.Size) (minSize, prefSize, maxSize geom.Size) {
 	w := hint.Width
 	if w <= 0 {
-		w = e.width()
+		w = e.fullWidth()
 	}
 	e.measureAt(w)
 	h := e.total() + e.tail()
@@ -672,6 +686,7 @@ const minWidth = 200
 
 // measureAt measures the rows at a width, unless they already were.
 func (e *Editor) measureAt(w float32) {
+	w -= e.marginColumn()
 	if w != e.laidWidth || len(e.tops) != len(e.Doc.Blocks) {
 		e.laidWidth = w
 		e.measure()

@@ -262,7 +262,7 @@ func (e *Editor) pictureBlock(i int) (ImageRef, bool, bool) {
 		// A line edited out of the image form shows as text.
 		return ImageRef{}, false, true
 	}
-	return ref, true, e.Doc.Focused && e.Doc.Caret.Block == b.ID
+	return ref, true, e.Doc.Focused && e.Doc.Caret.Block == b.ID && !e.seams.hidesImageLine()
 }
 
 // pictureRect is where an image block's picture or card is drawn, for the
@@ -275,6 +275,7 @@ func (e *Editor) pictureRect(i int) geom.Rect {
 	w := e.textWidth(&e.Doc.Blocks[i])
 	size := e.pictureSize(ref, w)
 	o := e.textOrigin(i)
+	o.X += e.pictureShift(i, w, size.Width)
 	if shows {
 		if l := e.layout(i); l != nil {
 			return geom.NewRect(o.X, o.Y+l.height()+e.px(pictureGap), size.Width, size.Height)
@@ -313,6 +314,7 @@ func (e *Editor) drawPicture(gc *unison.Canvas, i int, at geom.Point) {
 	t := e.tok()
 	w := e.textWidth(&e.Doc.Blocks[i])
 	size := e.pictureSize(ref, w)
+	at.X += e.pictureShift(i, w, size.Width)
 	r := geom.NewRect(at.X, at.Y, size.Width, size.Height)
 	if card, _, ok := e.embedCard(i); ok {
 		e.drawEmbed(gc, ref, card)

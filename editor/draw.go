@@ -66,6 +66,7 @@ func (e *Editor) draw(gc *unison.Canvas, dirty geom.Rect) {
 		}
 		e.drawRow(gc, i)
 	}
+	e.drawOver(gc, first, last)
 	e.drawGap(gc)
 	e.drawLightbox(gc)
 	if r, ok := e.caretRect(); ok && e.Focused() && !e.blinkOff && e.caretVisible(r) {
@@ -130,6 +131,9 @@ func (e *Editor) gapRect(g int, h float32) (geom.Rect, bool) {
 // its viewport, as Qt's clipped TextArea does, so a caret scrolled away
 // with the scrollbar is not drawn over the panel.
 func (e *Editor) caretVisible(r geom.Rect) bool {
+	if !e.showsCaret() {
+		return false
+	}
 	i := e.Doc.Index(e.Doc.Caret.Block)
 	if i < 0 || !e.codeNoWrap(&e.Doc.Blocks[i]) {
 		return true
@@ -156,13 +160,13 @@ func (e *Editor) drawRow(gc *unison.Canvas, i int) {
 	case e.blockSel[b.ID]:
 		e.fillRound(gc, body, radius, t.BlockSelectionTint)
 		e.stroke(gc, body, radius, e.px(1), t.Accent)
-	case e.hover == b.ID && !focused && e.drag == nil && e.msel == nil:
+	case e.hover == b.ID && !focused && e.drag == nil && e.msel == nil && !e.seams.readOnlyLook():
 		e.fillRound(gc, body, radius, t.BlockHoverTint)
 	}
-	if focused && !d.CrossBlock() {
-		e.fill(gc, geom.NewRect(e.side()+e.px(gutterWidth), e.tops[i], e.px(focusBar), e.heights[i]), t.FocusRing)
+	if focused && !d.CrossBlock() && !e.seams.readOnlyLook() {
+		e.fill(gc, geom.NewRect(e.focusBarX(), e.tops[i], e.px(focusBar), e.heights[i]), t.FocusRing)
 	}
-	if e.hover == b.ID && e.drag == nil && e.msel == nil && !d.ReadOnly {
+	if e.hover == b.ID && e.drag == nil && e.msel == nil && !d.ReadOnly && !e.seams.noGutter() {
 		e.drawGutter(gc, i)
 	}
 	switch b.Kind {
@@ -209,6 +213,7 @@ func (e *Editor) drawRow(gc *unison.Canvas, i int) {
 	case Bullet, Numbered, Todo:
 		e.drawMarker(gc, i)
 	}
+	e.drawSpansBehind(gc, i)
 	l := e.layout(i)
 	o := e.textOrigin(i)
 	if _, ok, shows := e.pictureBlock(i); ok {

@@ -184,6 +184,7 @@ func (e *Editor) layOut(b *Block, width float32, caret, selA, selB int) *blockLa
 			}
 		}
 	}
+	proj.colors = e.fenceColours(b, proj.colors)
 	if b.Kind == Todo && b.Checked {
 		fl = slices.Clone(fl)
 		for k := range fl {

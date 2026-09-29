@@ -133,6 +133,9 @@ type lightbox struct {
 // OpenLightbox opens a picture full-size, as a click on a resolved image
 // does (AppActions.requestLightbox).
 func (e *Editor) OpenLightbox(path, alt string) {
+	if e.openPictureElsewhere(path, alt) {
+		return
+	}
 	e.light = &lightbox{path: path, alt: alt}
 	e.touched()
 	e.changed()

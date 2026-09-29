@@ -35,6 +35,9 @@ type mouseSel struct {
 }
 
 func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Modifiers) bool {
+	if e.yieldsPress(where) {
+		return false
+	}
 	if e.light != nil {
 		// A press anywhere closes the full-size picture.
 		e.CloseLightbox()
@@ -553,7 +556,7 @@ func (e *Editor) partAt(where geom.Point) (int, gutterPart) {
 	if e.drag != nil && e.drag.active {
 		return -1, partNone
 	}
-	if i := e.Doc.Index(e.hover); i >= 0 && i < len(e.tops) {
+	if i := e.Doc.Index(e.hover); i >= 0 && i < len(e.tops) && !e.seams.noGutter() {
 		for _, g := range gutterControls {
 			if where.In(e.gutterCellRect(i, g.part)) {
 				return i, g.part
