@@ -120,8 +120,10 @@ packaging/build-all.sh   # the downloads for every platform into dist/ (--test t
 ~/kvit-ui-go/tools/check-all.sh   # ./build.sh --test in every Kvit Go repository
 ```
 
-The git hook in `.githooks/pre-commit` runs `./build.sh --test`
-(`git config core.hooksPath .githooks` enables it in a fresh clone).
+The git hook in `.githooks/pre-commit` checks the Go files a commit changes:
+`gofmt` on them and `go vet` on their packages, in a few seconds. It does
+not run the tests, so run `./build.sh --test` before committing work
+(`git config core.hooksPath .githooks` enables the hook in a fresh clone).
 
 - **Tests run headless** on `unison.StartHeadless`: the real event loop,
   drawing and screen-reader tree, with input injected. They never open a
