@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kvit-s/kvit-ui/platform"
 	"github.com/richardwilkes/toolbox/v2/geom"
 	"github.com/richardwilkes/toolbox/v2/uti"
 	"github.com/richardwilkes/unison"
@@ -192,6 +193,11 @@ func (s svgPicture) LogicalSize() geom.Size { return s.Size() }
 // is "", which leaves a paste to take the clipboard's text instead. Kvit
 // Works' message box passes its project's .kvit/pasted folder, "assets"
 // and "message".
+//
+// Under WSL a picture copied in Windows is not on unison's clipboard, so
+// Windows' clipboard is asked last. Found there, the paste is done before
+// the text is read, which is also the read that crashes WSLg's compositor
+// while it is still fetching the picture from Windows.
 func SavePastedPicture(dir, folder, slug string) (string, bool) {
 	if dir == "" {
 		return "", false
@@ -204,6 +210,11 @@ func SavePastedPicture(dir, folder, slug string) (string, bool) {
 		if len(data) == 0 {
 			continue
 		}
+		if stored, err := StorePicture(dir, folder, slug, data, time.Now()); err == nil {
+			return stored, true
+		}
+	}
+	if data, ok := platform.WindowsClipboardPicture(); ok {
 		if stored, err := StorePicture(dir, folder, slug, data, time.Now()); err == nil {
 			return stored, true
 		}

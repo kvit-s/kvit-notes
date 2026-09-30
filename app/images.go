@@ -24,6 +24,7 @@ import (
 	"unicode"
 
 	"github.com/kvit-s/kvit-notes/vault"
+	"github.com/kvit-s/kvit-ui/platform"
 	"github.com/richardwilkes/toolbox/v2/geom"
 	"github.com/richardwilkes/toolbox/v2/uti"
 	"github.com/richardwilkes/unison"
@@ -367,7 +368,8 @@ func safeSegment(value, fallback string) string {
 // pasteImage saves a picture on the clipboard into the vault and reports
 // its stored path, as the AssetStore::ingestClipboardImage does. It
 // reports false when the clipboard holds no picture, leaving the text paste
-// path to run instead.
+// path to run instead. Under WSL a picture copied in Windows is not on
+// unison's clipboard, so Windows' clipboard is asked last.
 func (w *Window) pasteImage() (string, bool) {
 	for _, dt := range []*uti.DataType{uti.PNG, uti.JPEG, uti.GIF, uti.WEBP, uti.BMP, uti.TIFF} {
 		if !unison.ClipboardHasDataType(dt) {
@@ -396,6 +398,15 @@ func (w *Window) pasteImage() (string, bool) {
 			if stored, err := w.ingestImageBytes(data, uti.PNG, note); err == nil {
 				return stored, true
 			}
+		}
+	}
+	if data, ok := platform.WindowsClipboardPicture(); ok {
+		note := ""
+		if w.open != nil {
+			note = w.open.Path
+		}
+		if stored, err := w.ingestImageBytes(data, uti.PNG, note); err == nil {
+			return stored, true
 		}
 	}
 	return "", false
