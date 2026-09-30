@@ -4,6 +4,7 @@ package editor
 // block selection and the / menu take.
 
 import (
+	"runtime"
 	"slices"
 	"strings"
 
@@ -211,8 +212,12 @@ func (e *Editor) handleKey(key unison.KeyCode, ctrl, shift, alt bool) bool {
 		}
 	case key == unison.KeyReturn:
 		d.Enter()
+	case key == unison.KeyBackspace && deletesWord(ctrl, alt):
+		d.DeleteWordBack()
 	case key == unison.KeyBackspace:
 		d.Backspace()
+	case key == unison.KeyDelete && deletesWord(ctrl, alt):
+		d.DeleteWordForward()
 	case key == unison.KeyDelete:
 		d.DeleteForward()
 	case key == unison.KeyTab:
@@ -407,6 +412,20 @@ func (e *Editor) indentCodeLines(outdent bool) {
 	})
 	e.RequestFocus()
 	e.touched()
+}
+
+// optionDeletesWord is whether Option, rather than Ctrl, makes Backspace and
+// Delete take a word, as on macOS. The tests set it.
+var optionDeletesWord = runtime.GOOS == "darwin"
+
+// deletesWord reports whether Backspace or Delete with these modifiers takes
+// a word: Ctrl on Windows and Linux, Option on macOS (where ctrl is
+// Command). AltGr, which arrives as Ctrl with Alt, does not.
+func deletesWord(ctrl, alt bool) bool {
+	if optionDeletesWord {
+		return alt && !ctrl
+	}
+	return ctrl && !alt
 }
 
 // moveKey moves the caret. Within a block it follows the drawn layout; at a

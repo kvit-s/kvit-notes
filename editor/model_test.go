@@ -958,3 +958,52 @@ func TestLinkMenuItems(t *testing.T) {
 		}
 	})
 }
+
+// DeleteWordBack and DeleteWordForward take what Ctrl+Shift+Left and
+// Ctrl+Shift+Right would select; with a selection, or at a block's edge,
+// they are Backspace and Delete. Each is one undo step.
+func TestDeleteWordBackAndForward(t *testing.T) {
+	d := newTestDoc("hello, big world")
+	id := d.Blocks[0].ID
+	d.SetCaret(id, len("hello, big world"))
+	for _, want := range []string{"hello, big ", "hello, ", ""} {
+		d.DeleteWordBack()
+		if got := d.Blocks[0].Text; got != want || d.Caret.Off != len(want) {
+			t.Fatalf("back: %q with the caret at %d, want %q", got, d.Caret.Off, want)
+		}
+	}
+	d.Undo()
+	if got := d.Blocks[0].Text; got != "hello, " {
+		t.Fatalf("undo gives back one word: %q", got)
+	}
+
+	d = newTestDoc("hello, big world")
+	d.SetCaret(d.Blocks[0].ID, 0)
+	for _, want := range []string{", big world", " world", ""} {
+		d.DeleteWordForward()
+		if got := d.Blocks[0].Text; got != want || d.Caret.Off != 0 {
+			t.Fatalf("forward: %q with the caret at %d, want %q", got, d.Caret.Off, want)
+		}
+	}
+
+	d = newTestDoc("one\n\ntwo words")
+	d.SetCaret(d.Blocks[1].ID, 0)
+	d.DeleteWordBack()
+	if got := texts(d); got != "Paragraph:onetwo words" || d.Caret.Off != 3 {
+		t.Fatalf("at a block's start it merges: %s, caret %d", got, d.Caret.Off)
+	}
+	d = newTestDoc("one\n\ntwo")
+	d.SetCaret(d.Blocks[0].ID, 3)
+	d.DeleteWordForward()
+	if got := texts(d); got != "Paragraph:onetwo" {
+		t.Fatalf("at a block's end it pulls the next in: %s", got)
+	}
+
+	d = newTestDoc("hello world")
+	d.Anchor = Pos{d.Blocks[0].ID, 0}
+	d.Caret = Pos{d.Blocks[0].ID, 2}
+	d.DeleteWordBack()
+	if got := d.Blocks[0].Text; got != "llo world" {
+		t.Fatalf("a selection is deleted as it is: %q", got)
+	}
+}

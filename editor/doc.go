@@ -640,6 +640,41 @@ func (d *Doc) DeleteForward() {
 	}
 }
 
+// DeleteWordBack deletes what Ctrl+Shift+Left would select: back to the
+// start of the word before the caret, with the spaces and punctuation
+// between. With a selection, or at the start of a block, it is Backspace.
+func (d *Doc) DeleteWordBack() {
+	i := d.Index(d.Caret.Block)
+	if d.HasSelection() || d.Caret.Off == 0 || i < 0 {
+		d.Backspace()
+		return
+	}
+	b := &d.Blocks[i]
+	r := runes(b.Text)
+	to := min(d.Caret.Off, len(r))
+	from := wordLeft(r, to)
+	d.Edit("delete word", func() {
+		b.Text = string(r[:from]) + string(r[to:])
+		d.SetCaret(b.ID, from)
+	})
+}
+
+// DeleteWordForward deletes what Ctrl+Shift+Right would select. With a
+// selection, or at the end of a block, it is Delete.
+func (d *Doc) DeleteWordForward() {
+	i := d.Index(d.Caret.Block)
+	if d.HasSelection() || i < 0 || d.Caret.Off >= len(runes(d.Blocks[i].Text)) {
+		d.DeleteForward()
+		return
+	}
+	b := &d.Blocks[i]
+	r := runes(b.Text)
+	to := wordRight(r, d.Caret.Off)
+	d.Edit("delete word", func() {
+		b.Text = string(r[:d.Caret.Off]) + string(r[to:])
+	})
+}
+
 // continuation is the kind a new block takes after Enter in a block of kind k.
 func continuation(k Kind) Kind {
 	if k.IsList() || k == Quote {

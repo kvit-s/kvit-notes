@@ -401,3 +401,37 @@ func TestCodeFooterHint(t *testing.T) {
 		t.Errorf("the footer should name Ctrl+Enter with the caret in it: %d bytes differ", diff)
 	}
 }
+
+// Ctrl+Backspace and Ctrl+Delete take a word and plain Backspace one
+// character; on macOS Option takes the word.
+func TestCtrlBackspaceAndDeleteTakeAWord(t *testing.T) {
+	s, e := openEditor(t, "hello big world\n")
+	text := func() (got string) {
+		s.Do(func() { got = e.Doc.Blocks[0].Text })
+		return got
+	}
+	s.Do(func() { e.FocusBlock(0, len("hello big world")) })
+	s.Sync()
+	s.Screen.KeyPress(unison.KeyBackspace, mod.Control)
+	if got := text(); got != "hello big " {
+		t.Errorf("Ctrl+Backspace left %q", got)
+	}
+	s.Screen.KeyPress(unison.KeyBackspace, mod.None)
+	if got := text(); got != "hello big" {
+		t.Errorf("Backspace left %q", got)
+	}
+	s.Do(func() { e.FocusBlock(0, 0) })
+	s.Screen.KeyPress(unison.KeyDelete, mod.Control)
+	if got := text(); got != " big" {
+		t.Errorf("Ctrl+Delete left %q", got)
+	}
+	s.Do(func() {
+		optionDeletesWord = true
+		e.FocusBlock(0, len(" big"))
+	})
+	defer s.Do(func() { optionDeletesWord = false })
+	s.Screen.KeyPress(unison.KeyBackspace, mod.Option)
+	if got := text(); got != " " {
+		t.Errorf("Option+Backspace on macOS left %q", got)
+	}
+}
