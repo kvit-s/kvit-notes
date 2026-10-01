@@ -63,7 +63,7 @@ Formula::Formula(const TeXParser& tp, const wstring& latex, bool preprocess)
     try {
       _parser.parse();
     } catch (exception& e) {
-      // Local fix (kvit-notes-go): an empty atom when the error is
+      // Local fix (kvit-notes): an empty atom when the error is
       // swallowed, as the two constructors above leave. Without it the
       // style commands built on this one, \displaystyle{a & b} for one,
       // took the missing atom's type and crashed the program.

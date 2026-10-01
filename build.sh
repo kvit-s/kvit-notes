@@ -29,7 +29,7 @@
 # build is what gets shipped.
 #
 # Everything builds with cgo off. KVIT_WIN_DIR overrides where Windows builds go
-# (default /mnt/d/projects/kvit-notes-go). KVIT_BENCH_VAULT is the notes folder
+# (default /mnt/d/projects/kvit-notes). KVIT_BENCH_VAULT is the notes folder
 # --bench reads, holding features.md, block-arch.md, selection.md, devel.md and
 # accessibility.md from the tag v1.0.0; it has no default, and --bench stops without it.
 set -euo pipefail
@@ -112,7 +112,7 @@ if [ $cross = 1 ]; then
 fi
 
 if [ $win = 1 ]; then
-    dest=${KVIT_WIN_DIR:-/mnt/d/projects/kvit-notes-go}
+    dest=${KVIT_WIN_DIR:-/mnt/d/projects/kvit-notes}
     mkdir -p "$dest"
     GOOS=windows GOARCH=amd64 go build -o "$dest/kvit-notes.exe" ./cmd/kvit-notes
     tools/build-mathlib.sh windows/amd64 "$dest/kvitmath.dll"

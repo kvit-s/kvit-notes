@@ -833,7 +833,7 @@ public:
 
   StyleAtom(TexStyle style, const sptr<Atom>& a) {
     _style = style;
-    // Local fix (kvit-notes-go): a style command with nothing to style is
+    // Local fix (kvit-notes): a style command with nothing to style is
     // an empty atom rather than a read of a missing one.
     _at = a != nullptr ? a : sptrOf<EmptyAtom>();
     _type = _at->_type;

@@ -2335,7 +2335,7 @@ static FILE* callfopen( const char* filepath, const char* mode )
     TIXMLASSERT( filepath );
     TIXMLASSERT( mode );
 #if defined(_WIN32)
-    // Local fix (kvit-notes-go): fopen reads a path in the system's ANSI code
+    // Local fix (kvit-notes): fopen reads a path in the system's ANSI code
     // page, so on Windows a resource folder whose path is not plain ASCII (a
     // user folder named in Cyrillic, say) could not be opened, and MicroTeX
     // dropped Greek and Cyrillic text without an error. Paths arrive as UTF-8
