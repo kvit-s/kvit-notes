@@ -179,9 +179,9 @@ func midRunes(rs []rune, pos, n int) []rune {
 	return rs[pos : pos+n]
 }
 
-// qtToInt reads a decimal int32 with an optional sign, white space allowed
+// parseInt32 reads a decimal int32 with an optional sign, white space allowed
 // around it.
-func qtToInt(s string) (int, bool) {
+func parseInt32(s string) (int, bool) {
 	s = trimSpace(s)
 	digits := s
 	if digits != "" && (digits[0] == '+' || digits[0] == '-') {
@@ -202,11 +202,11 @@ func qtToInt(s string) (int, bool) {
 	return int(v), true
 }
 
-// qtToDouble reads a decimal number with a point, an optional sign and
+// parseNumber reads a decimal number with a point, an optional sign and
 // exponent, or nan, inf, +inf or -inf in any case, white space allowed
 // around it. A value too large, or too small to be anything but zero, is
 // refused.
-func qtToDouble(s string) (float64, bool) {
+func parseNumber(s string) (float64, bool) {
 	s = trimSpace(s)
 	switch {
 	case strings.EqualFold(s, "nan"):

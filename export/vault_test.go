@@ -191,16 +191,16 @@ func TestUnsafePlansAreRefused(t *testing.T) {
 		e      VaultExport
 		reason string
 	}{
-		{"testMarkdownExportIntoTheVaultLeavesSourcesByteIdentical",
+		{"MarkdownExportIntoTheVaultLeavesSourcesByteIdentical",
 			VaultExport{Root: root, Notes: notes, Dest: root, Format: FormatMarkdown},
 			"Markdown export writes note bodies without their metadata"},
-		{"testMarkdownExportIntoASubfolderOfTheVaultIsRefused",
+		{"MarkdownExportIntoASubfolderOfTheVaultIsRefused",
 			VaultExport{Root: root, Notes: notes, Dest: inside, Format: FormatMarkdown},
 			"cannot write inside the collection itself"},
-		{"testCombinedExportOntoASourceIsRefused",
+		{"CombinedExportOntoASourceIsRefused",
 			VaultExport{Root: root, Notes: notes, Dest: root, Format: FormatMarkdown, SingleFile: true},
 			"Exporting there would overwrite one of your notes."},
-		{"testCollidingOutputsAreRefused",
+		{"CollidingOutputsAreRefused",
 			VaultExport{Root: root, Notes: []VaultNote{notes[1], notes[1]}, Dest: t.TempDir(), Format: FormatHTML},
 			"Two notes in this export would be written to the same file"},
 		{"nothing to export", VaultExport{Root: root, Dest: t.TempDir(), Format: FormatHTML}, "There is nothing to export."},

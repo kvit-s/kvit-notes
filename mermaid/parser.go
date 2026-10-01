@@ -75,7 +75,7 @@ func ParseStyleDeclarations(def *ClassDef, styles string) {
 				def.HasStroke = true
 			}
 		case "stroke-width":
-			if w, ok := qtToDouble(strings.ReplaceAll(val, "px", "")); ok {
+			if w, ok := parseNumber(strings.ReplaceAll(val, "px", "")); ok {
 				def.StrokeWidth = w
 			}
 		case "stroke-dasharray":
@@ -289,8 +289,8 @@ func parsePosEntries(line, trimmed, comment []rune, lineOffset, lineNo int, resu
 		if len(nums) != 2 && len(nums) != 4 {
 			continue
 		}
-		x, okX := qtToDouble(nums[0])
-		y, okY := qtToDouble(nums[1])
+		x, okX := parseNumber(nums[0])
+		y, okY := parseNumber(nums[1])
 		if !okX || !okY {
 			continue
 		}

@@ -10,42 +10,42 @@ import (
 // htmlMDCases compare the whole result of a conversion, one row per input,
 // each named after what it checks.
 var htmlMDCases = []struct{ name, html, want string }{
-	{"testHeadings/h1", "<h1>Title</h1>", "# Title"},
-	{"testHeadings/h2", "<h2>Section</h2>", "## Section"},
-	{"testHeadings/h3", "<h3>Sub</h3>", "### Sub"},
-	{"testHeadings/h6", "<h6>Deep</h6>", "###### Deep"},
-	{"testInlineEmphasis/b", "<p><b>bold</b></p>", "**bold**"},
-	{"testInlineEmphasis/strong", "<p><strong>bold</strong></p>", "**bold**"},
-	{"testInlineEmphasis/i", "<p><i>it</i></p>", "*it*"},
-	{"testInlineEmphasis/em", "<p><em>it</em></p>", "*it*"},
-	{"testInlineEmphasis/s", "<p><s>gone</s></p>", "~~gone~~"},
-	{"testInlineEmphasis/spaces outside", "<p>a <b>b</b> c</p>", "a **b** c"},
-	{"testInlineCodeAndPre/code", "<p>run <code>ls -l</code> now</p>", "run `ls -l` now"},
-	{"testLinks/plain", `<p><a href="https://example.com">site</a></p>`, "[site](https://example.com)"},
-	{"testLinks/bold link", `<p><a href="https://e.com"><b>bold link</b></a></p>`, "[**bold link**](https://e.com)"},
-	{"testUnorderedList", "<ul><li>one</li><li>two</li></ul>", "- one\n\n- two"},
-	{"testBlockquote", "<blockquote>quoted</blockquote>", "> quoted"},
-	{"testParagraphSeparation/two", "<p>one</p><p>two</p>", "one\n\ntwo"},
-	{"testParagraphSeparation/empty", "<p>one</p><p></p><p></p><p>two</p>", "one\n\ntwo"},
-	{"testEntitiesDecode", "<p>a &amp; b &lt; c</p>", "a & b < c"},
-	{"testEmptyAndPlainInput/empty", "", ""},
-	{"testEmptyAndPlainInput/blank", "   ", ""},
-	{"testEmptyAndPlainInput/text", "just text", "just text"},
-	{"testMarkdownCharactersInTextAreEscaped/stars", "<p>2 * 3 * 4</p>", `2 \* 3 \* 4`},
-	{"testMarkdownCharactersInTextAreEscaped/underscores", "<p>a_b_c</p>", `a\_b\_c`},
-	{"testBlockLeadingConstructsAreEscaped/heading", "<p># literal heading</p>", `\# literal heading`},
-	{"testBlockLeadingConstructsAreEscaped/hash tag", "<p>#tag</p>", `\#tag`},
-	{"testBlockLeadingConstructsAreEscaped/dash list", "<p>- literal</p>", `\- literal`},
-	{"testBlockLeadingConstructsAreEscaped/plus list", "<p>+ literal</p>", `\+ literal`},
-	{"testBlockLeadingConstructsAreEscaped/quote", "<p>&gt; not a quote</p>", `\> not a quote`},
-	{"testBlockLeadingConstructsAreEscaped/divider", "<p>---</p>", `\---`},
-	{"testBlockLeadingConstructsAreEscaped/pipe row", "<p>| a | b |</p>", `\| a | b |`},
-	{"testBlockLeadingConstructsAreEscaped/inside list item", "<ul><li># literal</li></ul>", `- \# literal`},
-	{"testBlockLeadingConstructsAreEscaped/inside quote", "<blockquote># literal</blockquote>", `> \# literal`},
-	{"testBlockLeadingConstructsAreEscaped/mid-paragraph hash", "<p>issue #42</p>", "issue #42"},
-	{"testMultiLinePreIsOneFence/blank line", "<pre>one\n\nthree</pre>", "```\none\n\nthree\n```"},
-	{"testMultiLinePreIsOneFence/mixed", "<p>before</p><pre>a\nb</pre><p>after</p>", "before\n\n```\na\nb\n```\n\nafter"},
-	{"testMultiLinePreIsOneFence/sans pre", "<pre style=\"font-family: Arial\">a\nb</pre>", "```\na\nb\n```"},
+	{"Headings/h1", "<h1>Title</h1>", "# Title"},
+	{"Headings/h2", "<h2>Section</h2>", "## Section"},
+	{"Headings/h3", "<h3>Sub</h3>", "### Sub"},
+	{"Headings/h6", "<h6>Deep</h6>", "###### Deep"},
+	{"InlineEmphasis/b", "<p><b>bold</b></p>", "**bold**"},
+	{"InlineEmphasis/strong", "<p><strong>bold</strong></p>", "**bold**"},
+	{"InlineEmphasis/i", "<p><i>it</i></p>", "*it*"},
+	{"InlineEmphasis/em", "<p><em>it</em></p>", "*it*"},
+	{"InlineEmphasis/s", "<p><s>gone</s></p>", "~~gone~~"},
+	{"InlineEmphasis/spaces outside", "<p>a <b>b</b> c</p>", "a **b** c"},
+	{"InlineCodeAndPre/code", "<p>run <code>ls -l</code> now</p>", "run `ls -l` now"},
+	{"Links/plain", `<p><a href="https://example.com">site</a></p>`, "[site](https://example.com)"},
+	{"Links/bold link", `<p><a href="https://e.com"><b>bold link</b></a></p>`, "[**bold link**](https://e.com)"},
+	{"UnorderedList", "<ul><li>one</li><li>two</li></ul>", "- one\n\n- two"},
+	{"Blockquote", "<blockquote>quoted</blockquote>", "> quoted"},
+	{"ParagraphSeparation/two", "<p>one</p><p>two</p>", "one\n\ntwo"},
+	{"ParagraphSeparation/empty", "<p>one</p><p></p><p></p><p>two</p>", "one\n\ntwo"},
+	{"EntitiesDecode", "<p>a &amp; b &lt; c</p>", "a & b < c"},
+	{"EmptyAndPlainInput/empty", "", ""},
+	{"EmptyAndPlainInput/blank", "   ", ""},
+	{"EmptyAndPlainInput/text", "just text", "just text"},
+	{"MarkdownCharactersInTextAreEscaped/stars", "<p>2 * 3 * 4</p>", `2 \* 3 \* 4`},
+	{"MarkdownCharactersInTextAreEscaped/underscores", "<p>a_b_c</p>", `a\_b\_c`},
+	{"BlockLeadingConstructsAreEscaped/heading", "<p># literal heading</p>", `\# literal heading`},
+	{"BlockLeadingConstructsAreEscaped/hash tag", "<p>#tag</p>", `\#tag`},
+	{"BlockLeadingConstructsAreEscaped/dash list", "<p>- literal</p>", `\- literal`},
+	{"BlockLeadingConstructsAreEscaped/plus list", "<p>+ literal</p>", `\+ literal`},
+	{"BlockLeadingConstructsAreEscaped/quote", "<p>&gt; not a quote</p>", `\> not a quote`},
+	{"BlockLeadingConstructsAreEscaped/divider", "<p>---</p>", `\---`},
+	{"BlockLeadingConstructsAreEscaped/pipe row", "<p>| a | b |</p>", `\| a | b |`},
+	{"BlockLeadingConstructsAreEscaped/inside list item", "<ul><li># literal</li></ul>", `- \# literal`},
+	{"BlockLeadingConstructsAreEscaped/inside quote", "<blockquote># literal</blockquote>", `> \# literal`},
+	{"BlockLeadingConstructsAreEscaped/mid-paragraph hash", "<p>issue #42</p>", "issue #42"},
+	{"MultiLinePreIsOneFence/blank line", "<pre>one\n\nthree</pre>", "```\none\n\nthree\n```"},
+	{"MultiLinePreIsOneFence/mixed", "<p>before</p><pre>a\nb</pre><p>after</p>", "before\n\n```\na\nb\n```\n\nafter"},
+	{"MultiLinePreIsOneFence/sans pre", "<pre style=\"font-family: Arial\">a\nb</pre>", "```\na\nb\n```"},
 }
 
 func TestHTMLToMarkdown(t *testing.T) {
@@ -60,25 +60,25 @@ func TestHTMLToMarkdown(t *testing.T) {
 func TestHTMLToMarkdownParts(t *testing.T) {
 	fenced := HTMLToMarkdown("<pre>int main() {}</pre>")
 	if !strings.HasPrefix(fenced, "```") || !strings.Contains(fenced, "int main() {}") || !strings.HasSuffix(fenced, "```") {
-		t.Errorf("testInlineCodeAndPre: %q", fenced)
+		t.Errorf("inline code and pre: %q", fenced)
 	}
 	ordered := HTMLToMarkdown("<ol><li>one</li><li>two</li></ol>")
 	if !strings.Contains(ordered, "1. one") || !strings.Contains(ordered, "2. two") {
-		t.Errorf("testOrderedList: %q", ordered)
+		t.Errorf("ordered list: %q", ordered)
 	}
 	nested := HTMLToMarkdown("<ul><li>outer</li><ul><li>inner</li></ul></ul>")
 	if !strings.Contains(nested, "- outer") || !strings.Contains(nested, "  - inner") {
-		t.Errorf("testNestedList: %q", nested)
+		t.Errorf("nested list: %q", nested)
 	}
 	table := HTMLToMarkdown("<table><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></table>")
 	for _, w := range []string{"| A | B |", "| --- | --- |", "| 1 | 2 |"} {
 		if !strings.Contains(table, w) {
-			t.Errorf("testTable: %q lacks %q", table, w)
+			t.Errorf("table: %q lacks %q", table, w)
 		}
 	}
 	codeSpan := HTMLToMarkdown("<p><code>inline_code_run</code></p>")
 	if !strings.Contains(codeSpan, "`") {
-		t.Errorf("testMultiLinePreIsOneFence code span: %q", codeSpan)
+		t.Errorf("a multi-line pre as one fence, code span: %q", codeSpan)
 	}
 }
 
@@ -185,7 +185,7 @@ func TestImagesBecomeMarkdownImages(t *testing.T) {
 // check: a <br> is a line separator inside the paragraph,
 // whitespace between elements makes no paragraph, and a list's items are
 // numbered within it.
-func TestHTMLToMarkdownReadsLikeQTextDocument(t *testing.T) {
+func TestHTMLToMarkdownSplitsBlocks(t *testing.T) {
 	cases := []struct{ html, want string }{
 		{"<p>a<br>b</p>", "a\u2028b"},
 		{"<ul>\n  <li>one</li>\n  <li>two</li>\n</ul>", "- one\n\n- two"},

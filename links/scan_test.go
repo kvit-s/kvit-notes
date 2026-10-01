@@ -83,7 +83,7 @@ func TestScanSkipsMathAndKeepsEmbedsAsLinks(t *testing.T) {
 
 // Targets keep their heading, lose their alias, repeat, and are not found
 // in code, math or after a backslash.
-func TestTargetsAsTheQtAppExtractsThem(t *testing.T) {
+func TestTargetsKeepTheirHeadingAndDropTheirAlias(t *testing.T) {
 	cases := []struct {
 		body string
 		want []string

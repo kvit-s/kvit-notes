@@ -46,7 +46,7 @@ func TestPathMatchesTarget(t *testing.T) {
 	}
 }
 
-func TestResolveAsTheQtAppDoes(t *testing.T) {
+func TestResolveFindsTheNoteALinkNames(t *testing.T) {
 	ix := NewIndex(fixture)
 	cases := map[string]string{
 		// Bare basename, any case, ".md" implied.

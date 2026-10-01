@@ -235,13 +235,13 @@ func asciiEqualFold(s, word string) bool {
 	return true
 }
 
-// qtToLower lowercases s. It differs from strings.ToLower in one character:
+// toLower lowercases s. It differs from strings.ToLower in one character:
 // it lowercases U+0130 (capital I with dot above) to "i" followed by U+0307
 // (combining dot above), where Go gives a plain "i".
-func qtToLower(s string) string {
+func toLower(s string) string {
 	for i := 0; i < len(s); i++ {
 		if s[i] >= utf8.RuneSelf {
-			return qtToLowerUnicode(s)
+			return toLowerUnicode(s)
 		}
 	}
 	lower := []byte(s)
@@ -251,7 +251,7 @@ func qtToLower(s string) string {
 	return string(lower)
 }
 
-func qtToLowerUnicode(s string) string {
+func toLowerUnicode(s string) string {
 	out := make([]rune, 0, len(s))
 	for _, r := range s {
 		if r == 0x0130 {

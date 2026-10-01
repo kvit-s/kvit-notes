@@ -422,7 +422,7 @@ var typedCases = []struct{ text, kind, detail string }{
 	{"inff", "text", ""},
 }
 
-func TestTypedValuesMatchQt(t *testing.T) {
+func TestTextsReadAsDatesNumbersOrText(t *testing.T) {
 	for _, c := range typedCases {
 		v := typedFromString(c.text, true)
 		switch c.kind {
@@ -476,7 +476,7 @@ func TestTypedValuesMatchQt(t *testing.T) {
 	}
 }
 
-func TestCompareFoldMatchesQt(t *testing.T) {
+func TestCompareAndContainsFoldCase(t *testing.T) {
 	cases := []struct {
 		a, b     string
 		cmp      int
@@ -518,8 +518,8 @@ func TestCompareFoldMatchesQt(t *testing.T) {
 	if !hasPrefixFold("ſub/x", "SUB/") {
 		t.Error("hasPrefixFold does not fold long s")
 	}
-	if got := qtToLower("İX"); got != "i̇x" {
-		t.Errorf("qtToLower = %q", got)
+	if got := toLower("İX"); got != "i̇x" {
+		t.Errorf("toLower = %q", got)
 	}
 }
 

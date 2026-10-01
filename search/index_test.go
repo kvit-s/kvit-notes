@@ -675,7 +675,7 @@ func TestFiltersCompose(t *testing.T) {
 // Results come in the order of their paths' UTF-16 code units, where a
 // character beyond the Basic Multilingual Plane sorts before one from U+E000
 // up.
-func TestResultsAreInQtPathOrder(t *testing.T) {
+func TestResultsAreInUTF16PathOrder(t *testing.T) {
 	want := []string{"A.md", "B.md", "a.md", "é.md", "😀.md", "Ａ.md"}
 	shuffled := slices.Clone(want)
 	rand.New(rand.NewPCG(1, 2)).Shuffle(len(shuffled), func(i, j int) {

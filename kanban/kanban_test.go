@@ -263,10 +263,10 @@ func TestLiteralHashesRoundTripThroughTheEscape(t *testing.T) {
 }
 
 // Parse(x).Serialize() == x for arbitrary content, and every unmodelled line
-// survives any single mutation byte for byte. The boards come from qtRandom
-// with a fixed seed (random_test.go).
+// survives any single mutation byte for byte. The boards come from
+// mersenneTwister with a fixed seed (random_test.go).
 func TestMutationPreservationProperty(t *testing.T) {
-	rng := newQtRandom(0x4b616e62) // fixed seed: failures reproduce
+	rng := newMersenneTwister(0x4b616e62) // fixed seed: failures reproduce
 	triviaShapes := []string{
 		"<!-- note %1 -->",
 		"Prose paragraph %1.",

@@ -109,8 +109,8 @@ func TestAliases(t *testing.T) {
 			t.Errorf("Canonical(%q) = %q, want %q", alias, got, id)
 		}
 	}
-	// Every name Kvit takes, a language's ID first and then its aliases.
-	qt := map[string]string{}
+	// Every name a language is known by, its ID first and then its aliases.
+	ids := map[string]string{}
 	for _, names := range []string{
 		"python py python3",
 		"javascript js node jsx mjs",
@@ -132,18 +132,18 @@ func TestAliases(t *testing.T) {
 	} {
 		f := strings.Fields(names)
 		for _, name := range f {
-			qt[name] = f[0]
+			ids[name] = f[0]
 		}
 	}
-	for name, id := range qt {
+	for name, id := range ids {
 		for _, form := range []string{name, strings.ToUpper(name), "\t" + name + " "} {
 			if got := Canonical(form); got != id {
 				t.Errorf("Canonical(%q) = %q, want %q", form, got, id)
 			}
 		}
 	}
-	if len(canonical) != len(qt) {
-		t.Errorf("Kvit takes %d names, this package %d", len(qt), len(canonical))
+	if len(canonical) != len(ids) {
+		t.Errorf("the list above has %d names, this package %d", len(ids), len(canonical))
 	}
 	// A language's aliases on the menu are the names that resolve to it, and
 	// each colours as the language does.

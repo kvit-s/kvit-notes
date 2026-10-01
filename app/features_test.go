@@ -1060,8 +1060,10 @@ func TestRecentSearches(t *testing.T) {
 	}
 }
 
-// The status line names the caret's line and column.
-func TestStatusFollowsQtOrderWithSavedTimeAndUpdateNotice(t *testing.T) {
+// The status line lists the caret's block, line and column first, then the
+// block's kind, the path and the block count; saving adds the time to Saved,
+// and a newer release leads as a notice.
+func TestStatusOrderWithSavedTimeAndUpdateNotice(t *testing.T) {
 	s := openVault(t, notes{"A.md": "first line\nsecond line\n"})
 	s.do(func() { s.w.Editor.FocusBlock(0, 11) })
 	// The order: Block Ln Col, then kind, path, block and char counts.

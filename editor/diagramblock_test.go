@@ -35,7 +35,7 @@ func rowsAdjacent(t *testing.T, s *uitest.Session, e *Editor) {
 	})
 }
 
-func TestZx0hCtrlEnterLeavesNoGapUnderADiagram(t *testing.T) {
+func TestCtrlEnterLeavesNoGapUnderADiagram(t *testing.T) {
 	s, e := openEditor(t, "above\n\n```mermaid\nflowchart TD\n  A[Start] --> B[End]\n```\n")
 	i := diagramIndex(e)
 	waitRendered(s, e, i)
@@ -60,7 +60,7 @@ func TestZx0hCtrlEnterLeavesNoGapUnderADiagram(t *testing.T) {
 	rowsAdjacent(t, s, e)
 }
 
-func TestZx0iPastedFenceBecomesItsBlock(t *testing.T) {
+func TestAPastedFenceBecomesItsOwnBlock(t *testing.T) {
 	fence := "```mermaid\nflowchart LR\n    A([Start]) --> B{Vault set?}\n    B -- yes --> C[Open collection]\n```"
 	s, e := openEditor(t, "\n")
 	s.Do(func() {
@@ -92,7 +92,7 @@ func TestZx0iPastedFenceBecomesItsBlock(t *testing.T) {
 	})
 }
 
-func TestZx0mPastedDiagramLeavesTheRowsBelowInPlace(t *testing.T) {
+func TestAPastedDiagramLeavesTheRowsBelowInPlace(t *testing.T) {
 	s, e := openEditor(t, "above the paste\n\nbelow one\n\nbelow two\n")
 	s.Do(func() { e.FocusBlock(0, len([]rune("above the paste"))) })
 	s.Screen.KeyPress(unison.KeyReturn, mod.None)
@@ -111,7 +111,7 @@ func TestZx0mPastedDiagramLeavesTheRowsBelowInPlace(t *testing.T) {
 	rowsAdjacent(t, s, e)
 }
 
-func TestZzy2DiagramFitFitsTallFlowchartAndShowsZoom(t *testing.T) {
+func TestDiagramFitFitsATallFlowchartAndShowsTheZoom(t *testing.T) {
 	s, e := openEditor(t, "```mermaid\nflowchart TD\n  A[a] --> B[b]\n  B --> C[c]\n"+
 		"%% mermaid-flow:pos A=100,40 B=100,900 C=100,1760\n```\n")
 	i := diagramIndex(e)
@@ -138,7 +138,7 @@ func TestZzy2DiagramFitFitsTallFlowchartAndShowsZoom(t *testing.T) {
 	})
 }
 
-func TestZzy2bDiagramRightWhitespaceOpensEditor(t *testing.T) {
+func TestAPressRightOfADiagramOpensItsSource(t *testing.T) {
 	s, e := openEditor(t, "```mermaid\nflowchart LR\n  A[a]\n```\n")
 	i := diagramIndex(e)
 	waitRendered(s, e, i)
@@ -159,7 +159,7 @@ func TestZzy2bDiagramRightWhitespaceOpensEditor(t *testing.T) {
 	})
 }
 
-func TestZzy3MermaidSourceEnterKeepsIndent(t *testing.T) {
+func TestEnterInMermaidSourceKeepsTheIndent(t *testing.T) {
 	s, e := openEditor(t, "```mermaid\nflowchart LR\n    A[a] --> B[b]\n```\n")
 	i := diagramIndex(e)
 	s.Do(func() { e.FocusBlock(i, len([]rune(e.Doc.Blocks[i].Text))) })
@@ -180,7 +180,7 @@ func TestZzy3MermaidSourceEnterKeepsIndent(t *testing.T) {
 	})
 }
 
-func TestZzy5MermaidSourceCtrlEnterLeavesTheBlock(t *testing.T) {
+func TestCtrlEnterInMermaidSourceLeavesTheBlock(t *testing.T) {
 	s, e := openEditor(t, "```mermaid\nflowchart LR\n    A[a] --> B[b]\n```\n")
 	i := diagramIndex(e)
 	var source string

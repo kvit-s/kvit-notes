@@ -74,7 +74,7 @@ func decodeEntities(s string) string {
 			j++
 		}
 		if j > hash+1 && j < len(rs) && rs[j] == ';' {
-			code, _ := qtToInt(string(rs[hash+1 : j]))
+			code, _ := parseInt32(string(rs[hash+1 : j]))
 			// A surrogate half is not a character.
 			if code > 0 && code < 0x110000 && !(code >= 0xD800 && code <= 0xDFFF) {
 				rs = append(rs[:hash], append([]rune{rune(code)}, rs[j+1:]...)...)
@@ -262,9 +262,9 @@ func (p *seqParser) parseBox(rest string, lineNo int) {
 			open := indexRuneFrom(fr, '(', 0)
 			parts := splitSkipEmpty(string(midRunes(fr, open+1, len(fr)-open-2)), ",")
 			if len(parts) >= 3 {
-				rr, ok1 := qtToInt(parts[0])
-				gg, ok2 := qtToInt(parts[1])
-				bb, ok3 := qtToInt(parts[2])
+				rr, ok1 := parseInt32(parts[0])
+				gg, ok2 := parseInt32(parts[1])
+				bb, ok3 := parseInt32(parts[2])
 				if ok1 && ok2 && ok3 {
 					box.Color = ColorRGB(rr, gg, bb)
 					title = trimSpace(title[len(first):])
@@ -332,12 +332,12 @@ func (p *seqParser) parseAutonumber(rest string, lineNo int) {
 		e.AutonumberShown = false
 	} else {
 		if len(parts) >= 1 {
-			if start, ok := qtToInt(parts[0]); ok {
+			if start, ok := parseInt32(parts[0]); ok {
 				e.AutonumberStart = start
 			}
 		}
 		if len(parts) >= 2 {
-			if step, ok := qtToInt(parts[1]); ok {
+			if step, ok := parseInt32(parts[1]); ok {
 				e.AutonumberStep = step
 			}
 		}

@@ -117,7 +117,7 @@ func Parse(body string) (Spec, error) {
 		if colon <= 0 {
 			return Spec{}, fmt.Errorf(`expected "key: value", got "%s"`, line)
 		}
-		key := qtToLower(strings.TrimSpace(line[:colon]))
+		key := toLower(strings.TrimSpace(line[:colon]))
 		value := strings.TrimSpace(line[colon+1:])
 
 		switch key {
@@ -138,7 +138,7 @@ func Parse(body string) (Spec, error) {
 			}
 
 		case "view":
-			switch qtToLower(value) {
+			switch toLower(value) {
 			case "table":
 				spec.View = ViewTable
 			case "board":
@@ -170,7 +170,7 @@ func Parse(body string) (Spec, error) {
 				}
 				sortKey := SortKey{Field: words[0], Ascending: true}
 				if len(words) == 2 {
-					switch qtToLower(words[1]) {
+					switch toLower(words[1]) {
 					case "asc":
 						sortKey.Ascending = true
 					case "desc":

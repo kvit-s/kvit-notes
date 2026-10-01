@@ -229,13 +229,13 @@ func isoOffset(s []rune) (int, bool) {
 	} else {
 		mmIndex = hhLen + 1
 	}
-	hour, ok := qtToInt(string(t[:min(hhLen, len(t))]))
+	hour, ok := parseInt32(string(t[:min(hhLen, len(t))]))
 	if !ok || hour > 23 {
 		return 0, false
 	}
 	minute := 0
 	if mm := t[min(mmIndex, len(t)):]; len(mm) > 0 {
-		minute, ok = qtToInt(string(mm))
+		minute, ok = parseInt32(string(mm))
 	}
 	if !ok || minute < 0 || minute > 59 {
 		return 0, false
@@ -243,9 +243,9 @@ func isoOffset(s []rune) (int, bool) {
 	return sign * (hour*60 + minute) * 60, true
 }
 
-// qtToInt reads a decimal integer with an optional sign, surrounding
+// parseInt32 reads a decimal integer with an optional sign, surrounding
 // whitespace allowed.
-func qtToInt(s string) (int, bool) {
+func parseInt32(s string) (int, bool) {
 	v, err := strconv.ParseInt(strings.TrimSpace(s), 10, 32)
 	return int(v), err == nil
 }

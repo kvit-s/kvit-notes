@@ -325,19 +325,19 @@ func TestSelfTest(t *testing.T) {
 // Text style is set on the whole formula (kvitmath.cpp, parse) rather than by
 // wrapping the TeX in \textstyle{…}, which would drop the argument's parse
 // errors. For TeX that typesets, the two lay out the same.
-func TestTextStyleLaysOutAsTheQtAppsWrapping(t *testing.T) {
+func TestTextStyleLaysOutAsATextstyleWrapperWould(t *testing.T) {
 	needEngine(t)
 	corpus := []string{`x^2`, `E = mc^2`, `\frac{a}{b}`, `\int_0^\infty e^{-x^2}\,dx`, `\sum_{i=1}^{n} i`,
 		`\sqrt{x^2+y^2}`, `\left(\frac{1}{2}\right)`, `\lim_{x\to 0} f(x)`, `\alpha\beta\gamma`, `\mathbb{R}^n`}
 	for _, tex := range corpus {
 		for _, size := range []int{15, 18, 26} {
 			got, err1 := Render(tex, size, false)
-			qt, err2 := Render(`\textstyle{`+tex+`}`, size, true)
+			wrapped, err2 := Render(`\textstyle{`+tex+`}`, size, true)
 			if err1 != nil || err2 != nil {
 				t.Fatalf("%s: %v %v", tex, err1, err2)
 			}
-			if got.Metrics != qt.Metrics || len(got.cmds) != len(qt.cmds) {
-				t.Errorf("%s at %d: %+v, wrapped %+v", tex, size, got.Metrics, qt.Metrics)
+			if got.Metrics != wrapped.Metrics || len(got.cmds) != len(wrapped.cmds) {
+				t.Errorf("%s at %d: %+v, wrapped %+v", tex, size, got.Metrics, wrapped.Metrics)
 			}
 		}
 	}
