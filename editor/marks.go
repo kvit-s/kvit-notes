@@ -1,8 +1,8 @@
 package editor
 
 // The find bar's matches, which the editor draws behind the text: every
-// match in the search colour and the current one in its own (features.md
-// 7.1). The find bar works out the matches; the editor only draws them.
+// match in the search colour and the current one in its own. The find bar
+// works out the matches; the editor only draws them.
 
 import (
 	"fmt"

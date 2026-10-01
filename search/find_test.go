@@ -8,11 +8,9 @@ import (
 	"unicode/utf8"
 )
 
-// The tests in this file are ported from Kvit's tests/test_documentsearch.cpp;
-// each names the test it comes from. The tests that exercise the find
-// bar's object (its revision counter, recomputing on model signals, undo,
-// block ids surviving moves) have no counterpart, because these are pure
-// functions and the caller owns that state.
+// These tests check finding and replacing in one note. The find bar's own
+// state (its revision counter, searching again when the note changes, undo,
+// block ids surviving moves) belongs to the caller and is not tested here.
 
 // spansOf stands in for the editor's parser, enough for the tests'
 // notes: **bold** and *italic*, not nested.
@@ -50,7 +48,7 @@ func para(md string) Block { return Block{Markdown: md, Spans: spansOf(md)} }
 
 func code(md string) Block { return Block{Markdown: md, Verbatim: true} }
 
-// fixture is TestDocumentSearch::init's note: a formatted paragraph, a plain
+// fixture is the note the tests search: a formatted paragraph, a plain
 // paragraph, a bullet, a divider, a two-line code block and a two-line
 // quote.
 func fixture() []Block {
@@ -103,8 +101,8 @@ func applyEdits(blocks []Block, edits []Edit) {
 	}
 }
 
-// testPlainMatchAcrossBlocks: case is ignored by default; the divider has
-// nothing to find, and the code block's text counts.
+// Case is ignored by default; the divider has nothing to find, and the code
+// block's text counts.
 func TestPlainMatchAcrossBlocks(t *testing.T) {
 	ms := find(t, fixture(), "fox", Options{})
 	if len(ms) != 7 {
@@ -120,8 +118,6 @@ func TestPlainMatchAcrossBlocks(t *testing.T) {
 	}
 }
 
-// testMatchSpansMarkerBoundary, testMarkersAreNotSearchable,
-// testCodeBlockSearchesVerbatimContent, testCaseSensitiveOption.
 func TestMatchesAreInTheTextTheReaderSees(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -159,7 +155,6 @@ func TestMatchesAreInTheTextTheReaderSees(t *testing.T) {
 	}
 }
 
-// testScanTextOptions.
 func TestScanTextOptions(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -195,8 +190,8 @@ func TestScanTextOptions(t *testing.T) {
 	}
 }
 
-// testInvalidRegexIsErrorState: a pattern that does not compile is an
-// error with no matches, and the next one that compiles works.
+// A pattern that does not compile is an error with no matches, and the next
+// one that compiles works.
 func TestInvalidRegexIsAnError(t *testing.T) {
 	texts := textsOf(fixture())
 	ms, err := Find(texts, "(unclosed", Options{Regex: true})
@@ -212,7 +207,6 @@ func TestInvalidRegexIsAnError(t *testing.T) {
 	}
 }
 
-// testZeroLengthMatchesSkipped.
 func TestZeroLengthMatchesSkipped(t *testing.T) {
 	p, err := Compile("x*", Options{Regex: true})
 	if err != nil {
@@ -228,8 +222,7 @@ func TestZeroLengthMatchesSkipped(t *testing.T) {
 	}
 }
 
-// testEmojiContentIsSearchable: the rocket is one rune here where  counts
-// two UTF-16 code units.
+// An emoji is found, and the rocket counts as one rune.
 func TestEmojiContentIsSearchable(t *testing.T) {
 	blocks := append(fixture(), para("launch 🚀 checklist"))
 	ms := find(t, blocks, "🚀", Options{})
@@ -241,8 +234,7 @@ func TestEmojiContentIsSearchable(t *testing.T) {
 	}
 }
 
-// testInactiveOrEmptyQueryYieldsNothing (the find bar being closed is the
-// caller's state).
+// An empty query finds nothing, whatever the options.
 func TestEmptyQueryFindsNothing(t *testing.T) {
 	for _, opts := range []Options{{}, {Regex: true}, {WholeWord: true}} {
 		ms, err := Find(textsOf(fixture()), "", opts)
@@ -252,8 +244,6 @@ func TestEmptyQueryFindsNothing(t *testing.T) {
 	}
 }
 
-// testDocumentOrderAndCurrentNumber, testSeedToFirstMatchAfterCursor,
-// testSeedWrapsToFirstWhenPastLastMatch, testMatchesForBlockMarksCurrent.
 func TestNearestIsTheFirstMatchFromTheCaret(t *testing.T) {
 	blocks := fixture()
 	ms := find(t, blocks, "fox", Options{})
@@ -281,7 +271,6 @@ func TestNearestIsTheFirstMatchFromTheCaret(t *testing.T) {
 	}
 }
 
-// testNextPreviousWrap.
 func TestNextPreviousWrap(t *testing.T) {
 	cur := 0
 	for range 6 {
@@ -301,8 +290,7 @@ func TestNextPreviousWrap(t *testing.T) {
 	}
 }
 
-// testCurrentMatchInfo (mdStart) and TestCollectionSearch's
-// testMarkdownPosition: where the caret goes for a match.
+// Where the caret goes for a match.
 func TestMarkdownPos(t *testing.T) {
 	blocks := fixture()
 	fox := para("The quick **brown fox** jumps")
@@ -334,7 +322,6 @@ func TestMarkdownPos(t *testing.T) {
 	}
 }
 
-// testBlockDomainFilters.
 func TestBlockDomainFilters(t *testing.T) {
 	blocks := fixture()
 	ms := find(t, blocks, "fox", Options{Within: InBlocks(1, 2)})
@@ -346,8 +333,8 @@ func TestBlockDomainFilters(t *testing.T) {
 	}
 }
 
-// testTextDomainEdgeFiltering: from block 1 at 10 (after "Fox") to block 4
-// at 10 (after the code block's first "fox" but before its second).
+// A text domain from block 1 at 10 (after "Fox") to block 4 at 10 (after
+// the code block's first "fox" but before its second).
 func TestTextDomainEdgeFiltering(t *testing.T) {
 	blocks := fixture()
 	d := InText(1, blocks[1].DisplayPos(10), 4, blocks[4].DisplayPos(10))
@@ -367,9 +354,8 @@ func TestTextDomainEdgeFiltering(t *testing.T) {
 	}
 }
 
-// testReplaceCurrentAdvancesAndIsOneUndoStep: the replacement goes in, and
-// searching again from just after it makes the next remaining match
-// current.
+// The replacement goes in, and searching again from just after it makes the
+// next remaining match current.
 func TestReplaceOneMovesToTheNextMatch(t *testing.T) {
 	blocks := fixture()
 	ms := find(t, blocks, "fox", Options{})
@@ -389,9 +375,6 @@ func TestReplaceOneMovesToTheNextMatch(t *testing.T) {
 	}
 }
 
-// testReplaceFullyCoveredSpanFollowsCutContract,
-// testReplacePartialSpanKeepsMarkers, testReplaceAcrossMarkerBoundary,
-// testReplaceInCodeBlockSplicesVerbatim, testReplacementTextIsMarkdown.
 func TestReplaceFollowsTheCutRule(t *testing.T) {
 	cases := []struct {
 		name        string
@@ -424,7 +407,7 @@ func TestReplaceFollowsTheCutRule(t *testing.T) {
 
 // The cut rule with nested spans: the outermost span whose whole text is
 // replaced goes with its markers, and a span only partly replaced keeps
-// them (InlineMarkdown::cutRangeResult).
+// them.
 func TestReplaceInNestedSpans(t *testing.T) {
 	b := Block{Markdown: "**a *b* c**", Spans: []Span{
 		{Start: 4, ContentStart: 5, ContentEnd: 6, End: 7},
@@ -451,8 +434,8 @@ func TestReplaceInNestedSpans(t *testing.T) {
 	}
 }
 
-// testReplaceAllRightToLeftWithinBlock: replacements that change the length
-// do not move the matches still to be replaced.
+// Replacements that change the length do not move the matches still to be
+// replaced.
 func TestReplaceAllRightToLeftWithinBlock(t *testing.T) {
 	blocks := fixture()
 	blocks[1] = para("fox fox fox")
@@ -467,8 +450,8 @@ func TestReplaceAllRightToLeftWithinBlock(t *testing.T) {
 	}
 }
 
-// testReplaceAllAcrossBlocksIsOneUndoStep (the contents; undo is the
-// caller's).
+// Every block with a match gets its new Markdown; making the whole
+// replacement one undo step is the caller's part.
 func TestReplaceAllAcrossBlocks(t *testing.T) {
 	blocks := fixture()
 	opts := Options{CaseSensitive: true}
@@ -493,7 +476,6 @@ func TestReplaceAllAcrossBlocks(t *testing.T) {
 	}
 }
 
-// testReplaceAllRespectsDomain.
 func TestReplaceAllRespectsDomain(t *testing.T) {
 	blocks := fixture()
 	opts := Options{Within: InBlocks(2)}
@@ -503,9 +485,9 @@ func TestReplaceAllRespectsDomain(t *testing.T) {
 	}
 }
 
-// Between two replacements in one block the spans are found again, as the
-// app parses the block again for each one: after the second "fox" is
-// deleted the span is shorter, and the first "fox" is cut from inside it.
+// Between two replacements in one block the spans are found again: after the
+// second "fox" is deleted the span is shorter, and the first "fox" is cut
+// from inside it.
 // With the spans found before the first replacement, it would be cut from
 // the wrong place.
 func TestReplaceAllParsesBetweenReplacements(t *testing.T) {
@@ -525,7 +507,6 @@ func TestReplaceAllParsesBetweenReplacements(t *testing.T) {
 	}
 }
 
-// testCaptureGroupSubstitution.
 func TestCaptureGroupSubstitution(t *testing.T) {
 	cases := []struct {
 		name, replacement string
@@ -548,7 +529,6 @@ func TestCaptureGroupSubstitution(t *testing.T) {
 	}
 }
 
-// testRegexReplaceWithCaptures.
 func TestRegexReplaceWithCaptures(t *testing.T) {
 	blocks := fixture()
 	blocks[1] = para("name: value")
@@ -559,7 +539,6 @@ func TestRegexReplaceWithCaptures(t *testing.T) {
 	}
 }
 
-// testPreserveCase.
 func TestPreserveCase(t *testing.T) {
 	cases := []struct{ name, replacement, matched, want string }{
 		{"upper", "cat", "FOX", "CAT"},
@@ -576,7 +555,6 @@ func TestPreserveCase(t *testing.T) {
 	}
 }
 
-// testPreserveCaseEndToEnd.
 func TestPreserveCaseEndToEnd(t *testing.T) {
 	blocks := fixture()
 	opts := Options{PreserveCase: true, Within: InBlocks(1)}
@@ -586,7 +564,6 @@ func TestPreserveCaseEndToEnd(t *testing.T) {
 	}
 }
 
-// testPreviewMatchesApply.
 func TestPreviewMatchesApply(t *testing.T) {
 	blocks := fixture()
 	texts := textsOf(blocks)
@@ -601,8 +578,8 @@ func TestPreviewMatchesApply(t *testing.T) {
 	}
 }
 
-// testPreviewLineContext: the context stops at the match's line and at 30
-// characters, with an ellipsis where it was cut.
+// The context stops at the match's line and at 30 characters, with an
+// ellipsis where it was cut.
 func TestPreviewLineContext(t *testing.T) {
 	blocks := fixture()
 	blocks[5] = para(strings.Repeat("a", 40) + " fox " + strings.Repeat("b", 40) + "\nsecond line")
@@ -623,10 +600,8 @@ func TestPreviewLineContext(t *testing.T) {
 	}
 }
 
-// testCodeToParagraphRecomputesMatches,
-// testParagraphToCodeReplacesTheRightSpan: the same Markdown is different
-// text as code and as a paragraph, and a replacement uses the positions of
-// the text it was found in.
+// The same Markdown is different text as code and as a paragraph, and a
+// replacement uses the positions of the text it was found in.
 func TestCodeAndParagraphTextDiffer(t *testing.T) {
 	src := "a*b*c"
 	if ms := find(t, []Block{code(src)}, "b", Options{}); len(ms) != 1 || ms[0].Start != 2 {
@@ -642,8 +617,8 @@ func TestCodeAndParagraphTextDiffer(t *testing.T) {
 	}
 }
 
-// testDenseInSelectionFindStaysLinear: a text domain over 2,000 blocks with
-// 40 matches each.
+// A text domain over 2,000 blocks with 40 matches each is searched in
+// linear time.
 func TestDenseInSelectionFindStaysLinear(t *testing.T) {
 	const blocks = 2000
 	texts := make([]string, blocks)

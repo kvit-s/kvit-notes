@@ -1,11 +1,10 @@
 package diagram
 
-// The sequence-diagram layout, a port of the app's
-// src/content/diagrams/sequencelayout.cpp. Lifelines make the columns,
-// messages, notes and fragments make the rows, and labels widen the columns
-// before anything is placed. It follows the conventions a Mermaid user knows
-// (activation bars, dashed return arrows, note boxes, labelled fragment
-// frames) without copying Mermaid.js's pixel geometry.
+// The sequence-diagram layout. Lifelines make the columns, messages, notes
+// and fragments make the rows, and labels widen the columns before anything
+// is placed. It follows the conventions a Mermaid user knows (activation
+// bars, dashed return arrows, note boxes, labelled fragment frames) without
+// copying Mermaid.js's pixel geometry.
 
 import (
 	"fmt"

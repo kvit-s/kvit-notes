@@ -4,8 +4,7 @@ package app
 // in math): one per interface, shared by every editor that types math, so
 // the commands used recently in one window lead the menu in all of them. It
 // completes from the math engine's commands, and keeps the recently used
-// ones in the setting "math.recentCommands", the key the app uses
-// (SessionPersistence).
+// ones in the setting "math.recentCommands".
 
 import (
 	kvitui "github.com/kvit-s/kvit-ui"

@@ -9,9 +9,8 @@ import (
 	"github.com/kvit-s/kvit-notes/editor"
 )
 
-// htmlCases are Kvit's exporter tests (tests/test_documentexporter.cpp) that
-// render one Markdown body to HTML, one row per input, named after the
-// test. want must each appear in the page; not must not.
+// htmlCases render one Markdown body to HTML, one row per input, each named
+// after what it checks. want must each appear in the page; not must not.
 var htmlCases = []struct {
 	name string
 	md   string
@@ -155,9 +154,7 @@ func bodyOf(html string) string {
 	return html
 }
 
-// Script tags are written once per page, however many blocks need them
-// (testMermaidScriptOnlyWithMermaid, testMermaidHtmlExport,
-// testMathJaxScriptTagInjectedOnlyWithMath).
+// Script tags are written once per page, however many blocks need them.
 func TestScriptTagsAreWrittenOnce(t *testing.T) {
 	cases := []struct {
 		name, md, needle string
@@ -192,8 +189,7 @@ func TestHTMLPageShape(t *testing.T) {
 }
 
 // Only some blocks are written, but the table of contents still reads the
-// whole note, and a selected heading keeps the anchor it has in the note
-// (testBlockSubsetKeepsDocumentContext).
+// whole note, and a selected heading keeps the anchor it has in the note.
 func TestSelectionKeepsDocumentContext(t *testing.T) {
 	blocks := editor.ParseMarkdown("# Intro\n\n```toc\n```\n\n## Details\n\n# Intro")
 	if len(blocks) != 4 {
@@ -223,8 +219,7 @@ func TestSelectionKeepsDocumentContext(t *testing.T) {
 }
 
 // An image is looked for beside the note, embedded as a data: address, and
-// its presentation attributes reach the markup
-// (testImageEffectsAndAlignmentReachTheExport).
+// its presentation attributes reach the markup.
 func TestImageEffectsAndAlignment(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "pic.png"), []byte("PNGDATA"), 0o644); err != nil {
@@ -258,8 +253,8 @@ func TestImageEffectsAndAlignment(t *testing.T) {
 	}
 }
 
-// An image over the attachment budget is left out rather than embedded
-// (testOversizedAttachmentIsSkippedNotInlined, for one note).
+// In a one-note export, an image under the attachment budget is embedded
+// and one over it is left out.
 func TestOversizedImageIsLeftOut(t *testing.T) {
 	dir := t.TempDir()
 	big := strings.Repeat("Z", 200*1024)
@@ -276,7 +271,7 @@ func TestOversizedImageIsLeftOut(t *testing.T) {
 	}
 }
 
-// Inline spans render as htmlinline.cpp renders them, one row per span type.
+// How each kind of inline span renders, one row per kind.
 func TestInlineHTML(t *testing.T) {
 	cases := []struct{ md, want string }{
 		{"**b** *i* ***bi*** ~~s~~ ==h== ++u++", "<strong>b</strong> <em>i</em> <strong><em>bi</em></strong> <s>s</s> <mark>h</mark> <u>u</u>"},
@@ -319,8 +314,8 @@ func TestCodeHighlighting(t *testing.T) {
 
 // A note's front matter is never part of an export's body. The editor keeps a
 // file's front matter as a leading block when it opens a loose file, and that
-// block is left out; a body that starts with "---" but has no front matter by
-// the app's rule is a divider and what follows, as the parser reads it.
+// block is left out; a body that starts with "---" but has no front matter
+// by splitFrontMatter's rule is a divider and what follows.
 func TestLeadingDashes(t *testing.T) {
 	withFM := HTMLFromBlocks(editor.ParseMarkdown("---\ntags: [a]\n---\n# T"), "", Options{})
 	if strings.Contains(withFM, "<hr>") || strings.Contains(withFM, "tags") || !strings.Contains(withFM, `<h1 id="t">T</h1>`) {
@@ -330,8 +325,8 @@ func TestLeadingDashes(t *testing.T) {
 	if !strings.Contains(divided, "<hr><p>text</p><hr>") {
 		t.Errorf("divider-led body: %s", bodyOf(divided))
 	}
-	// HTMLFromMarkdown is given a body, so a second front-matter-shaped block
-	// in it is text, as it is to the exporter.
+	// HTMLFromMarkdown is given a body, so a front-matter-shaped block in it
+	// is text.
 	body := HTMLFromMarkdown("---\nnote: buy milk\n---\nBody", "", Options{})
 	if !strings.Contains(body, "<hr><p>note: buy milk</p><hr><p>Body</p>") {
 		t.Errorf("front matter shaped body: %s", bodyOf(body))

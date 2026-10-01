@@ -1,15 +1,14 @@
-// The port of the app's tests/test_mathrenderer.cpp: one test for each of
-// its test functions, in the same order, with the same formulas, sizes and
-// expected numbers. A test that checked the QImage MathRenderer::render
-// made checks the image Image draws here, headless through unison's raster
-// canvas, and one that painted into a QPainter draws a Formula onto a canvas.
-// Where  read the image's device pixel ratio, these read the image's size.
+// These tests check what a formula lays out to, the images Image draws and a
+// Formula drawn onto a canvas, headless through unison's raster canvas. Their
+// formulas, sizes and expected numbers come from the tests of the earlier Qt
+// version of Kvit Notes. A device pixel ratio is checked through the size of
+// the image drawn at it.
 //
 // The tests need the library build.sh builds into build/ (it needs zig); they
 // are skipped, saying so, when it is not there.
 //
-// KVIT_SHOT_DIR, when set, is where the images the tests saved are
-// written: the four canonical formulas and the reference corpus sheet.
+// KVIT_SHOT_DIR, when set, is where the tests save their images: the four
+// canonical formulas and the reference corpus sheet.
 package mathtex
 
 import (
@@ -217,8 +216,8 @@ func newtxCharterReferenceCorpus() []corpusEntry {
 	}
 }
 
-// corpusSheet lays the corpus out as the test's composeCorpusSheet did:
-// each entry's number, title and TeX on the left, its image on the right.
+// corpusSheet lays the corpus out on one image: each entry's number, title
+// and TeX on the left, its image on the right.
 func corpusSheet(t *testing.T, images []*image.NRGBA, title string) *image.NRGBA {
 	fs := fonts(t)
 	const margin, gutter, labelWidth, rowGap, titleGap = 24, 24, 430, 18, 20
@@ -471,10 +470,10 @@ func TestAvailableCommandsEnumerates(t *testing.T) {
 	}
 }
 
-// Seen in the app on Windows: after a failed parse of a half-typed
-// command, a formula that rendered before stopped rendering for the rest of
-// the session. A parse error must not spoil later renders. The cache is
-// cleared before each render so each one reaches the engine.
+// Seen on Windows: after a failed parse of a half-typed command, a formula
+// that rendered before stopped rendering for the rest of the session. A parse
+// error must not spoil later renders. The cache is cleared before each render
+// so each one reaches the engine.
 func TestRenderRecoversAfterParseError(t *testing.T) {
 	needEngine(t)
 	good := `\intop_0^\infty`
@@ -515,8 +514,8 @@ func TestResourceRootResolves(t *testing.T) {
 	}
 }
 
-// canonicalExpressions are the formulas behind the app's
-// screenshots/math_render_0*.png.
+// canonicalExpressions are four formulas, each drawn and, with KVIT_SHOT_DIR
+// set, saved as file.
 var canonicalExpressions = []struct{ name, tex, file string }{
 	{"power", `x^2`, "math_render_01_power.png"},
 	{"fraction", `\frac{a}{b}`, "math_render_02_fraction.png"},
@@ -946,7 +945,7 @@ func TestGeneratedNewtxSupplementalSymbolsRender(t *testing.T) {
 }
 
 // The reference corpus renders with ink inside its images. With
-// KVIT_SHOT_DIR set the sheet is saved as the test saved it.
+// KVIT_SHOT_DIR set the sheet is saved there.
 func TestNewtxCharterReferenceCorpusArtifacts(t *testing.T) {
 	needEngine(t)
 	const textSize = 26

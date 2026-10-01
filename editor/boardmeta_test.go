@@ -1,6 +1,6 @@
 package editor
 
-// The kanban remainder (PARITY 1.2.12): column dragging with its gap,
+// The rest of the task board: column dragging with its gap,
 // the dragged card's ghost, label chips with the tag field, the due-date
 // picker and the card-details dialog.
 

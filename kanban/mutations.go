@@ -5,10 +5,10 @@ import (
 	"strings"
 )
 
-// The mutations below are the KanbanData functions of the same names. Each
-// takes the whole body of a `kanban` fence, parses it, changes the board and
-// returns the whole new body; lines the change does not touch come back byte
-// for byte. An index out of range returns content unchanged.
+// Each mutation below takes the whole body of a `kanban` fence, parses it,
+// changes the board and returns the whole new body; lines the change does
+// not touch come back byte for byte. An index out of range returns content
+// unchanged.
 //
 // A mutation that changes a card takes today, the day it happens on, as an
 // ISO `YYYY-MM-DD`. The card's created= day is set when the card is added,
@@ -61,7 +61,7 @@ func RemoveColumn(content string, col int) string {
 	return b.Serialize()
 }
 
-// MoveColumn moves column fromCol to position toCol (QList::move).
+// MoveColumn moves column fromCol so that it ends up at index toCol.
 func MoveColumn(content string, fromCol, toCol int) string {
 	b := Parse(content)
 	if fromCol < 0 || fromCol >= len(b.Columns) || toCol < 0 || toCol >= len(b.Columns) {

@@ -8,7 +8,7 @@
 # Windows program ISCC.exe (Inno Setup 6) compiles; WSL starts it directly.
 # packaging/windows/wsl.sh says where it is looked for.
 #
-# The installed and unzipped layout is the app's, without :
+# The installed and unzipped layout:
 #   kvit-notes.exe      the program, with its icon, version information and
 #                       manifest (packaging/windows/make-syso.sh)
 #   kvitmath.dll        the math library, which the program looks for beside
@@ -16,10 +16,10 @@
 #   math-res\           the math library's resources
 #   licenses\           the notices and every licence text
 #
-# The installer keeps the installer's AppId, product name, per-user folder
+# The installer has the AppId, product name, per-user folder
 # (%LOCALAPPDATA%\Programs\Kvit Notes), Start-menu group and .md
-# association, so it upgrades an installed  Kvit Notes in place as the same
-# product; kvit-notes.iss says how.
+# association of every Kvit Notes installer, so it upgrades an installed Kvit
+# Notes in place as the same product; kvit-notes.iss says how.
 #
 # Version: KVIT_VERSION_FULL, else the tag, else the base version
 # (packaging/lib.sh, release_version).

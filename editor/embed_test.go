@@ -1,8 +1,7 @@
 package editor
 
-// Web embeds from the / menu (PARITY 4.2, Kvit's Web Embed row): the catalog
-// entry, the address a typed query names (ImageAssets::normalizeEmbedUrl and
-// isEmbedUrl), and choosing it inserting an embed line.
+// Web embeds from the / menu: the catalog entry, the address a typed query
+// names, and choosing it inserting an embed line.
 
 import (
 	"slices"

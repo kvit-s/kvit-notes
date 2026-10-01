@@ -1,8 +1,7 @@
 package editor
 
 // The document model: a flat list of blocks, each with a kind, an indent
-// level and its Markdown source. Nesting is the indent level, as in Kvit
-// (block-arch.md), not a tree.
+// level and its Markdown source. Nesting is the indent level, not a tree.
 
 import (
 	"regexp"
@@ -127,12 +126,11 @@ var (
 	reDivider  = regexp.MustCompile(`^(\*{3,}|-{3,}|_{3,})\s*$`)
 )
 
-// fenceOpen reads a code fence's opening line as the parser does
-// (DocumentSerializer's fenceLength): three or more backticks or tildes and
-// an info string. A backtick fence's info string cannot hold a backtick, so
-// such a line opens nothing; a tilde fence's may, and the backticks are
-// dropped. It answers the fence's character, its length and the info
-// string.
+// fenceOpen reads a code fence's opening line: three or more backticks or
+// tildes and an info string. A backtick fence's info string cannot hold a
+// backtick, so such a line opens nothing; a tilde fence's may, and the
+// backticks are dropped. It answers the fence's character, its length and the
+// info string.
 func fenceOpen(line string) (ch byte, n int, info string, ok bool) {
 	if line == "" || (line[0] != '`' && line[0] != '~') {
 		return 0, 0, "", false
@@ -154,10 +152,9 @@ func fenceOpen(line string) (ch byte, n int, info string, ok bool) {
 	return ch, n, info, true
 }
 
-// fenceCloses reports whether a line closes a fence of n characters ch
-// (DocumentSerializer's isClosingFence): with the spaces around it taken
-// off, it is ch alone, at least n of it. A line that only starts with the
-// fence ("``` | y |") is the fence's content.
+// fenceCloses reports whether a line closes a fence of n characters ch: with
+// the spaces around it taken off, it is ch alone, at least n of it. A line
+// that only starts with the fence ("``` | y |") is the fence's content.
 func fenceCloses(line string, ch byte, n int) bool {
 	t := strings.TrimSpace(line)
 	if len(t) < n {
@@ -171,8 +168,7 @@ func fenceCloses(line string, ch byte, n int) bool {
 	return true
 }
 
-// reTag is Kvit's attribute tag at the end of a line
-// (src/content/blockattributes.cpp).
+// reTag is Kvit's attribute tag at the end of a line.
 var reTag = regexp.MustCompile(`\s*<!--kvit (.*?)-->\s*$`)
 
 // stripTag splits a trailing attribute tag off a line, returning the line
@@ -188,8 +184,8 @@ func stripTag(line string) (string, string) {
 	return line[:m[0]], canonicalAttrs(line[m[2]:m[3]])
 }
 
-// canonicalAttrs orders a payload's tokens by key, the last of a repeated
-// key winning, as Kvit's BlockAttributes::canonical does.
+// canonicalAttrs orders a payload's tokens by key, the last of a repeated key
+// winning.
 func canonicalAttrs(payload string) string {
 	byKey := map[string]string{}
 	for _, tok := range strings.Fields(payload) {
@@ -303,10 +299,10 @@ func ParseMarkdown(src string) []Block {
 				b.Lang = words[0]
 			}
 			b.Attrs = attrs
-			// A fence arriving from outside the note (a note opened,
-			// Markdown pasted) holding a character diagram is tagged and
-			// straightened, as in the app's parse. Its whole info
-			// string decides, as there, though only its first word is kept.
+			// A fence arriving from outside the note (a note opened, Markdown
+			// pasted) holding a character diagram is tagged and straightened.
+			// Its whole info string decides, though only its first word is
+			// kept.
 			lang, text := textdiagram.Ingest(info, b.Text)
 			if lang != info {
 				b.Lang = lang
@@ -338,8 +334,7 @@ func ParseMarkdown(src string) []Block {
 			out = append(out, b)
 			i++
 		}
-		// A lone image expression at the margin is an image or media block
-		// (Kvit's DocumentSerializer::parse, after tables).
+		// A lone image expression at the margin is an image or media block.
 		if ref, ok := ParseImageLine(line); ok {
 			kind := Image
 			if ref.Media {
@@ -375,8 +370,7 @@ func ParseMarkdown(src string) []Block {
 			continue
 		}
 		// A continuation line: indented, with no marker of its own, directly
-		// under a list item, belongs to that item (Kvit's
-		// DocumentSerializer::parse).
+		// under a list item, belongs to that item.
 		if rest := strings.TrimLeft(line, " \t"); prevList && rest != line && rest != "" && len(out) > 0 && out[len(out)-1].Kind.IsList() {
 			item := &out[len(out)-1]
 			item.Text += "\n" + rest
@@ -387,7 +381,7 @@ func ParseMarkdown(src string) []Block {
 			i++
 			continue
 		}
-		// Five and six hashes are a fourth-level heading, as in Kvit.
+		// Five and six hashes are a fourth-level heading.
 		if m := reHeading.FindStringSubmatch(line); m != nil {
 			one(NewBlock(Heading1+Kind(min(len(m[1]), 4)-1), m[2]))
 			continue
@@ -540,8 +534,7 @@ func Serialize(blocks []Block) string {
 
 // Summarize is what a note list shows of a note and what search reads: the
 // start of its text as drawn, up to 120 characters, its word count, and its
-// whole text as drawn, one block to a line. Dividers count for nothing, as in
-// Kvit (src/repository/vaultscan.cpp, analyzeBody).
+// whole text as drawn, one block to a line. Dividers count for nothing.
 func Summarize(body string) (snippet string, words int, text string) {
 	const snippetLength = 120
 	var sb, all strings.Builder

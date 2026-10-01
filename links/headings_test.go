@@ -5,7 +5,6 @@ import (
 	"testing"
 )
 
-// From TestDocumentOutline::testBaseSlug.
 func TestSlug(t *testing.T) {
 	cases := []struct{ text, slug string }{
 		{"Introduction", "introduction"},
@@ -20,8 +19,8 @@ func TestSlug(t *testing.T) {
 		{"Chapter 12", "chapter-12"},
 		{"Café Ünïcode", "café-ünïcode"},
 		{"***", ""},
-		// sees a character beyond the Basic Multilingual Plane as two
-		// surrogates, neither a letter, so it is dropped.
+		// A character beyond the Basic Multilingual Plane is dropped, even
+		// a letter.
 		{"𝐀bc 🙂 d", "bc-d"},
 		{"\u0130x", "ix"},
 	}
@@ -40,9 +39,8 @@ func headings(texts ...string) []Heading {
 	return out
 }
 
-// From TestDocumentOutline::testCollisionSuffixesInDocumentOrder and
-// testCollisionWithLiteralSuffixHeading: repeated headings are numbered in
-// order, and no two headings ever share an anchor.
+// Repeated headings are numbered in order, and no two headings ever share
+// an anchor.
 func TestAnchorsAreUnique(t *testing.T) {
 	cases := []struct {
 		texts []string
@@ -60,8 +58,7 @@ func TestAnchorsAreUnique(t *testing.T) {
 	}
 }
 
-// A link's #heading is heading text, made a slug before it is looked up
-// (qml/NoteSession scrollToHeadingText).
+// A link's #heading is heading text, made a slug before it is looked up.
 func TestFindHeading(t *testing.T) {
 	hs := headings("Getting Started", "Overview", "Overview", "Café")
 	cases := map[string]int{
@@ -88,7 +85,7 @@ func TestFindHeading(t *testing.T) {
 	}
 }
 
-// What [[note# completion lists (WikiLinkIndex::headingsFor).
+// What [[note# completion lists.
 func TestHeadingsForCompletion(t *testing.T) {
 	body := "# One\n\ntext\n  ## Two **bold**  \n```\n# not\n```\n####### seven\n#nospace\n#\tTab\n~~~\n# not either\n~~~\n###### Six\n#  \n"
 	want := []string{"One", "Two **bold**", "Six"}

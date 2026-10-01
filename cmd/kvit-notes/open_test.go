@@ -10,10 +10,10 @@ import (
 	"github.com/richardwilkes/unison"
 )
 
-// features.md 15.3: what the running app is asked to open, by a copy
-// started later or by macOS's Finder and Dock, goes where a path given on
-// the command line goes: a folder opens as a vault, once; a Markdown file
-// opens on its own; a path that is not there opens nothing.
+// What the running app is asked to open, by a copy started later or by
+// macOS's Finder and Dock, goes where a path given on the command line goes:
+// a folder opens as a vault, once; a Markdown file opens on its own; a path
+// that is not there opens nothing.
 func TestPathsOpenAsOnTheCommandLine(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "Alpha.md"), []byte("Alpha\n"), 0o644); err != nil {

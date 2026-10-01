@@ -1,19 +1,16 @@
 package editor
 
-// Inline math (features.md 1.2.15, Kvit's qml/InlineMathOverlay and the
-// reservation in src/qml/blockeditorengine.cpp): a $…$ span away from the
-// caret is typeset in text style, the size TeX sets a formula in running
-// prose, and drawn in place of its source with its baseline on the line's.
-// With the caret in it, or a selection over it, the span shows its source
-// with the dollars muted.
+// Inline math: a $…$ span away from the caret is typeset in text style, the
+// size TeX sets a formula in running prose, and drawn in place of its source
+// with its baseline on the line's. With the caret in it, or a selection over
+// it, the span shows its source with the dollars muted.
 //
 // The projection puts one character, U+FFFC, where the span was, and the
-// text layout keeps a box of the formula's width there (text.Box). The line
-// grows as Kvit's did for a formula taller than the text: Kvit laid the span
-// out in a larger size of the text's own font, the smallest whose ascent and
-// descent hold the formula's, and the line took that size's height at the
-// document's line spacing. The box asks for the same height here. The
-// formula itself is drawn over the laid-out text, where the box landed.
+// text layout keeps a box of the formula's width there (text.Box). For a
+// formula taller than the text, the box asks for the height of a larger size
+// of the text's own font, the smallest whose ascent and descent hold the
+// formula's, at the document's line spacing. The formula itself is drawn
+// over the laid-out text, where the box is.
 //
 // TeX that does not typeset stays its source, and so does everything while
 // the math library is missing.
@@ -43,8 +40,7 @@ type inlineBox struct {
 }
 
 // inlineMathSize is the size inline math is set at beside text in style st:
-// the text's size, matched to its face's x-height (Kvit's
-// BlockEditorEngine::mathFontPixelSize).
+// the text's size, matched to its face's x-height.
 func (e *Editor) inlineMathSize(st text.Style) int {
 	size := int(math.Round(float64(st.Size)))
 	return mathtex.OpticalMathSize(size, mathtex.TextXHeight(e.ui.Fonts, st))
@@ -124,12 +120,11 @@ func (e *Editor) typesetInline(p projection, base text.Style) projection {
 	return out
 }
 
-// mathBox is the room a line keeps for formula f in text of style st, as
-// Kvit's BlockEditorEngine::mathReservationMetrics reserved it. When the
-// formula fits within the font's ascent and descent, the line keeps its
-// height. Otherwise the line is as Kvit's was: the text's font at the
-// smallest whole size whose ascent and descent hold the formula's, spaced by
-// the document's line height, and at least deep enough for the formula.
+// mathBox is the room a line keeps for formula f in text of style st. When
+// the formula fits within the font's ascent and descent, the line keeps its
+// height. Otherwise the line is as tall as the text's font at the smallest
+// whole size whose ascent and descent hold the formula's, spaced by the
+// document's line height, and at least deep enough for the formula.
 func (e *Editor) mathBox(f *mathtex.Formula, st text.Style) text.Box {
 	ascent, descent := float32(f.Baseline), float32(f.Height-f.Baseline)
 	asc, desc := e.fontExtents(st)
@@ -191,7 +186,7 @@ func mathBoxStyle(p projection, d int, st text.Style) text.Style {
 
 // drawInlineMath draws the typeset spans of a text laid out from p with its
 // top-left corner at (x, y): each formula where its box landed, its baseline
-// on its line's, on a whole device pixel as Kvit drew its pictures of them.
+// on its line's, on a whole device pixel.
 func drawInlineMath(gc *unison.Canvas, l *text.Layout, p projection, x, y float32) {
 	for d, bx := range p.boxes {
 		cx, _, _ := l.CaretAt(d)

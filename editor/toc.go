@@ -1,10 +1,9 @@
 package editor
 
-// The table of contents (features.md 17.2, Kvit's TocBlock and
-// TocFenceSync): a code fence of language "toc". It is drawn as a
-// "Contents" card listing the note's headings, indented by level, each a
-// link that scrolls the note to its heading. Its body, which is what the
-// file holds, is kept as a Markdown list of links to the headings' anchors,
+// The table of contents: a code fence of language "toc". It is drawn as a
+// "Contents" card listing the note's headings, indented by level, each a link
+// that scrolls the note to its heading. Its body, which is what the file
+// holds, is kept as a Markdown list of links to the headings' anchors,
 // rewritten whenever the headings change, so the note reads as a table of
 // contents in any other Markdown program too.
 
@@ -61,8 +60,7 @@ func (d *Doc) tocEntries() []tocEntry {
 }
 
 // tocMarkdown is a table of contents' body: a list of links to the
-// headings, indented two spaces a level below the highest
-// (DocumentOutline::tocMarkdown).
+// headings, indented two spaces a level below the highest.
 func tocMarkdown(entries []tocEntry) string {
 	if len(entries) == 0 {
 		return ""

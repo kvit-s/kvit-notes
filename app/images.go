@@ -1,9 +1,8 @@
 package app
 
-// Loading the pictures a note's image blocks name, by Kvit's rule
-// (src/content/imageassets.cpp, resolveSource): beside the note first, then
-// from the top of the vault, then as written, and a path starting with "/"
-// from the vault's site folder, the first that is a file.
+// Loading the pictures a note's image blocks name: beside the note first,
+// then from the top of the vault, then as written, and a path starting with
+// "/" from the vault's site folder, the first that is a file.
 
 import (
 	"bytes"
@@ -267,8 +266,7 @@ func (w *Window) setImageLine(block int64, stored string) {
 	w.Editor.Refresh()
 }
 
-// ingestFile adds a picture to the vault as Kvit's AssetStore does
-// (src/repository/assetstore.cpp): a file already inside the vault is
+// ingestFile adds a picture to the vault: a file already inside the vault is
 // linked where it is; any other is copied into the vault's picture folder
 // (assets/ unless set) as "<note>-<yyyyMMdd-HHmmss>.<ext>", named after the
 // note it is for, with "-N" added when that is taken. The path returned is
@@ -305,9 +303,9 @@ func (w *Window) ingestFile(src, note string) (string, error) {
 	return w.storedPath(target), nil
 }
 
-// storedPath is how a note names a picture file in the vault: from "/"
-// inside a site folder that is not the vault's top, otherwise from the top
-// of the vault (assetstore.cpp, storedPathFor).
+// storedPath is how a note names a picture file in the vault: from "/" inside
+// a site folder that is not the vault's top, otherwise from the top of the
+// vault.
 func (w *Window) storedPath(abs string) string {
 	root := filepath.Clean(w.Vault.Root)
 	site := filepath.Clean(w.Vault.SiteRoot())
@@ -323,9 +321,9 @@ func (w *Window) storedPath(abs string) string {
 	return filepath.ToSlash(rel)
 }
 
-// noteSlug is a note's name as new picture names start with: its file
-// name lowercased, every run of other characters than a to z and 0 to 9 a
-// dash, or "image" (BlockEditorSurface, documentSlug).
+// noteSlug is a note's name as new picture names start with: its file name
+// lowercased, every run of other characters than a to z and 0 to 9 a dash, or
+// "image".
 func noteSlug(note string) string {
 	name := strings.TrimSuffix(path.Base(note), path.Ext(note))
 	var b strings.Builder
@@ -365,11 +363,10 @@ func safeSegment(value, fallback string) string {
 	return out
 }
 
-// pasteImage saves a picture on the clipboard into the vault and reports
-// its stored path, as the AssetStore::ingestClipboardImage does. It
-// reports false when the clipboard holds no picture, leaving the text paste
-// path to run instead. Under WSL a picture copied in Windows is not on
-// unison's clipboard, so Windows' clipboard is asked last.
+// pasteImage saves a picture on the clipboard into the vault and reports its
+// stored path. It reports false when the clipboard holds no picture, leaving
+// the text paste path to run instead. Under WSL a picture copied in Windows
+// is not on unison's clipboard, so Windows' clipboard is asked last.
 func (w *Window) pasteImage() (string, bool) {
 	for _, dt := range []*uti.DataType{uti.PNG, uti.JPEG, uti.GIF, uti.WEBP, uti.BMP, uti.TIFF} {
 		if !unison.ClipboardHasDataType(dt) {
@@ -462,10 +459,10 @@ func (w *Window) ingestImageBytes(data []byte, dt *uti.DataType, note string) (s
 	return w.storedPath(target), nil
 }
 
-// saveDroppedImage copies an image file dropped from another application
-// into the vault's picture folder (features.md 5.4), through ingestFile's
-// rule: a file already in the vault is linked where it is, any other is
-// copied as "<note>-<yyyyMMdd-HHmmss>.<ext>".
+// saveDroppedImage copies an image file dropped from another application into
+// the vault's picture folder, through ingestFile's rule: a file already in
+// the vault is linked where it is, any other is copied as
+// "<note>-<yyyyMMdd-HHmmss>.<ext>".
 func (w *Window) saveDroppedImage(source string) (string, bool) {
 	note := ""
 	if w.open != nil {

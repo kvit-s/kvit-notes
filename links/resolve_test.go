@@ -5,7 +5,8 @@ import (
 	"testing"
 )
 
-// fixture is the vault of TestNoteCollection::makeFixture.
+// fixture is a small vault: a note at the top, notes in a folder, and one a
+// folder deeper.
 var fixture = []string{"Welcome.md", "Ideas/Reading.md", "Ideas/Plans.md", "Ideas/Projects/Kvit.md"}
 
 func TestNormalizeTarget(t *testing.T) {
@@ -45,7 +46,6 @@ func TestPathMatchesTarget(t *testing.T) {
 	}
 }
 
-// From TestNoteCollection::testResolveWikiTarget.
 func TestResolveAsTheQtAppDoes(t *testing.T) {
 	ix := NewIndex(fixture)
 	cases := map[string]string{
@@ -84,8 +84,7 @@ func TestResolveAsTheQtAppDoes(t *testing.T) {
 	}
 }
 
-// Candidates are listed without regard to case, as string list::sort with
-// ::CaseInsensitive lists them.
+// Candidates are sorted without regard to case.
 func TestAmbiguousCandidatesAreSortedWithoutCase(t *testing.T) {
 	ix := NewIndex([]string{"b/Welcome.md", "a/Welcome.md", "Welcome.md", "A/welcome.md"})
 	r := ix.Resolution("welcome", true)
@@ -95,9 +94,8 @@ func TestAmbiguousCandidatesAreSortedWithoutCase(t *testing.T) {
 	}
 }
 
-// From TestNoteCollection::testWikiLinksReindexOnRefresh and
-// testMoveKeepsBareLinksUntouched: a note appearing or moving changes what
-// a target resolves to, and a bare name follows a moved note.
+// A note appearing or moving changes what a target resolves to, and a bare
+// name follows a moved note.
 func TestIndexFollowsNotesAppearingAndMoving(t *testing.T) {
 	ix := NewIndex(fixture)
 	if got := ix.Resolve("Fresh"); got != "" {
@@ -119,7 +117,6 @@ func TestIndexFollowsNotesAppearingAndMoving(t *testing.T) {
 	}
 }
 
-// From TestReservedSubtrees::aBareNameNeverResolvesIntoTheRealm.
 func TestABareNameNeverResolvesIntoARealm(t *testing.T) {
 	ix := NewIndex([]string{"Ideas/Report.md", "Journal.md"})
 	ix.AddRealm(".reports/monday/report.md")
@@ -140,7 +137,7 @@ func TestABareNameNeverResolvesIntoARealm(t *testing.T) {
 	}
 }
 
-// What [[ completion inserts (qml/WikiLinkMenu).
+// What [[ completion inserts.
 func TestCompletionTargetIsTheTitleWhenThatResolves(t *testing.T) {
 	ix := NewIndex(append([]string{"Archive/Welcome.md"}, fixture...))
 	cases := []struct{ path, title, want string }{
@@ -157,11 +154,8 @@ func TestCompletionTargetIsTheTitleWhenThatResolves(t *testing.T) {
 	}
 }
 
-// Following a link to no note creates it: from
-// TestNoteSession::aDanglingWikiLinkIsCreatedAndReportedWithNoWindowToReportTo
-// and tst_integration's test_wiki1_followOpensAndCreates and
-// test_wiki1b_requestOpenLinkKeepsSpaces, with the path-qualified cases of
-// createWikiTarget in qml/NoteSession.
+// Following a link to no note creates it: a bare name in the current note's
+// folder, a name with a path where the path says.
 func TestNewNoteFor(t *testing.T) {
 	cases := []struct {
 		target, current string
@@ -179,7 +173,7 @@ func TestNewNoteFor(t *testing.T) {
 		{".md", "", NewNote{}, false},
 		// A trailing slash makes an untitled note in the folder.
 		{"Folder/", "", NewNote{"Folder", "", ""}, true},
-		// What the app fails to create.
+		// Names that cannot be created.
 		{".hidden/x", "", NewNote{}, false},
 		{"a//b", "", NewNote{}, false},
 		{"a /b", "", NewNote{}, false},

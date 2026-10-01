@@ -13,8 +13,7 @@ import (
 // every spelling of cardinality (the crow's-foot symbols and the worded
 // `one or more` forms), identifying `--` and non-identifying `..`, `.-` and
 // `-.` lines (and the worded `to` and `optionally to`), relationship roles,
-// direction, classDef, class, style and `:::`, and accTitle and accDescr. It
-// is a port of the app's mermaider.cpp.
+// direction, classDef, class, style and `:::`, and accTitle and accDescr.
 
 // erCardWords are the worded cardinalities, longest first.
 var erCardWords = []struct {

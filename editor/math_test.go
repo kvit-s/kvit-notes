@@ -1,13 +1,10 @@
 package editor
 
-// Math in the editor (features.md 1.2.15): display equations (mathblock.go),
-// inline $…$ spans (mathinline.go) and diagram labels (mathdiagram.go). The
-// app's own checks of these are storyboards (tests/tst_visual,
-// test_39_math, test_49_inline_math, test_62_math_canary,
-// test_36b_table_math_and_column_widths), replayed with their pictures by
-// cmd/kvit-notes/scenarios_math.go; these check the geometry the pictures
-// show. They need the math library build.sh builds, and are skipped without
-// it.
+// Math in the editor: display equations (mathblock.go), inline $…$ spans
+// (mathinline.go) and diagram labels (mathdiagram.go). The scenarios in
+// cmd/kvit-notes/scenarios_math.go draw them as pictures; these tests check
+// the geometry the pictures show. They need the math library build.sh
+// builds, and are skipped without it.
 
 import (
 	"math"
@@ -42,10 +39,10 @@ func mathEditor(t *testing.T, md string) (*uitest.Session, *Editor) {
 	return s, e
 }
 
-// Kvit's DocumentSerializer: a "$$" line opens an equation the next "$$"
-// line closes, a "$$x$$" line is an equation on its own, an older Kvit's
-// tagged closer still closes, the opening line's tag is the block's, and an
-// equation is written back as a fence with the tag on its opening line.
+// A "$$" line opens an equation the next "$$" line closes, a "$$x$$" line
+// is an equation on its own, an older Kvit's tagged closer still closes, the
+// opening line's tag is the block's, and an equation is written back as a
+// fence with the tag on its opening line.
 func TestMathFencesAreEquations(t *testing.T) {
 	cases := []struct{ md, tex, attrs, back string }{
 		{"$$\nE = mc^2\n$$", "E = mc^2", "", "$$\nE = mc^2\n$$"},
@@ -77,10 +74,9 @@ func TestMathFencesAreEquations(t *testing.T) {
 	}
 }
 
-// Away from the caret an equation shows only its typeset form, centred in
-// a row as tall as it and its padding (MathBlock); with the caret in it,
-// its TeX in a panel, the typeset preview under that, and the exit key
-// under the preview.
+// Away from the caret an equation shows only its typeset form, centred in a
+// row as tall as it and its padding; with the caret in it, its TeX in a
+// panel, the typeset preview under that, and the exit key under the preview.
 func TestDisplayEquationShowsTypesetUntilEdited(t *testing.T) {
 	needMath(t)
 	s, e := mathEditor(t, "# Equations\n\n$$\n\\int_0^1 x^2\\,dx = \\frac{1}{3}\n$$\n\nafter")
@@ -231,9 +227,8 @@ func TestInlineMathIsTypesetAwayFromTheCaret(t *testing.T) {
 	})
 }
 
-// A formula taller than the text grows its line the way Kvit's did, and
-// sits on the line's baseline inside it; one that fits leaves the line at
-// the pitch.
+// A formula taller than the text grows its line, and sits on the line's
+// baseline inside it; one that fits leaves the line at the pitch.
 func TestTallInlineMathGrowsItsLine(t *testing.T) {
 	needMath(t)
 	s, e := mathEditor(t, "Text before $x$ text after\n\nFraction inline $\\frac{a}{b}$ text after\n\nplain text")
@@ -255,8 +250,8 @@ func TestTallInlineMathGrowsItsLine(t *testing.T) {
 			t.Errorf("the formula (%v above the baseline at %v, %v below) leaves its line %v to %v",
 				bx.formula.Baseline, base, bx.formula.Height-bx.formula.Baseline, top, top+tall)
 		}
-		// Kvit's rule: the text's face at the smallest whole size holding
-		// the formula, spaced by the document's line height.
+		// The tall line's height: the text's face at the smallest whole
+		// size holding the formula, spaced by the document's line height.
 		asc, desc := e.fontExtents(l.style)
 		p := math.Round(float64(l.style.Size))
 		for asc*float32(p) < float32(bx.formula.Baseline) || desc*float32(p) < float32(bx.formula.Height-bx.formula.Baseline) {

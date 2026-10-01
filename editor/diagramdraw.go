@@ -1,10 +1,8 @@
 package editor
 
-// Drawing a Mermaid diagram block: the painter of Kvit's
-// src/content/diagrams/diagrampainter.cpp (the scene's roles given the
-// theme's colours, then groups, lines with their markers, shapes and text),
-// the selection rings of diagramcanvas.cpp, and the block's panels, controls
-// and notes of qml/DiagramBlock.
+// Drawing a Mermaid diagram block: the scene's roles given the theme's
+// colours, then groups, lines with their markers, shapes and text; the
+// selection rings; and the block's panels, controls and notes.
 
 import (
 	"fmt"
@@ -24,9 +22,8 @@ import (
 	"github.com/richardwilkes/unison/enums/strokejoin"
 )
 
-// roleColor is the theme's colour for a scene role, as the block binds
-// them (DiagramBlock's ThemedCanvas). ok is false for the background,
-// which is drawn as nothing so the panel shows through.
+// roleColor is the theme's colour for a scene role. ok is false for the
+// background, which is drawn as nothing so the panel shows through.
 func (e *Editor) roleColor(r diagram.Role) (palette.Color, bool) {
 	t := e.tok()
 	switch r {
@@ -94,7 +91,7 @@ func toPath(o diagram.Outline) *unison.Path {
 
 // pen is a stroke in a colour, width and line style, with round ends and
 // joins when round is set. A dash is four widths long with two between, and
-// a dot one with two between, as draws them.
+// a dot one with two between.
 func pen(c unison.Color, width float32, style diagram.LineStyle, round bool) *unison.Paint {
 	p := unison.NewPaint()
 	p.SetAntialias(true)
@@ -148,8 +145,8 @@ func (e *Editor) paintScene(gc *unison.Canvas, s *diagram.Scene, c *diagramCanva
 
 	// Lines, under the shapes so arrowheads meet the borders cleanly. A line
 	// that divides a box (a class's compartments, an entity's rows, a
-	// state's descriptions) waits until the boxes are drawn: Kvit's painter
-	// draws it under the box, where the box's fill hides it.
+	// state's descriptions) waits until the boxes are drawn, since under the
+	// box the box's fill would hide it.
 	var dividers []diagram.Path
 	for _, p := range s.Paths {
 		if isDivider(p) {
@@ -267,10 +264,9 @@ func isDivider(p diagram.Path) bool {
 		p.StartMarker == diagram.MarkerNone && p.EndMarker == diagram.MarkerNone
 }
 
-// groupTitleColor is the colour of a subgraph's or a composite state's
-// title: the border darkened, as Kvit draws it, on a light theme, and the
-// muted text colour on a dark one, where the darkened border would be dark
-// on dark.
+// groupTitleColor is the colour of a subgraph's or a composite state's title:
+// the border darkened on a light theme, and the muted text colour on a dark
+// one, where the darkened border would be dark on dark.
 func (e *Editor) groupTitleColor() palette.Color {
 	t := e.tok()
 	if palette.RelativeLuminance(t.WindowBackground) < 0.5 {

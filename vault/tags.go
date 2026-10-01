@@ -1,10 +1,10 @@
 package vault
 
-// Renaming, merging and deleting tags across the vault (Kvit's
-// NoteCollection::renameTag and deleteTag): every note carrying the tag has
-// its front matter rewritten, the rest of each note left as it was. Renaming
-// onto a tag some notes already have merges the two, a note keeping one of
-// them. The tag's colour follows the new name unless that one has its own.
+// Renaming, merging and deleting tags across the vault: every note carrying
+// the tag has its front matter rewritten, the rest of each note left as it
+// was. Renaming onto a tag some notes already have merges the two, a note
+// keeping one of them. The tag's colour follows the new name unless that one
+// has its own.
 
 import (
 	"errors"

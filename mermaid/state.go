@@ -13,8 +13,7 @@ import (
 // spellings), notes (left or right, on one line or up to `end note`, and
 // floating `note "x" as n`), classDef, class, style and `:::`, and accTitle
 // and accDescr. `scale`, the `--` dividers of concurrent regions, and click
-// and href are kept with a warning, never refused as unknown statements. It
-// is a port of the app's mermaidstate.cpp.
+// and href are kept with a warning, never refused as unknown statements.
 
 // stripQuotedComment cuts a `%%` comment outside quotes off a line.
 func stripQuotedComment(raw string) string {

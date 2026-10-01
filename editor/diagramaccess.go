@@ -1,12 +1,11 @@
 package editor
 
-// What a screen reader is told of a Mermaid diagram block. Read, the block
-// is a picture named by the diagram's summary ("Mermaid flowchart with 5
-// nodes and 4 connections"), or by the selected element, with the
-// diagram's accessible title and description, as Kvit's diagram block
-// reports them; while the pointer is over it, its controls are buttons.
-// With the caret in it, the block is its source, an editable text, and the
-// preview under it is a picture of its own.
+// What a screen reader is told of a Mermaid diagram block. Read, the block is
+// a picture named by the diagram's summary ("Mermaid flowchart with 5 nodes
+// and 4 connections"), or by the selected element, with the diagram's
+// accessible title and description; while the pointer is over it, its
+// controls are buttons. With the caret in it, the block is its source, an
+// editable text, and the preview under it is a picture of its own.
 
 import (
 	"strings"

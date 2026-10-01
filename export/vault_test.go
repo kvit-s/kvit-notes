@@ -40,7 +40,7 @@ func paths(files []File, base string) []string {
 }
 
 // Each note becomes one file, mirroring the vault's folders, or all become
-// collection.<ext> (testExportCollectionPerNote, testExportCollectionSingleFile).
+// collection.<ext>.
 func TestVaultLayout(t *testing.T) {
 	root, notes := vaultOf(t, map[string]string{"Alpha.md": "a\n", "Sub/Beta.md": "b\n"})
 	dest := t.TempDir()
@@ -66,9 +66,7 @@ func TestVaultLayout(t *testing.T) {
 }
 
 // A combined HTML export is one page, with the stylesheet and each script
-// tag once, and a page break before each note after the first
-// (testSingleFileHtmlIsOneDocument, testSingleFileHtmlInjectsSharedAssetsOnce,
-// testSingleFileHtmlSeparatesNotesWithPageBreaks).
+// tag once, and a page break before each note after the first.
 func TestCombinedHTMLIsOnePage(t *testing.T) {
 	root, notes := vaultOf(t, map[string]string{
 		"One.md":   "# One\n\nAlpha body.\n\n$$\nE = mc^2\n$$\n",
@@ -112,8 +110,7 @@ func TestCombinedMarkdownAndText(t *testing.T) {
 	}
 }
 
-// Each note's relative images are found in that note's own folder
-// (testPerNoteImageBaseInCollectionExport).
+// Each note's relative images are found in that note's own folder.
 func TestPerNoteImageBase(t *testing.T) {
 	root, notes := vaultOf(t, map[string]string{
 		"A/one.md":  "# One\n\n![](pic.png)\n",
@@ -134,8 +131,7 @@ func TestPerNoteImageBase(t *testing.T) {
 }
 
 // The note open in the editor exports with its unsaved text, which the
-// caller passes in its place; nothing is written to the vault
-// (testLiveNoteSnapshotOverridesSavedBody, testLiveNoteSnapshotIsIgnoredForOtherNotes).
+// caller passes in its place; nothing is written to the vault.
 func TestLiveNoteText(t *testing.T) {
 	root, notes := vaultOf(t, map[string]string{"Open.md": "# Open\n\nSaved open.\n", "Other.md": "# Other\n\nSaved other.\n"})
 	notes[0].Text = "# Open\n\nUnsaved open."
@@ -153,7 +149,7 @@ func TestLiveNoteText(t *testing.T) {
 }
 
 // A standalone Markdown export is the note, front matter included, in the
-// form the app writes it (testExportOutsideTheVaultStillWorks).
+// canonical form.
 func TestMarkdownExportIncludesFrontMatter(t *testing.T) {
 	root, notes := vaultOf(t, map[string]string{
 		"One.md":        "---\ntags: [a]\n---\nBody one.\n",
@@ -178,10 +174,8 @@ func TestMarkdownExportIncludesFrontMatter(t *testing.T) {
 	}
 }
 
-// Plans that would write over a note are refused whole, with the app's
-// messages (testMarkdownExportIntoTheVaultLeavesSourcesByteIdentical,
-// testMarkdownExportIntoASubfolderOfTheVaultIsRefused,
-// testCombinedExportOntoASourceIsRefused, testCollidingOutputsAreRefused).
+// Plans that would write over a note are refused whole, each with a message
+// saying why.
 func TestUnsafePlansAreRefused(t *testing.T) {
 	root, notes := vaultOf(t, map[string]string{
 		"Kept.md":          "---\ntags: [work, urgent]\nfavorite: true\nreviewer: ada\n---\n# Kept\n\nThe body.\n",
@@ -237,7 +231,7 @@ func TestUnsafePlansAreRefused(t *testing.T) {
 	if !errors.As(err, &refusal) {
 		t.Errorf("a combined file onto a note found on disk: %v", err)
 	}
-	// Given the list, a note not on it is not protected, as in the app.
+	// Given the list, a note not on it is not protected.
 	_, err = Vault(VaultExport{Root: root, Notes: notes[:1], AllNotes: []string{"Kept.md"}, Dest: inside,
 		Format: FormatMarkdown, SingleFile: true})
 	if err != nil {
@@ -245,8 +239,7 @@ func TestUnsafePlansAreRefused(t *testing.T) {
 	}
 }
 
-// A combined file over the budget is refused rather than built
-// (testCombinedExportOverTheDocumentBudgetIsRefused).
+// A combined file over the budget is refused before it is built.
 func TestCombinedBudget(t *testing.T) {
 	files := map[string]string{}
 	for _, n := range []string{"Big0.md", "Big1.md", "Big2.md", "Big3.md", "Big4.md", "Big5.md"} {
@@ -265,8 +258,7 @@ func TestCombinedBudget(t *testing.T) {
 	}
 }
 
-// An image over the attachment budget is left out of a vault export
-// (testOversizedAttachmentIsSkippedNotInlined).
+// An image over the attachment budget is left out of a vault export.
 func TestVaultAttachmentBudget(t *testing.T) {
 	big := strings.Repeat("Z", 200*1024)
 	root, notes := vaultOf(t, map[string]string{"WithImage.md": "# With image\n\n![](big.png)\n", "big.png": big})

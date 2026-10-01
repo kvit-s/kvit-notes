@@ -29,31 +29,24 @@ func libraryName() string {
 var errLibraryMissing = errors.New("the math library was not found")
 
 // locate finds the math library file and its resource directory, the fonts
-// and XML files MicroTeX reads (a copy of third_party/microtex/res), as the
-// app's MathRenderer::resourceRoot finds the resources. Each is the first
-// that exists of, in this order:
+// and XML files MicroTeX reads (a copy of third_party/microtex/res). Each is
+// the first that exists of, in this order:
 //
 //  1. The environment: KVIT_MATH_LIB names the library file and
-//
-// KVIT_MATH_RES the resource directory. A name that does not exist is an
-// error, not skipped.
+//     KVIT_MATH_RES the resource directory. A name that does not exist is an
+//     error, not skipped.
 //  2. Beside the executable: kvitmath.dll, libkvitmath.dylib or
-//
-// libkvitmath.so, and math-res/. The Windows installer, the portable zip,
-// and build.sh's build/<os>-<arch>/ and D: copies.
+//     libkvitmath.so, and math-res/. The Windows installer, the portable zip,
+//     and build.sh's build/<os>-<arch>/ and D: copies.
 //  3. A macOS bundle, with the executable in Contents/MacOS:
-//
-// Contents/Frameworks/libkvitmath.dylib and Contents/Resources/math-res.
+//     Contents/Frameworks/libkvitmath.dylib and Contents/Resources/math-res.
 //  4. The Linux FHS layout of the AppImage, Flatpak and AUR packages, with
-//
-// the executable in <prefix>/bin: <prefix>/lib/kvit-notes/libkvitmath.so
-// and <prefix>/share/kvit-notes/math-res.
+//     the executable in <prefix>/bin: <prefix>/lib/kvit-notes/libkvitmath.so
+//     and <prefix>/share/kvit-notes/math-res.
 //  5. This repository, for tests and development: build/<library> and
-//
-// third_party/microtex/res of the checkout holding the working directory
-//
-//	(go test, go run), or of the one whose build/ holds the executable
-//	(build/kvit-notes).
+//     third_party/microtex/res of the checkout holding the working directory
+//     (go test, go run), or of the one whose build/ holds the executable
+//     (build/kvit-notes).
 //
 // A resource directory counts only when it holds a fonts folder. Links in
 // the executable's path are resolved first, so a link to the program from
@@ -135,7 +128,7 @@ func exeDir() string {
 	return filepath.Dir(exe)
 }
 
-// checkout is the kvit-notes-go checkout holding wd, or whose build/ holds
+// checkout is the kvit-notes checkout holding wd, or whose build/ holds
 // the executable, or "". Only the folder above the executable is looked at,
 // so a package staged somewhere inside the checkout does not find it.
 func checkout(exe, wd string) string {
@@ -169,9 +162,8 @@ func isDir(path string) bool {
 	return err == nil && st.IsDir()
 }
 
-// SelfTest is the check a package's build runs on the layout it made, as
-// the app's `kvit-notes --math-selftest` (MathRenderer::runSelfTest) was:
-// it finds the library and the resources, draws one formula into an image,
+// SelfTest is the check a package's build runs on the layout it made, with
+// `kvit-notes --math-selftest`: it finds the library and the resources, draws one formula into an image,
 // and writes where they were found and the outcome to w:
 //
 //	math-lib: <library file>

@@ -1,8 +1,7 @@
 package editor
 
-// Tests for the step 6 parity gaps closed here (PARITY 5.4, 2.5, 1.2.14,
-// 1.2.8): external drops, drawn selections, embed editing and sizing,
-// video hosts, image effects and the lightbox.
+// External drops, drawn selections, embed editing and sizing, video hosts,
+// image effects, the lightbox, and the dates at a task board card's foot.
 
 import (
 	"net/url"

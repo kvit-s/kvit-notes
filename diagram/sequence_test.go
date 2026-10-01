@@ -1,12 +1,10 @@
 package diagram
 
-// These tests are the layout and render functions of the app's
-// tests/test_mermaidsequence.cpp, one Go test per test function and in the
-// same order, with the same sources and expectations; the parser's
-// functions of that file are ported in package mermaid. Each name has
-// "Sequence" added, because every family's test file has a
-// layoutDeterministic. The test tells a dashed message by ::DashLine;
-// here it is LineDashed.
+// These tests check the sequence-diagram layout and renderer: lifelines,
+// headers and messages, activation bars and notes, self-messages, frames
+// for blocks, autonumbering, columns widened by a long label, and that the
+// same source lays out the same way twice. The sequence-diagram parser is
+// tested in package mermaid.
 
 import (
 	"math"

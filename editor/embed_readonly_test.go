@@ -14,9 +14,7 @@ import (
 	"github.com/richardwilkes/unison/enums/mod"
 )
 
-// The read-only document, after the core's tests/test_documentview.cpp
-// and tests/test_readonlydocument.cpp and what Kvit Works'
-// AgentReadOnlyDocument adds over them.
+// The read-only document, and what Kvit Works asks of it.
 
 // heldPanel holds a panel at a fixed height, as the pane a document is the
 // whole of does.
@@ -329,9 +327,8 @@ func TestTwoDocumentsMarkTheirOwnText(t *testing.T) {
 	})
 }
 
-// A read-only document spaces a paragraph's lines as the text documents do:
-// the line height times the font's own line height, rather than times its
-// size.
+// A read-only document spaces a paragraph's lines by the line height times
+// the font's own line height, rather than times its size.
 func TestADocumentSpacesLinesByTheFontsLineHeight(t *testing.T) {
 	s, d := openDocument(t, DocumentOptions{}, accessNote, 0)
 	s.Do(func() {

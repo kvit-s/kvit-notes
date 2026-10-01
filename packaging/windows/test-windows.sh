@@ -62,8 +62,8 @@ else
     math_probe windows amd64 "$work/mathprobe.exe"
 fi
 
-# The keys of the real installation (the Kvit Notes on the development
-# machine): its ProgID, the .md OpenWithProgids values, and its uninstall
+# The keys of the real installation (Kvit Notes as installed on the
+# development machine): its ProgID, the .md OpenWithProgids values, and its uninstall
 # entry. They are recorded with reg.exe before and after the test and must
 # not change.
 REAL_KEYS=('HKCU\Software\Classes\KvitNotes.md'

@@ -1,15 +1,14 @@
 package mathcmd
 
-// These tests are the app's tests/test_mathcommandmodel.cpp, one Go test
-// per test function there and in the same order, with the same inputs and
-// expected outputs. The model reads the engine's commands from MicroTeX;
-// here they are engineCommands, a fixed list holding the commands the tests
-// rely on (\cfrac, \cdotB, \cdotBB, \vv) and some the hand-picked list also
-// names, so the tests show those are not listed twice. The two  tests
-// that render every entry through the engine, testCatalogPreviewsRender and
-// testCatalogTemplatesRender, need the math engine and are skipped here; the
-// entries' TeX has to be checked where mathtex is (see renderChecks). The
-// test's recentChanged signal is OnRecentChanged.
+// These tests check the categories, the hand-picked entries and their
+// templates and caret offsets, the ranking of what is typed, and the recently
+// used commands. The model reads the engine's commands from MicroTeX; here
+// they are engineCommands, a fixed list holding the commands the tests rely
+// on (\cfrac, \cdotB, \cdotBB, \vv) and some the hand-picked list also
+// names, so the tests show those are not listed twice. The two tests that
+// render every entry through the engine, TestCatalogPreviewsRender and
+// TestCatalogTemplatesRender, need the math engine and are skipped here; the
+// entries' TeX has to be checked where mathtex is (see renderChecks).
 
 import (
 	"fmt"
@@ -52,7 +51,7 @@ func allCuratedEntries(m *Model) []Entry {
 	return out
 }
 
-// renderChecks are the TeX strings the two skipped  tests render through
+// renderChecks are the TeX strings the two skipped tests render through
 // the engine: every entry's preview, and every standalone entry's templates
 // with their slots filled. A test beside the math engine can check them all.
 func renderChecks(m *Model) []string {

@@ -1,10 +1,9 @@
 package main
 
-// One running copy (features.md 15, Kvit's single-instance rule): the first
-// copy listens on a socket in the settings folder; a copy started after it
-// hands over what it was asked to open, a folder, a file or nothing, and
-// exits, and the first copy opens it in a window of its own, or brings
-// forward the window it is already open in.
+// One running copy: the first copy listens on a socket in the settings
+// folder; a copy started after it hands over what it was asked to open, a
+// folder, a file or nothing, and exits, and the first copy opens it in a
+// window of its own, or brings forward the window it is already open in.
 
 import (
 	"bufio"

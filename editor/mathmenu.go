@@ -1,14 +1,14 @@
 package editor
 
-// The math command menu (Kvit's MathCommandMenu): the popup a backslash
-// opens in math (mathassist.go). On a bare backslash it shows the
-// categories of package mathcmd down its left side and the highlighted
-// category's commands as a grid of pictures, with the highlighted command's
-// name and meaning under the grid; once letters follow the backslash it is
-// one ranked list of matching commands. The editor keeps the keyboard: the
-// arrows move through the menu (Left and Right between the categories and
-// the grid), Enter or Tab puts the highlighted command in, and Escape closes
-// the menu. A query nothing matches closes it, leaving what was typed.
+// The math command menu: the popup a backslash opens in math (mathassist.go).
+// On a bare backslash it shows the categories of package mathcmd down its
+// left side and the highlighted category's commands as a grid of pictures,
+// with the highlighted command's name and meaning under the grid; once
+// letters follow the backslash it is one ranked list of matching commands.
+// The editor keeps the keyboard: the arrows move through the menu (Left and
+// Right between the categories and the grid), Enter or Tab puts the
+// highlighted command in, and Escape closes the menu. A query nothing matches
+// closes it, leaving what was typed.
 
 import (
 	kvitui "github.com/kvit-s/kvit-ui"
@@ -24,7 +24,7 @@ import (
 	"github.com/kvit-s/kvit-notes/mathtex"
 )
 
-// The menu in design pixels (MathCommandMenu).
+// The menu in design pixels.
 const (
 	mathListWidth   = 320 // completion mode
 	mathListRow     = 36
@@ -392,7 +392,7 @@ func (m *mathMenu) at(where geom.Point) (row, cat, cell int) {
 }
 
 // hover highlights what the pointer is over; over a category it shows that
-// category, as the menu does.
+// category.
 func (m *mathMenu) hover(where geom.Point) {
 	row, cat, cell := m.at(where)
 	switch {

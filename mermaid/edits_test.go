@@ -1,14 +1,8 @@
 package mermaid
 
-// These tests are the app's tests/test_mermaidedits.cpp, one Go test per
-// test function there and in the same order, with the same inputs and
-// expected outputs. Eight of its functions lay a diagram out or render it and
-// are ported in the diagram package instead: partialParseIsNotValid,
-// cleanParseIsStillValid, hugeCoordinatesDoNotExplodeSceneBounds, the four
-// arrangedMode… functions and pluginWrittenLinesParse. Where the test
-// passed colour("#ff0000") or an invalid colour, this one passes
-// ParseColor("#ff0000") or the zero Color, and positions are NodePosition
-// values rather than pairs of an id and a QPointF.
+// These tests check the edits that gestures on a drawn diagram make to its
+// source. How the edited sources parse into a scene and lay out is tested in
+// the diagram package (arranged_test.go).
 
 import (
 	"fmt"

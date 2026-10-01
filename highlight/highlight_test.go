@@ -20,8 +20,7 @@ func find(t *testing.T, text, needle string) int {
 // check is one thing a test expects of a text's spans: that a span is
 // exactly needle's first occurrence and is drawn as class, or, when at is
 // set, only that needle's first rune is drawn as class (Plain when no span
-// covers it). They are covers and tokenAt in Kvit's
-// tests/test_codelanguages.cpp.
+// covers it).
 type check struct {
 	needle string
 	class  Class
@@ -65,8 +64,8 @@ func expect(t *testing.T, lang, text string, checks []check) {
 	}
 }
 
-// The menu offers Kvit's sixteen languages in Kvit's order, under the names
-// its language picker shows (supportedSetIncludesSourceFileLanguages).
+// The menu offers Kvit's sixteen languages in their order, under the names
+// the language menu shows.
 func TestLanguagesAreKvitsMenu(t *testing.T) {
 	var ids, names []string
 	for _, l := range Languages() {
@@ -95,10 +94,10 @@ func TestLanguagesAreKvitsMenu(t *testing.T) {
 	}
 }
 
-// Every name and alias of Kvit's alias map resolves to its language, in any
-// case and with spaces around it (aliasesResolve).
+// Every name and alias Kvit takes resolves to its language, in any case and
+// with spaces around it.
 func TestAliases(t *testing.T) {
-	// The rows of Kvit's aliasesResolve test.
+	// A sample of aliases, one in upper case and one with spaces around it.
 	for alias, id := range map[string]string{
 		"py": "python", "PY": "python", "js": "javascript", "node": "javascript",
 		"c++": "cpp", "cxx": "cpp", "c": "cpp", "sh": "bash", "shell": "bash",
@@ -110,8 +109,7 @@ func TestAliases(t *testing.T) {
 			t.Errorf("Canonical(%q) = %q, want %q", alias, got, id)
 		}
 	}
-	// The whole of aliasMap in src/content/codelanguages.cpp, a language's
-	// ID first and then its aliases.
+	// Every name Kvit takes, a language's ID first and then its aliases.
 	qt := map[string]string{}
 	for _, names := range []string{
 		"python py python3",
@@ -162,8 +160,7 @@ func TestAliases(t *testing.T) {
 	}
 }
 
-// An unknown or empty language colours nothing
-// (unknownLanguageIsEmptyAndPaintsNothing).
+// An unknown or empty language colours nothing.
 func TestUnknownLanguage(t *testing.T) {
 	if got := Canonical("brainfuck"); got != "" {
 		t.Errorf("Canonical(brainfuck) = %q", got)
@@ -182,8 +179,7 @@ func TestUnknownLanguage(t *testing.T) {
 }
 
 // Mermaid is coloured but is not on the menu: a mermaid fence is a diagram
-// block, and its colours serve the diagram's source editor
-// (mermaidIsHighlightedButNotOffered).
+// block, and its colours serve the diagram's source editor.
 func TestMermaidIsHighlightedButNotOffered(t *testing.T) {
 	if got := Canonical("Mermaid"); got != "mermaid" {
 		t.Errorf("Canonical(Mermaid) = %q", got)
@@ -198,8 +194,8 @@ func TestMermaidIsHighlightedButNotOffered(t *testing.T) {
 	}
 }
 
-// Kvit's tests of its highlighter, from tests/test_codelanguages.cpp, each
-// under its name there.
+// What each language colours, one case per rule, each named after what it
+// checks.
 func TestKvitCases(t *testing.T) {
 	cases := []struct {
 		name, lang, src string
@@ -291,8 +287,7 @@ func TestKvitCases(t *testing.T) {
 	}
 }
 
-// lineSpans colours one line on its own, starting in state st, as Kvit's
-// tests call highlightLine.
+// lineSpans colours one line on its own, starting in state st.
 func lineSpans(lang, text string, st state) ([]Span, state) {
 	sc := scan{s: []rune(text)}
 	st = sc.line(table[Canonical(lang)], st)
@@ -300,8 +295,7 @@ func lineSpans(lang, text string, st state) ([]Span, state) {
 }
 
 // A line that leaves a comment open hands its state to the next line, which
-// is all comment until the comment closes (perLineStateThreadsBlockComment,
-// mermaidDirectiveSpansLines).
+// is all comment until the comment closes.
 func TestLineState(t *testing.T) {
 	for _, c := range []struct {
 		name, lang       string
@@ -443,11 +437,8 @@ func TestStringsEndWithTheirLine(t *testing.T) {
 }
 
 // A letter or digit outside Unicode's Basic Multilingual Plane, such as 𝑥
-// or 𠀀, is a letter here, where , which reads text as UTF-16 units, sees
-// the two halves of its surrogate pair and takes neither for a letter. So
-// "if𝑥" is one word here, where  colours its "if" as a keyword, and an
-// HTML entity is at most ten runes long here, where  counts ten UTF-16
-// units. These are the only places the port differs from the highlighter.
+// or 𠀀, is one letter, so "if𝑥" is one word and its "if" is not a keyword,
+// and an HTML entity's limit of ten characters is counted in runes.
 func TestLettersOutsideTheBMP(t *testing.T) {
 	expect(t, "python", "if𝑥 = 1 and 𠀀x(2)", []check{at("if", Plain), whole("𠀀x", Type)})
 	expect(t, "html", "&😀😀😀😀😀;", []check{whole("&😀😀😀😀😀;", Number)})

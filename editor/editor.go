@@ -62,8 +62,7 @@ type Editor struct {
 	cardDrag   *cardDrag     // a card pressed on a board, until let go
 	colDrag    *colDragState // a column header pressed for dragging, until let go
 	// boardHover is the card under the pointer, for its add-tag and due
-	// affordances; -1 when none. The layout shows them on that card only,
-	// as Kvit does.
+	// affordances; -1 when none. The layout shows them on that card only.
 	boardHoverID  int64
 	boardHoverCol int
 	boardHoverIdx int
@@ -88,12 +87,12 @@ type Editor struct {
 	CopyRich  func(markdown string)
 	PasteRich func() (string, bool)
 	// PasteImage, when set, saves a clipboard picture into the vault and
-	// reports the stored path, as the assetSink does. Nil keeps image data
-	// from being pasted, leaving the text path to run instead.
+	// reports the stored path. Nil keeps image data from being pasted,
+	// leaving the text path to run instead.
 	PasteImage func() (string, bool)
 	// SaveDroppedImage, when set, copies an image file dropped from another
 	// application into the vault's picture folder and reports the stored
-	// path (features.md 5.4). Nil keeps the file path as written.
+	// path. Nil keeps the file path as written.
 	SaveDroppedImage func(sourcePath string) (stored string, ok bool)
 	// BlocksHTML, when set, writes blocks as HTML for the block menu's
 	// Copy as, HTML.
@@ -103,7 +102,7 @@ type Editor struct {
 	// OnLink, when set, opens the link dialog, as Ctrl+K does.
 	OnLink func()
 	// OnEditEmbed, when set, edits an embed block's address, as the block
-	// menu's Edit URL… does (features.md 1.2.14).
+	// menu's Edit URL… does.
 	OnEditEmbed func(id int64, current string)
 	// OnExport, when set, exports blocks, as the block menu's Export does.
 	OnExport     func(ids []int64)
@@ -123,7 +122,7 @@ type Editor struct {
 	Centered bool
 	// Typewriter, when set to the region the editor scrolls in, keeps the
 	// caret's line in the middle of the view and fades the other blocks
-	// (typewriter mode, features.md 16.2).
+	// (typewriter mode).
 	Typewriter *kvitui.Region
 	// tableActive is the one live cell: the grid cell being edited in
 	// place, or nil. Row -1 is the header row, 0.. the data rows.
@@ -141,9 +140,8 @@ type Editor struct {
 	pictures       map[string]picture
 	grids          map[int64]cachedGrid
 	// codeScroll is each code block's horizontal scroll offset by block id:
-	// long lines do not wrap (features.md 1.2.7), so the text scrolls under
-	// its panel past the viewport. codeDrag is a press on a code
-	// scrollbar, until let go.
+	// long lines do not wrap, so the text scrolls under its panel past the
+	// viewport. codeDrag is a press on a code scrollbar, until let go.
 	codeScroll map[int64]float32
 	codeDrag   *codeDragState
 	// DiagramMath, when set, typesets the $$…$$ labels of Mermaid diagrams
@@ -176,9 +174,9 @@ type Editor struct {
 	gapArmed    int            // the armed seam above block gapArmed, count is below last, -1 off
 	gapHover    int            // the seam under the pointer, -1 for none
 	dropIndex   int            // the row an external drag would insert before, -1 for none
-	drawn       *drawnSel      // a drawn block's own selection (features.md 2.5), nil for none
+	drawn       *drawnSel      // a drawn block's own selection, nil for none
 	drawnDrag   *drawnAnchor   // a drawn selection being made by dragging
-	light       *lightbox      // a picture opened full-size (features.md 1.2.8), nil for none
+	light       *lightbox      // a picture opened full-size, nil for none
 
 	menu  *slashMenu
 	drag  *dragState
@@ -408,7 +406,7 @@ func (e *Editor) bodyLeft() float32 {
 func (e *Editor) bodyRight() float32 { return e.width() - e.side() }
 
 // focusColumn is the width focus mode keeps the text to when the reader has
-// set no limit of their own (BlockEditor).
+// set no limit of their own.
 const focusColumn = 760
 
 // side is the space left and right of the rows: the page margin, and, when

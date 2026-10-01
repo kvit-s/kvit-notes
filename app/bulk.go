@@ -1,9 +1,9 @@
 package app
 
-// Acting on several notes at once (features.md 8.3, Kvit's note list bulk
-// bar): Ctrl+click picks notes in the list, Shift+click a run of them, and a
-// bar over the list then pins, marks as favourite, tags or moves to the
-// trash every note picked, or clears the pick.
+// Acting on several notes at once: Ctrl+click picks notes in the list,
+// Shift+click a run of them, and a bar over the list then pins, marks as
+// favourite, tags or moves to the trash every note picked, or clears the
+// pick.
 
 import (
 	"fmt"

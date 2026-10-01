@@ -1,10 +1,9 @@
 package app
 
-// Quick capture (features.md 12.7, Kvit's QuickCaptureWindow): a small
-// window with one text area, from File or Ctrl+Alt+N. Ctrl+Enter or Save
-// note makes a note of the text at the top of the vault, named from its
-// first line; Escape or Cancel closes the window. When the note cannot be
-// written, the window stays open with the text in it.
+// Quick capture: a small window with one text area, from File or Ctrl+Alt+N.
+// Ctrl+Enter or Save note makes a note of the text at the top of the vault,
+// named from its first line; Escape or Cancel closes the window. When the
+// note cannot be written, the window stays open with the text in it.
 
 import (
 	"strings"

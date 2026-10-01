@@ -1,9 +1,8 @@
 package editor
 
-// Image effects and the lightbox (features.md 1.2.8, Kvit's ImageBlock
-// and Lightbox): per-block presentation attributes (rounded with its
-// radius, shadow, border with an optional colour, aspect stretch) drawn as
-// Kvit draws them, and a click on a resolved picture opening it full-size.
+// Image effects and the lightbox: per-block presentation attributes (rounded
+// with its radius, shadow, border with an optional colour, aspect stretch),
+// and a click on a resolved picture opening it full-size.
 // A sound or video draws as a card opening externally; playing inline has
 // no Go toolkit behind it, so the card opens in the reader's player.
 
@@ -63,9 +62,9 @@ func (e *Editor) effectsOf(b *Block) imageEffects {
 	return fx
 }
 
-// SetImageEffects sets an image block's effects as one undo step (the
-// popover ImageEffectsPopover writes): rounded with a radius (0 clears),
-// shadow, border with an optional colour ("" clears), and stretch.
+// SetImageEffects sets an image block's effects as one undo step: rounded
+// with a radius (0 clears), shadow, border with an optional colour (""
+// clears), and stretch.
 func (e *Editor) SetImageEffects(ids []int64, rounded int, shadow bool, border, color string, stretch bool) {
 	set := func(id int64, key, value string) {
 		b := e.Doc.Block(id)
@@ -131,7 +130,7 @@ type lightbox struct {
 }
 
 // OpenLightbox opens a picture full-size, as a click on a resolved image
-// does (AppActions.requestLightbox).
+// does.
 func (e *Editor) OpenLightbox(path, alt string) {
 	if e.openPictureElsewhere(path, alt) {
 		return

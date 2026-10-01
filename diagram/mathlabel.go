@@ -1,7 +1,6 @@
 package diagram
 
-// Mathematics in a diagram label, a port of the app's
-// src/content/diagrams/diagramtext.cpp and the archived notes sources/diagram-math.md.
+// Mathematics in a diagram label.
 //
 // Mermaid settled the syntax in v10.9.0: a label may be a LaTeX expression
 // between `$$` delimiters, in flowchart node and edge labels and in a

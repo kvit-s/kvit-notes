@@ -2,10 +2,9 @@ package search
 
 // A block's Markdown against the text the reader sees, which is what a
 // replacement needs: a match is found in the display text, and replacing it
-// has to change the Markdown. The rules are the app's, from
-// src/content/inlinemarkdown.cpp (segmentsFor, documentToMarkdown,
-// markdownToDocument and cutRangeResult) with no span revealed, which is
-// how the find bar sees a block.
+// has to change the Markdown. The markers of every span are hidden, as they
+// are when the caret is not in the span, which is how the find bar sees a
+// block.
 
 import (
 	"slices"
@@ -39,10 +38,10 @@ const (
 	segMarker                 // a hidden marker: in the Markdown, not displayed
 )
 
-// seg is one piece of the Markdown and where it is displayed
-// (inlinemarkdown.cpp Seg). Plain and content pieces are displayed as they
-// are; a marker takes no room. There is always a plain piece at the end,
-// possibly empty, so positions past the end extend from it.
+// seg is one piece of the Markdown and where it is displayed. Plain and
+// content pieces are displayed as they are; a marker takes no room. There is
+// always a plain piece at the end, possibly empty, so positions past the end
+// extend from it.
 type seg struct {
 	kind        segKind
 	doc, docLen int
@@ -262,10 +261,9 @@ func (b Block) Text() string {
 	return layoutOf(b.Markdown, b.Spans).text()
 }
 
-// MarkdownPos maps an offset in the display text to the Markdown, as the
-// app does to put the caret at a match (BlockPositions::markdownPosition,
-// and CollectionSearch::markdownPosition for a search result). The answer
-// is kept inside the Markdown.
+// MarkdownPos maps an offset in the display text to the Markdown, to put
+// the caret at a match in the note or at a search result. The answer is kept
+// inside the Markdown.
 func (b Block) MarkdownPos(display int) int {
 	n := utf8.RuneCountInString(b.Markdown)
 	d := max(0, display)
@@ -275,9 +273,9 @@ func (b Block) MarkdownPos(display int) int {
 	return max(0, min(layoutOf(b.Markdown, b.Spans).toMarkdown(d), n))
 }
 
-// DisplayPos maps an offset in the Markdown to the display text, as the
-// app does with the caret where a search starts and with the ends of the
-// selection a search is kept inside (BlockPositions::displayPosition).
+// DisplayPos maps an offset in the Markdown to the display text: the caret
+// where a search starts, and the ends of the selection a search is kept
+// inside.
 func (b Block) DisplayPos(markdown int) int {
 	m := max(0, min(markdown, utf8.RuneCountInString(b.Markdown)))
 	if b.Verbatim {
@@ -287,11 +285,10 @@ func (b Block) DisplayPos(markdown int) int {
 }
 
 // Replace replaces the display range [start, end) with replacement, as
-// selecting that text and typing would (DocumentSearch::replaceRange): the
-// range is cut by the rule of cut and the replacement goes in where it was.
-// The replacement is Markdown, so "**loud**" arrives bold. A verbatim block
-// is spliced directly. It returns the new Markdown and the Markdown offset
-// just after the replacement.
+// selecting that text and typing would: the range is cut by the rule of cut
+// and the replacement goes in where it was. The replacement is Markdown, so
+// "**loud**" arrives bold. A verbatim block is spliced directly. It returns
+// the new Markdown and the Markdown offset just after the replacement.
 func (b Block) Replace(start, end int, replacement string) (markdown string, after int) {
 	if b.Verbatim {
 		src := []rune(b.Markdown)

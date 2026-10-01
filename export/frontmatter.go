@@ -1,11 +1,9 @@
 package export
 
-// Front matter as the exporter handles it (src/content/notefrontmatter.cpp).
-// A per-note Markdown export writes the note's front matter the way the
-// app's index serializes it (NoteCollection::frontMatterFor), which is the
-// canonical form: tags, created, pinned, favorite and goal in that order,
-// then every other line as it was. The HTML and plain-text exports leave the
-// front matter out.
+// Front matter as the exporter handles it. A per-note Markdown export writes
+// the note's front matter in Kvit's canonical form: tags, created, pinned,
+// favorite and goal in that order, then every other line as it was. The HTML
+// and plain-text exports leave the front matter out.
 
 import (
 	"regexp"
@@ -70,9 +68,9 @@ func isMappingShaped(l string) bool {
 	return isBlankLine(l) || isCommentLine(l) || isListItemLine(l) || isContinuationLine(l) || key
 }
 
-// splitFrontMatter is NoteFrontMatter::split: the block and the body, byte
-// for byte. A block needs a closing fence, only mapping-shaped lines inside,
-// and at least one key, so a note that starts with a divider has none.
+// splitFrontMatter splits text into its front matter block and the body,
+// byte for byte. A block needs a closing fence, only mapping-shaped lines
+// inside, and at least one key, so a note that starts with a divider has none.
 func splitFrontMatter(text string) fmSplit {
 	res := fmSplit{body: text}
 	if !strings.HasPrefix(text, "---") {
@@ -114,7 +112,7 @@ func splitFrontMatter(text string) fmSplit {
 
 type fmMeta struct {
 	tags     []string
-	created  string // already in the form  writes it; "" when unset
+	created  string // already in the form isoCreated writes; "" when unset
 	pinned   bool
 	favorite bool
 	goal     int
@@ -194,14 +192,13 @@ func parseTagsValue(value string) ([]string, bool) {
 	return tags, true
 }
 
-// reISODate is the ISO 8601 form the ::ISODate reads: a date, optionally
-// a time, optionally a zone.
+// reISODate is the ISO 8601 form a created value is read in: a date,
+// optionally a time, optionally a zone.
 var reISODate = regexp.MustCompile(`^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:[.,]\d+)?)?(Z|[+-]\d{2}(?::?\d{2})?)?)?$`)
 
-// isoCreated reads a created value and writes it back the way
-// date-time::toString(::ISODate) does: seconds always, no fraction, "Z"
-// for UTC, the offset when one was given, nothing for local time. A date
-// alone is the start of that day.
+// isoCreated reads a created value and writes it back in one ISO 8601 form:
+// seconds always, no fraction, "Z" for UTC, the offset when one was given,
+// nothing for local time. A date alone is the start of that day.
 func isoCreated(raw string) (string, bool) {
 	m := reISODate.FindStringSubmatch(stripMatchingQuotes(raw))
 	if m == nil {
@@ -216,7 +213,7 @@ func isoCreated(raw string) (string, bool) {
 			ss = num(m[6])
 		}
 	}
-	// 24:00:00 is the end of the day, which  reads as midnight of the next.
+	// 24:00:00 is the end of the day, read as midnight of the next.
 	endOfDay := hh == 24 && mm == 0 && ss == 0
 	if endOfDay {
 		hh = 0
@@ -239,7 +236,7 @@ func isoCreated(raw string) (string, bool) {
 			om = num(digits[2:4])
 		}
 		if oh == 0 && om == 0 {
-			// reads a zero offset as UTC.
+			// A zero offset is UTC.
 			out += "Z"
 		} else {
 			out += zone[:1] + digits[:2] + ":" + strconv.Itoa(100 + om)[1:]
@@ -248,7 +245,7 @@ func isoCreated(raw string) (string, bool) {
 	return out, true
 }
 
-// parseFrontMatter is NoteFrontMatter::parse over a block with its fences.
+// parseFrontMatter reads a front matter block, fences included.
 func parseFrontMatter(block string) fmMeta {
 	var meta fmMeta
 	lines := fmLines(block)
@@ -335,8 +332,8 @@ func serializeTag(tag string) string {
 	return sb.String()
 }
 
-// serializeFrontMatter is NoteFrontMatter::serialize: "" when there is
-// nothing to write.
+// serializeFrontMatter writes front matter in the canonical form, or "" when
+// there is nothing to write.
 func serializeFrontMatter(meta fmMeta) string {
 	var lines []string
 	if len(meta.tags) > 0 {
@@ -365,19 +362,18 @@ func serializeFrontMatter(meta fmMeta) string {
 	return "---\n" + strings.Join(lines, "\n") + "\n---\n"
 }
 
-// SplitNote separates a note file's front matter from its body by the
-// app's rule (NoteFrontMatter::split). The front matter is returned with its
-// "---" lines, byte for byte, and is "" when the note has none; front matter
-// plus body is always the text passed in.
+// SplitNote separates a note file's front matter from its body by the rule
+// splitFrontMatter describes. The front matter is returned with its "---"
+// lines, byte for byte, and is "" when the note has none; front matter plus
+// body is always the text passed in.
 func SplitNote(text string) (frontMatter, body string) {
 	s := splitFrontMatter(text)
 	return s.block, s.body
 }
 
-// CanonicalFrontMatter is a note's front matter as the app writes it when
-// it exports the note as Markdown (NoteCollection::frontMatterFor): the keys
-// Kvit knows in its own order and form, then every other line unchanged, or
-// "" when nothing is left to write.
+// CanonicalFrontMatter is a note's front matter as a Markdown export of the
+// note writes it: the keys Kvit knows in its own order and form, then every
+// other line unchanged, or "" when nothing is left to write.
 func CanonicalFrontMatter(frontMatter string) string {
 	if frontMatter == "" {
 		return ""

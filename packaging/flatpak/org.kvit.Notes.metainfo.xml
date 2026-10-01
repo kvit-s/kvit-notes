@@ -4,8 +4,9 @@
      packaging/linux/build-linux.sh adds a <release> entry for the version it
      packages when this file has none; add the entry here when tagging a
      release, because the Flatpak is built from this file as it is.
-     The screenshots are the Qt app's, kept in the Qt repository's history at
-     the tag qt-final; replace them with pictures of the Go app. -->
+     The screenshots show Kvit Notes 1.0.0, which was built with Qt, from this
+     repository at the tag qt-final; replace them with pictures of the
+     current version. -->
 <component type="desktop-application">
   <id>org.kvit.Notes</id>
   <metadata_license>CC0-1.0</metadata_license>

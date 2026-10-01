@@ -1,15 +1,14 @@
 package editor
 
-// Display equations (features.md 1.2.15, Kvit's qml/MathBlock): a
-// "$$ … $$" fence is a Math block holding the TeX between the fences. Away
-// from the caret it shows the typeset equation, centred, in the text colour,
-// with its number at the right when View, Equation numbers is on; blank it
-// says so, and TeX that does not typeset shows its source and the error,
-// never nothing. With the caret in it, its TeX is edited in a panel, the
-// equation typeset from it in a second panel underneath as it is typed, and
-// the key that leaves the block named under that. When the math library is
-// not there, the block is its source in a code panel, as before math was
-// typeset.
+// Display equations: a "$$ … $$" fence is a Math block holding the TeX
+// between the fences. Away from the caret it shows the typeset equation,
+// centred, in the text colour, with its number at the right when View,
+// Equation numbers is on; blank it says so, and TeX that does not typeset
+// shows its source and the error, never nothing. With the caret in it, its
+// TeX is edited in a panel, the equation typeset from it in a second panel
+// underneath as it is typed, and the key that leaves the block named under
+// that. When the math library is not there, the block is its source in a code
+// panel, as before math was typeset.
 
 import (
 	"math"
@@ -24,13 +23,13 @@ import (
 	"github.com/kvit-s/kvit-notes/mathtex"
 )
 
-// parseMathFence reads a display equation starting at line i, as Kvit's
-// DocumentSerializer::parse reads one: a line that is only "$$" opens a
-// fence that the next line that is only "$$" closes (or, as an older Kvit
-// wrote it, "$$" with the attribute tag after it), and a line "$$x$$" is an
-// equation on one line, which is written back as a fence. The block's text
-// is the TeX between; the opening line's tag is the block's. next is the
-// line after the equation, and ok false when line i does not start one.
+// parseMathFence reads a display equation starting at line i: a line that is
+// only "$$" opens a fence that the next line that is only "$$" closes (or, as
+// an older Kvit wrote it, "$$" with the attribute tag after it), and a line
+// "$$x$$" is an equation on one line, which is written back as a fence. The
+// block's text is the TeX between; the opening line's tag is the block's.
+// next is the line after the equation, and ok false when line i does not
+// start one.
 func parseMathFence(lines []string, i int, line, attrs string) (b Block, next int, ok bool) {
 	t := strings.TrimSpace(line)
 	single := len(t) > 4 && strings.HasPrefix(t, "$$") && strings.HasSuffix(t, "$$")
@@ -63,11 +62,11 @@ func parseMathFence(lines []string, i int, line, attrs string) (b Block, next in
 	return b, j, true
 }
 
-// The display block in design pixels (MathBlock): its content starts 8
-// below the row's top and ends 8 above its bottom; the typeset equation takes
-// at least 24; the source panel pads its text 10 at the side and 6 above and
-// below; its parts are 6 apart; the preview panel is 12 taller than what it
-// shows, and at least 28 plus that.
+// The display block in design pixels: its content starts 8 below the row's
+// top and ends 8 above its bottom; the typeset equation takes at least 24;
+// the source panel pads its text 10 at the side and 6 above and below; its
+// parts are 6 apart; the preview panel is 12 taller than what it shows, and
+// at least 28 plus that.
 const (
 	mathRowTop      = 8
 	mathRowBottom   = 8
@@ -96,10 +95,9 @@ func (e *Editor) mathEditing(i int) bool {
 // mathReads reports whether equation i shows only its typeset form.
 func (e *Editor) mathReads(i int) bool { return e.mathOn(i) && !e.mathEditing(i) }
 
-// displayMathSize is the size display equations are set at: the note's
-// body size, matched to its text face's x-height (MathBlock,
-// mathPixelSize), so the letters stay the size of the prose around them and
-// display style supplies the large operators.
+// displayMathSize is the size display equations are set at: the note's body
+// size, matched to its text face's x-height, so the letters stay the size of
+// the prose around them and display style supplies the large operators.
 func (e *Editor) displayMathSize() int {
 	ty := e.ui.Typography
 	size := ty.BodySize()
@@ -107,8 +105,8 @@ func (e *Editor) displayMathSize() int {
 	return mathtex.OpticalMathSize(size, mathtex.TextXHeight(e.ui.Fonts, body))
 }
 
-// mathPadding is the room kept above and below a typeset equation, as
-// Kvit's picture of one has it.
+// mathPadding is the room kept above and below a typeset equation: 12% of
+// the size, rounded up, and at least 2.
 func mathPadding(size int) float32 {
 	return float32(max(2, (size*12+99)/100))
 }
@@ -274,7 +272,7 @@ func (e *Editor) mathTextLeft(b *Block) (float32, bool) {
 }
 
 // mathNumber is display block i's equation number: how many display
-// equations there are up to it (Kvit's BlockModel::mathNumber).
+// equations there are up to it.
 func (e *Editor) mathNumber(i int) int {
 	n := 0
 	for k := 0; k <= i && k < len(e.Doc.Blocks); k++ {
@@ -309,8 +307,8 @@ func (e *Editor) drawFormula(gc *unison.Canvas, f *mathtex.Formula, c geom.Rect,
 }
 
 // snapToDevice moves a point to the nearest whole device pixel under the
-// canvas's transform, as Kvit placed its pictures of equations: a formula
-// then draws the same wherever its row lands, and its rules stay sharp.
+// canvas's transform: a formula then draws the same wherever its row lands,
+// and its rules stay sharp.
 func snapToDevice(gc *unison.Canvas, p geom.Point) geom.Point {
 	m := gc.Matrix()
 	if m.SkewX != 0 || m.SkewY != 0 || m.ScaleX <= 0 || m.ScaleY <= 0 {

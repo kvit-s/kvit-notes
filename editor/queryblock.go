@@ -1,12 +1,11 @@
 package editor
 
-// Collection query blocks (features.md 1.2.18, Kvit's QueryBlock): a
-// code fence of language "query" holds a spec, and while the caret is
-// elsewhere the block shows the notes it selects, as a table with a row a
-// note or, with "view: board", as columns of cards grouped by a field. A
-// spec that does not read shows why, in place of the results. Pressing a
-// row or a card opens its note. The answers are the application's, from the
-// query package, through RunQuery.
+// Collection query blocks: a code fence of language "query" holds a spec, and
+// while the caret is elsewhere the block shows the notes it selects, as a
+// table with a row a note or, with "view: board", as columns of cards grouped
+// by a field. A spec that does not read shows why, in place of the results.
+// Pressing a row or a card opens its note. The answers are the application's,
+// from the query package, through RunQuery.
 
 import (
 	"fmt"

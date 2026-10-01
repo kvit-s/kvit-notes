@@ -1,13 +1,11 @@
 package app
 
-// Following links and the link dialog (features.md 2.4 and 8.5, Kvit's
-// NoteSession, LinkDialog and src/repository/wikilinkindex.cpp).
-// A wiki link opens the note it names, the one note whose path ends with
-// it, at its heading when it names one; a link naming no note makes it,
-// where the app makes it; a name several notes share offers them to
-// choose from. A Markdown link opens a web address in the browser, a
-// "#heading" in the note itself, and a path to a note in the vault. The
-// resolution rules are the links package's port of the app's.
+// Following links and the link dialog. A wiki link opens the note it names,
+// the one note whose path ends with it, at its heading when it names one; a
+// link naming no note makes it, in the place links.NewNoteFor gives; a name
+// several notes share offers them to choose from. A Markdown link opens a
+// web address in the browser, a "#heading" in the note itself, and a path
+// to a note in the vault. The resolution rules are in the links package.
 
 import (
 	"errors"
@@ -86,8 +84,8 @@ func (w *Window) openAtHeading(p, heading string) {
 	}
 }
 
-// createLinked makes the note a link names, where the app would, and
-// opens it.
+// createLinked makes the note a link names, where links.NewNoteFor puts
+// it, and opens it.
 func (w *Window) createLinked(target string) {
 	current := ""
 	if w.open != nil {

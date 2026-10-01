@@ -9,10 +9,9 @@ import (
 	"github.com/richardwilkes/unison/enums/mod"
 )
 
-// The decoration registry, after the core's
-// tests/test_documentdecorations.cpp and what Kvit Works asks of it: panels
-// between blocks and beside lines, washes and outlines over characters, and
-// where each is.
+// The decoration registry and what Kvit Works asks of it: panels between
+// blocks and beside lines, washes and outlines over characters, and where
+// each is.
 
 // sizedPanel is a decoration panel as tall as it says, which remembers the
 // block it was told it is beside.

@@ -97,7 +97,7 @@ func (d *Doc) restore(s DocState) {
 
 // Edit runs fn as one undoable step. Consecutive typing in one block merges
 // into one step while the keystrokes are under 500 ms apart and each adds
-// fewer than 20 characters (src/domain/textchangecommand.cpp).
+// fewer than 20 characters.
 func (d *Doc) Edit(kind string, fn func()) {
 	if d.ReadOnly {
 		return
@@ -264,21 +264,18 @@ func (d *Doc) DeleteSelection() {
 func (d *Doc) InsertText(text string) { d.insert(text, false, false) }
 
 // Paste inserts pasted text at the caret, replacing any selection, as
-// InsertText does, with the rules the app applies to text arriving from
-// outside the note (the paste in EditableBlock):
+// InsertText does, with the rules for text arriving from outside the note:
 //   - Into a text block, Markdown with blank lines becomes blocks, and so do
-//
-// several lines opening a code fence, so the fence is read as one.
-// Several flat lines become a paragraph each, as the in-block paste
-// splices them. A plain-text paste does the same split, with inline
-// formatting stripped from each line.
+//     several lines opening a code fence, so the fence is read as one.
+//     Several flat lines become a paragraph each, spliced at the caret as
+//     pasteLines describes. A plain-text paste does the same split, with
+//     inline formatting stripped from each line.
 //   - Into a code block, the block's text after the paste goes through the
-//
-// step a fence takes when a note is opened (textdiagram.Ingest): a
-// character diagram in an untagged or `text` block is tagged `diagram`,
-// and a diagram is straightened, in the same undo step as the paste.
-// Typing into the block never does this, since retagging a block while
-// someone types in it would change it under them.
+//     step a fence takes when a note is opened (textdiagram.Ingest): a
+//     character diagram in an untagged or `text` block is tagged `diagram`,
+//     and a diagram is straightened, in the same undo step as the paste.
+//     Typing into the block never does this, since retagging a block while
+//     someone types in it would change it under them.
 func (d *Doc) Paste(text string, plain bool) { d.insert(text, !plain, true) }
 
 // reOpensFence is a line of pasted text starting a code fence.
@@ -286,19 +283,19 @@ var reOpensFence = regexp.MustCompile("(^|\n)[ \t]*(```|~~~)")
 
 // PasteOpensAFence reports whether pasted text opens a code fence, in which
 // case the plain text is the structure source even when the clipboard also
-// holds HTML (EditableBlock pasteFromClipboard, BlockGapCursor).
+// holds HTML.
 func PasteOpensAFence(text string) bool { return reOpensFence.MatchString(text) }
 
 // reLoneURL is a bare URL and nothing else, what pasting over a text
-// selection turns into a link (src/platform/clipboardhelper.cpp).
+// selection turns into a link.
 var reLoneURL = regexp.MustCompile(`(?i)\A(https?://|www\.)[^\s<>"]+\z`)
 
 // IsLoneURL reports whether s is a bare URL with nothing around it.
 func IsLoneURL(s string) bool { return reLoneURL.MatchString(strings.TrimSpace(s)) }
 
 // displayLine is the display text of one pasted plain-text line: its inline
-// markers removed, as the displayTextFor does. Markers are hidden by
-// projecting with no reveal, keeping each span's content.
+// markers removed. Markers are hidden by projecting with no reveal, keeping
+// each span's content.
 func displayLine(s string) string {
 	r := []rune(s)
 	if len(r) == 0 {
@@ -307,11 +304,11 @@ func displayLine(s string) string {
 	return string(project(r, parseInline(r), nil).Disp)
 }
 
-// insert is InsertText and Paste. fences reads several lines opening a
-// fence as blocks; ingest, which only a paste asks for, runs the fence step
-// over a code block pasted into and makes flat multi-line text a paragraph
-// per line, as the in-block paste does (a plain paste strips each line
-// first). Typed text with a line break stays in its block.
+// insert is InsertText and Paste. fences reads several lines opening a fence
+// as blocks; ingest, which only a paste asks for, runs the fence step over a
+// code block pasted into and makes flat multi-line text a paragraph per line
+// (a plain paste strips each line first). Typed text with a line break stays
+// in its block.
 func (d *Doc) insert(text string, fences, ingest bool) {
 	kind := "typing"
 	if d.HasSelection() || strings.Contains(text, "\n") || ingest && d.ingestChanges(text) {
@@ -410,7 +407,7 @@ func (d *Doc) pasteBlocks(text string) {
 	id := last.ID
 	if tail != "" && !last.Kind.HasInline() {
 		// Text after the caret does not run on into a pasted code block or
-		// table: it follows as a paragraph of its own, as in the app.
+		// table: it follows as a paragraph of its own.
 		d.Blocks = slices.Insert(d.Blocks, i+len(pasted)+1, NewBlock(Paragraph, tail))
 	} else {
 		last.Text += tail
@@ -418,9 +415,9 @@ func (d *Doc) pasteBlocks(text string) {
 	d.SetCaret(id, off)
 }
 
-// pasteLines splices flat multi-line text at the caret, as the in-block
-// paste does: the first line joins the text before the caret, each middle
-// line becomes a paragraph, and the last line joins the text after it.
+// pasteLines splices flat multi-line text at the caret: the first line joins
+// the text before the caret, each middle line becomes a paragraph, and the
+// last line joins the text after it.
 func (d *Doc) pasteLines(text string) {
 	i := d.Index(d.Caret.Block)
 	b := &d.Blocks[i]
@@ -440,8 +437,8 @@ func (d *Doc) pasteLines(text string) {
 }
 
 // PasteLink replaces a single-block text selection with a link whose label
-// is the selected text and whose address is url, as pasting a lone URL over
-// words does in the app. It reports whether there was such a selection.
+// is the selected text and whose address is url, which is what pasting a
+// lone URL over words does. It reports whether there was such a selection.
 func (d *Doc) PasteLink(url string) bool {
 	if d.ReadOnly || !d.HasSelection() || d.CrossBlock() {
 		return false
@@ -475,7 +472,7 @@ func (d *Doc) PasteLink(url string) bool {
 }
 
 // InsertMarkdownAt inserts parsed Markdown blocks at index, as one undo
-// step, returning how many were inserted (DocumentSerializer::insertMarkdownAt).
+// step, returning how many were inserted.
 func (d *Doc) InsertMarkdownAt(index int, markdown string) int {
 	pasted := ParseMarkdown(markdown)
 	if len(pasted) == 0 {
@@ -490,9 +487,8 @@ func (d *Doc) InsertMarkdownAt(index int, markdown string) int {
 }
 
 // InsertPlainTextAt inserts each line of text as a paragraph at index, as
-// one undo step, returning how many were inserted
-// (DocumentSerializer::insertPlainTextAt). Each line is stripped to its
-// display text, as the paste-plain does.
+// one undo step, returning how many were inserted. Each line is stripped to
+// its display text, as a plain-text paste strips it.
 func (d *Doc) InsertPlainTextAt(index int, text string) int {
 	text = strings.ReplaceAll(text, "\r\n", "\n")
 	lines := strings.Split(text, "\n")
@@ -513,10 +509,9 @@ func (d *Doc) InsertPlainTextAt(index int, text string) int {
 
 // SetCodeLanguage gives a code block a language from the language menu, as
 // one undo step. The block's text goes through textdiagram.Ingest with the
-// new language, as the app's setCodeLanguage does: choosing "Text
-// diagram" straightens the drawing, and choosing plain text for a block
-// holding a diagram tags it `diagram` again. "Plain code" (`plain`) is the
-// language that keeps a block from being tagged.
+// new language: choosing "Text diagram" straightens the drawing, and choosing
+// plain text for a block holding a diagram tags it `diagram` again. "Plain
+// code" (`plain`) is the language that keeps a block from being tagged.
 func (d *Doc) SetCodeLanguage(id int64, lang string) {
 	b := d.Block(id)
 	if b == nil || b.Kind != Code {
@@ -535,9 +530,9 @@ func (d *Doc) SetCodeLanguage(id int64, lang string) {
 	})
 }
 
-// AsCode is a rendered diagram's "As code" control (DiagramBlock): the
-// block is shown as its source in a code block tagged `plain`, which no
-// later open or paste examines again. It is one undo step.
+// AsCode is a rendered diagram's "As code" control: the block is shown as its
+// source in a code block tagged `plain`, which no later open or paste
+// examines again. It is one undo step.
 func (d *Doc) AsCode(id int64) {
 	b := d.Block(id)
 	if b == nil || b.Kind != Code || b.Lang == "plain" {
@@ -546,8 +541,8 @@ func (d *Doc) AsCode(id int64) {
 	d.Edit("as code", func() { d.Block(id).Lang = "plain" })
 }
 
-// Backspace at a caret with no selection. Kvit's order at the start of a
-// block: a list item, to-do or quote outdents, then becomes a paragraph; an
+// Backspace at a caret with no selection. At the start of a block, in this
+// order: a list item, to-do or quote outdents, then becomes a paragraph; an
 // empty block is deleted; a non-empty one merges into the block above.
 func (d *Doc) Backspace() {
 	if d.HasSelection() {
@@ -696,7 +691,7 @@ func (d *Doc) Enter() {
 		// The new line takes the indentation the current line opens with,
 		// up to the caret (or the start of a selection, which the line
 		// break replaces), so Enter inside that indentation never makes
-		// more of it (EditableBlock's leadingIndentAt).
+		// more of it.
 		r := runes(b.Text)
 		pos := d.Caret.Off
 		if d.Anchor.Block == d.Caret.Block && d.Anchor.Off < pos {
@@ -855,9 +850,9 @@ func (d *Doc) Move(ids []int64, dir int) bool {
 }
 
 // MoveBlocksTo moves the blocks at sorted indexes to the gap before
-// targetGap, as one undo step, preserving their order (BlockModel::
-// moveBlocksTo). targetGap counts in the list before the move. A gap inside
-// a contiguous dragged run moves nothing.
+// targetGap, as one undo step, preserving their order. targetGap counts in
+// the list before the move. A gap inside a contiguous dragged run moves
+// nothing.
 func (d *Doc) MoveBlocksTo(indexes []int, targetGap int) bool {
 	if len(indexes) == 0 || targetGap < 0 || targetGap > len(d.Blocks) {
 		return false
@@ -963,7 +958,7 @@ func (d *Doc) DeleteBlocks(ids []int64) {
 }
 
 // JoinLines replaces the line breaks inside each block with spaces, as one
-// undo step: Kvit's "Remove line breaks".
+// undo step: the block menu's "Remove line breaks".
 func (d *Doc) JoinLines(ids []int64) {
 	d.Edit("join lines", func() {
 		for _, id := range ids {
@@ -979,7 +974,7 @@ func (d *Doc) JoinLines(ids []int64) {
 }
 
 // typedConversions are the prefixes that turn a paragraph into another kind
-// as they are typed (usage.md "Block types").
+// as they are typed.
 var typedConversions = []struct {
 	prefix string
 	kind   Kind
@@ -1134,7 +1129,7 @@ func (d *Doc) CurrentColor() string {
 	return sp.Color
 }
 
-// SetColor gives the selected text a colour, as Kvit writes one:
+// SetColor gives the selected text a colour, written as
 // <span style="color:VALUE">…</span>. Inside a colour span it changes that
 // span's colour, and an empty value takes the span away, keeping its text.
 func (d *Doc) SetColor(value string) {

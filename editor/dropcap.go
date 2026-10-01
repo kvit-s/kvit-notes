@@ -1,12 +1,11 @@
 package editor
 
-// Drop caps (features.md 1.2.16): a paragraph with the attribute
-// dropcap=<lines> draws its first letter enlarged beside its text while the
-// caret is elsewhere, in bold, in the colour of dropcapcolor and the family
-// of dropcapfont when they are set. As in the app (EditableBlock and
-// DropCapOverlay), the whole paragraph is indented by the letter's
-// width and its own first letter left blank in place, and the paragraph
-// shows as plain text while it is being edited.
+// Drop caps: a paragraph with the attribute dropcap=<lines> draws its first
+// letter enlarged beside its text while the caret is elsewhere, in bold, in
+// the colour of dropcapcolor and the family of dropcapfont when they are set.
+// The whole paragraph is indented by the letter's width and its own first
+// letter left blank in place, and the paragraph shows as plain text while it
+// is being edited.
 
 import (
 	"math"

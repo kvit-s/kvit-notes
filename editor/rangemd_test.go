@@ -2,7 +2,7 @@ package editor
 
 import "testing"
 
-// The rangeMarkdown cases of the core's tests/test_documentselection.cpp.
+// A selection as Markdown that stands on its own (Doc.RangeMarkdown).
 
 // selectDoc selects from Markdown offset from of block a to offset to of
 // block b, the anchor first.
@@ -69,8 +69,7 @@ func TestRangeMarkdownNestedSpansReopenTheirWholeChain(t *testing.T) {
 	d := NewDoc([]Block{NewBlock(Paragraph, "a **b *c d* e** f"), NewBlock(Paragraph, "next")})
 	// From the "c" inside the italic run to the next block: each piece is
 	// written inside every marker around it, all of them closed and the
-	// next piece's reopened wherever the run of markers changes, as the
-	// markdownForRange rebuilds a partly covered span.
+	// next piece's reopened wherever the run of markers changes.
 	selectDoc(d, 0, 7, 1, 4)
 	if got, want := d.RangeMarkdown(), "***c d***** e** f\n\nnext"; got != want {
 		t.Errorf("got %q, want %q", got, want)

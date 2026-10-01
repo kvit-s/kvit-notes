@@ -20,8 +20,8 @@ func memUI(t *testing.T) *kvitui.UI {
 }
 
 func TestMain(m *testing.M) {
-	// Hermetic tests: never touch the network for updates, and serve embeds
-	// from loopback as the suite does through its seam.
+	// Hermetic tests: never touch the network for updates, and allow
+	// loopback addresses so embeds can be served from a local test server.
 	os.Setenv("KVIT_DISABLE_UPDATE_CHECK", "1")
 	allowLoopbackForTests = true
 	os.Exit(m.Run())

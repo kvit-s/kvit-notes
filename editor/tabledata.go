@@ -1,9 +1,8 @@
 package editor
 
-// Pipe-table parse/serialize/mutate (Kvit's src/content/tabledata.cpp,
-// tested by tests/test_tabledata.cpp). A table block's content is the raw
-// pipe-table Markdown; this maps it to a cell grid and back and applies
-// every mutation as a whole-Markdown rewrite, so each edit is one undo step.
+// Pipe-table parse/serialize/mutate. A table block's content is the raw
+// pipe-table Markdown; this maps it to a cell grid and back and applies every
+// mutation as a whole-Markdown rewrite, so each edit is one undo step.
 // Escaped pipes (\|) survive in cells; per-column alignment comes from the
 // delimiter row's colons. Serialization is canonical, so hand-authored
 // ragged/padded tables normalize on save.

@@ -16,8 +16,7 @@ import (
 // new text of the fence, which the editor applies as one undo step, or the
 // reason it refused. A flowchart edit is refused rather than applied
 // approximately when its result would not parse with no more errors than
-// before. This is a port of the app's mermaidedits.h and mermaidedits.cpp
-// (namespace Mermaid::Edits).
+// before.
 
 // EditResult is the outcome of an edit.
 type EditResult struct {
@@ -37,10 +36,10 @@ func editFail(why string) EditResult { return EditResult{Error: why} }
 
 func editOK(source string) EditResult { return EditResult{OK: true, Source: source} }
 
-// ---- editing runes as string does ----
+// ---- editing runes ----
 
-// replaceRunes is string::replace(pos, n, with): nothing when pos is past
-// the end, and n cut to what is there.
+// replaceRunes replaces the n runes at pos with with: nothing when pos is
+// past the end, and n cut to what is there.
 func replaceRunes(rs []rune, pos, n int, with string) []rune {
 	if pos < 0 || pos > len(rs) {
 		return rs
@@ -435,7 +434,7 @@ func (ctx *editCtx) refTextInStatement(n *Node, s editStmt, stopAt int) string {
 	return n.ID
 }
 
-// qRound is the qRound: the nearest int, halves away from zero.
+// qRound is the nearest int to d, halves away from zero.
 func qRound(d float64) int {
 	if d >= 0 {
 		return int(d + 0.5)
@@ -446,12 +445,8 @@ func qRound(d float64) int {
 // posLineFor is the pos line for positions, in the order given (the source
 // order of the nodes), with each centre rounded to whole pixels and no size,
 // in the `id=x,y` form obsidian-mermaid-flow writes. An id that form cannot
-// hold is left out.
-//
-// The app builds each entry with chained string::arg calls, which take a
-// `%` followed by a digit inside an id (a flowchart id may hold one, as in
-// `n%2`) for a place marker and write a broken entry. Here the id is written
-// as it is.
+// hold is left out. An id with `%` followed by a digit in it (a flowchart id
+// may hold one, as in `n%2`) is written as it is.
 func posLineFor(positions []NodePosition) string {
 	var b strings.Builder
 	b.WriteString("%% " + posPrefix)
@@ -605,8 +600,7 @@ func RenameNode(source, oldID, newID string) EditResult {
 	if n == nil {
 		return editFail("Unknown node: " + oldID)
 	}
-	// regular expression's `$` also matches before a line break that ends
-	// the text, which the pattern's `\n?` allows for.
+	// The pattern's `\n?` accepts a new id followed by one line break.
 	if !nodeIDPattern.MatchString(newID) {
 		return editFail("Node ids use letters, digits, `_`, and `-`")
 	}
@@ -834,7 +828,7 @@ func QuickAddNode(source, fromID string) EditResult {
 	return postChecked(&ctx, string(ctx.insertStatementAfter(anchor, fromID+" --> "+newID+"[New node]")), newID)
 }
 
-// colorName is colour::name(): `#rrggbb` in lower case.
+// colorName is c as `#rrggbb` in lower case.
 func colorName(c Color) string { return fmt.Sprintf("#%02x%02x%02x", c.R, c.G, c.B) }
 
 var kvitClassStatement = regexp.MustCompile(`^class[\t\n\v\f\r ]+([^\t\n\v\f\r ]+)[\t\n\v\f\r ]+(kvit_style_[0-9]+)\n?$`)
@@ -864,9 +858,8 @@ func SetNodeStyle(source, nodeID string, fill, stroke Color) EditResult {
 	}
 	decl := strings.Join(decls, ",")
 
-	// A kvit_style classDef with the same declarations is used again. The
-	// app takes the first one its hash gives; this takes the first by
-	// name, so the choice does not change from run to run.
+	// A kvit_style classDef with the same declarations is used again, the
+	// first of them by name, so the choice does not change from run to run.
 	defs := ctx.pr.Flowchart.ClassDefs
 	names := make([]string, 0, len(defs))
 	for name := range defs {

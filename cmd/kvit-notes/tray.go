@@ -1,9 +1,9 @@
 package main
 
-// The tray icon (features.md 15.2): the app's icon at the sizes
-// packaging/icons has, copied into icons/ so the program carries them, and
-// the tray check, which shows the icon on a real desktop, posts one
-// notification, prints what the tray reports, and quits.
+// The tray icon: the app's icon at the sizes packaging/icons has, copied into
+// icons/ so the program embeds them, and the tray check, which shows the
+// icon on a real desktop, posts one notification, prints what the tray
+// reports, and quits.
 
 import (
 	"bytes"

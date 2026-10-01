@@ -2,7 +2,7 @@ package app
 
 // What the editor's Mermaid diagrams ask of the window: where to save a
 // diagram's picture, and the line the status bar shows after a gesture or a
-// save (Kvit's DiagramBlock asks the same of AppActions).
+// save.
 
 import (
 	"os"

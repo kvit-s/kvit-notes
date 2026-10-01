@@ -1,13 +1,11 @@
 // Package export writes notes out as HTML, plain text and Markdown, imports
-// Markdown and text files into a vault, and converts HTML to Markdown, the
-// way the app does (features.md 12.5 Export Options and 12.6 Import
-// Options). It is the app's DocumentExporter, DocumentImporter and
-// HtmlToMarkdown (the converter behind pasting HTML) without their dialogs
-// and without writing anything: every function returns the text or the list
-// of files to write, and the caller writes them.
+// Markdown and text files into a vault, and converts HTML to Markdown (the
+// converter behind pasting HTML). It has no dialogs and writes nothing:
+// every function returns the text or the list of files to write, and the
+// caller writes them.
 //
-// PDF is not here. The app prints the HTML page through QTextDocument; the
-// Go app will draw it through the UI toolkit.
+// PDF is not here: the app draws a note onto PDF pages itself, through the
+// UI toolkit (app/pdf.go).
 package export
 
 import (
@@ -30,8 +28,7 @@ const (
 )
 
 // Extension is the file extension a format is written with, without the
-// dot: "md", "html", "pdf" or "txt" (DocumentExporter::extensionFor). An
-// unknown format is Markdown's.
+// dot: "md", "html", "pdf" or "txt". An unknown format is Markdown's.
 func (f Format) Extension() string {
 	switch f {
 	case FormatHTML:
@@ -51,15 +48,14 @@ var ErrPDF = errors.New("export: PDF is drawn through the UI toolkit, not writte
 var ErrFormat = errors.New("export: unknown format")
 
 // HTMLFromMarkdown is a note's body (its Markdown without front matter) as
-// an HTML page titled title; an empty title is "Kvit Export"
-// (DocumentExporter::htmlForMarkdown).
+// an HTML page titled title; an empty title is "Kvit Export".
 func HTMLFromMarkdown(body, title string, opt Options) string {
 	return page(fromEditor(parseBody(body), false), title, opt)
 }
 
-// HTMLFromBlocks is the note the editor holds as an HTML page
-// (DocumentExporter::htmlForModel). A leading block of front matter is left
-// out, as the app never has it in the editor.
+// HTMLFromBlocks is the note the editor holds as an HTML page. A leading
+// block of front matter is left out, since an export never shows a note's
+// metadata.
 func HTMLFromBlocks(blocks []editor.Block, title string, opt Options) string {
 	return page(fromEditor(blocks, true), title, opt)
 }
@@ -73,8 +69,8 @@ func page(doc []block, title string, opt Options) string {
 // HTMLFromSelection is some of the editor's blocks as an HTML page: only the
 // blocks at indexes are written, in the order given, but a table of contents
 // among them still lists every heading of the note, and a heading keeps the
-// anchor it has in the whole note (DocumentExporter::htmlForModelBlocks).
-// Indexes out of range, and repeats, are ignored.
+// anchor it has in the whole note. Indexes out of range, and repeats, are
+// ignored.
 func HTMLFromSelection(blocks []editor.Block, indexes []int, title string, opt Options) string {
 	doc := fromEditor(blocks, true)
 	r := newRenderer(doc, opt)
@@ -83,23 +79,20 @@ func HTMLFromSelection(blocks []editor.Block, indexes []int, title string, opt O
 	return wrapPage(body, title, opt.Colors, r.sawMath, r.sawMermaid)
 }
 
-// TextFromMarkdown is a note's body as plain text
-// (DocumentExporter::plainTextForMarkdown).
+// TextFromMarkdown is a note's body as plain text.
 func TextFromMarkdown(body string, opt Options) string {
 	doc := fromEditor(parseBody(body), false)
 	return newRenderer(doc, opt).plainText(doc)
 }
 
-// TextFromBlocks is the note the editor holds as plain text
-// (DocumentExporter::plainTextForModel).
+// TextFromBlocks is the note the editor holds as plain text.
 func TextFromBlocks(blocks []editor.Block, opt Options) string {
 	doc := fromEditor(blocks, true)
 	return newRenderer(doc, opt).plainText(doc)
 }
 
 // TextFromSelection is some of the editor's blocks as plain text, with the
-// whole note behind a table of contents among them
-// (DocumentExporter::plainTextForModelBlocks).
+// whole note behind a table of contents among them.
 func TextFromSelection(blocks []editor.Block, indexes []int, opt Options) string {
 	doc := fromEditor(blocks, true)
 	sel, _ := selectBlocks(doc, nil, validIndexes(indexes, len(blocks)))
@@ -107,9 +100,8 @@ func TextFromSelection(blocks []editor.Block, indexes []int, opt Options) string
 }
 
 // MarkdownFromSelection is some of the editor's blocks as Markdown, in note
-// order whatever order the indexes are given in, with no newline at the end
-// (DocumentSerializer::serializeBlocks). A numbered item keeps the number it
-// has in the whole note.
+// order whatever order the indexes are given in, with no newline at the
+// end. A numbered item keeps the number it has in the whole note.
 func MarkdownFromSelection(blocks []editor.Block, indexes []int) string {
 	sorted := validIndexes(indexes, len(blocks))
 	slices.Sort(sorted)
@@ -132,7 +124,7 @@ func MarkdownFromSelection(blocks []editor.Block, indexes []int) string {
 }
 
 // Note is the note the editor holds, written in a format: what the export
-// dialog writes for its "This note" scope (DocumentExporter::writeModel).
+// dialog writes for its "This note" scope.
 // Markdown is the note's body as the editor saves it, without front matter;
 // HTML and text are as HTMLFromBlocks and TextFromBlocks. PDF returns ErrPDF.
 func Note(blocks []editor.Block, title string, format Format, opt Options) ([]byte, error) {
@@ -153,8 +145,7 @@ func Note(blocks []editor.Block, title string, format Format, opt Options) ([]by
 }
 
 // Selection is some of the editor's blocks written in a format: what the
-// export dialog writes for its "Selected blocks" scope
-// (DocumentExporter::writeModelBlocks).
+// export dialog writes when blocks are selected.
 func Selection(blocks []editor.Block, indexes []int, title string, format Format, opt Options) ([]byte, error) {
 	switch format {
 	case FormatMarkdown:
@@ -175,7 +166,7 @@ func parseBody(body string) []editor.Block {
 }
 
 // validIndexes keeps the indexes in range, first occurrence only, in the
-// order given (DocumentExporter::validIndexes).
+// order given.
 func validIndexes(indexes []int, count int) []int {
 	var out []int
 	for _, i := range indexes {

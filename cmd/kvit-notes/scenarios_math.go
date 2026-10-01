@@ -1,10 +1,9 @@
 package main
 
-// The math storyboards of Kvit's tests/tst_visual (test_39_math,
-// test_49_inline_math, test_62_math_canary, and the first picture of
-// test_36b_table_math_and_column_widths; its second edits one cell, and a Go
-// table is edited as its whole Markdown), added to the scenarios. They need
-// the math library; without it the equations show as their source.
+// The math scenarios: display equations, inline math in prose, formulas in
+// table cells, and a set of formulas that must typeset (39_math,
+// 49_inline_math, 36b_table_math, 62_math_canary). They need the math
+// library; without it the equations show as their source.
 
 import (
 	"strings"

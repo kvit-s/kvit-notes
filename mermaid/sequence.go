@@ -12,8 +12,7 @@ import (
 // notes, autonumber, titles and the accessibility statements. What Kvit does
 // not draw (links, link, properties and details, a participant's `@{…}`
 // configuration, create and destroy, central `()` connections) is kept with a
-// warning, never refused as an unknown statement. It is a port of the
-// app's mermaidsequence.cpp.
+// warning, never refused as an unknown statement.
 
 // seqArrow is a message arrow of sequenceDiagram.jison with its line and
 // head.
@@ -136,7 +135,8 @@ func (p *seqParser) diag(line int, message string, severity Severity) {
 	p.r.diag(line, 1, message, severity)
 }
 
-// newSeqEvent is a SeqEvent with the app's defaults.
+// newSeqEvent is a SeqEvent of kind on line lineNo, with the defaults that
+// differ from Go's zero values.
 func newSeqEvent(kind SeqEventKind, lineNo int) SeqEvent {
 	return SeqEvent{
 		Kind:            kind,

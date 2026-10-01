@@ -62,9 +62,8 @@ func blockDrawn(s *uitest.Session, e *Editor, i int) string {
 	return text
 }
 
-// Kvit's accessibility.md: every text block is announced as editable text
-// named by its kind, a to-do carries its state, and a divider is a
-// separator.
+// Every text block is announced as editable text named by its kind, a to-do
+// reports its state, and a divider is a separator.
 func TestBlocksAreEditableTextsNamedByKind(t *testing.T) {
 	s, e := openEditor(t, accessNote)
 	var names []string

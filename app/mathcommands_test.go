@@ -15,8 +15,8 @@ import (
 )
 
 // The commands chosen from the math menu are written to the settings file
-// under the app's key, and the next start reads them back, so they lead
-// the menu again.
+// under "math.recentCommands", and the next start reads them back, so they
+// lead the menu again.
 func TestMathRecentCommandsRoundTrip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "ui.json")
 	ui, err := kvitui.New(kvitui.Options{IgnoreDesktop: true, SettingsPath: path})

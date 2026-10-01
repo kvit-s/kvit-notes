@@ -1,13 +1,12 @@
 package diagram
 
-// What the ported tests share. The tests measure with a real font,
-// "sans-serif" at 14 pixels; these measure with fixedMeasurer, 8 pixels a
-// character and 17 a line, which is close to DejaVu Sans at that size, so
-// a test comparing positions checks the relation the test checks rather
-// than a pixel value. Mathematics is measured by fakeMath, which stands in
-// for MicroTeX: it rejects what MicroTeX rejects in the tests, an
-// unmatched brace and a bare alignment `&`, and makes a fraction two lines
-// tall.
+// What the tests of this package share. They measure text with
+// fixedMeasurer, 8 pixels a character and 17 a line, which is close to
+// DejaVu Sans at 14 pixels, so a test comparing positions checks how the
+// positions relate rather than a pixel value. Mathematics is measured by
+// fakeMath, which stands in for MicroTeX: like MicroTeX it rejects an
+// unmatched brace and a bare alignment `&`, and it makes a fraction two
+// lines tall.
 
 import (
 	"strings"
@@ -50,7 +49,8 @@ func (fakeMath) Size(tex string) (Size, bool) {
 	return Size{6*float64(utf8.RuneCountInString(tex)) + 4, h}, true
 }
 
-// testOpts is the tests' opts(): sans-serif at 14 pixels, top to bottom.
+// testOpts are the options the tests lay out with: sans-serif at 14 pixels,
+// top to bottom.
 func testOpts() LayoutOptions {
 	return LayoutOptions{
 		FontFamily: "sans-serif",
@@ -100,7 +100,7 @@ func shapeRect(s Scene, id string) Rect {
 }
 
 // sameShapePositions reports whether two scenes put their shapes at the
-// same places, as the tests' layoutDeterministic functions check.
+// same places, which the tests of a deterministic layout check.
 func sameShapePositions(a, b Scene) bool {
 	if len(a.Shapes) != len(b.Shapes) {
 		return false

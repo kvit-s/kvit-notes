@@ -1,8 +1,6 @@
 // Package mathcmd is the list of math commands behind the menu a backslash
-// opens while typing TeX (features.md 1.2.15), and the ranking that filters
-// it as letters are typed. It is a port of the app's
-// src/content/mathcommandmodel.{h,cpp} and knows nothing of the editor or of
-// the math engine.
+// opens while typing TeX, and the ranking that filters it as letters are
+// typed. It knows nothing of the editor or of the math engine.
 //
 // The menu has two modes. On a bare backslash it shows categories laid out
 // the way LyX's math toolbar is (Greek, Arrows, Fractions & roots and so on),
@@ -17,8 +15,8 @@
 // CursorOffset says where the caret goes, inside the first empty pair of
 // braces. Recently accepted commands lead the categories.
 //
-// Offsets are rune offsets. Every template is ASCII, so they are also the
-// app's UTF-16 offsets.
+// Offsets are rune offsets. Every template is ASCII, so they are also byte
+// offsets.
 package mathcmd
 
 import (
@@ -628,8 +626,7 @@ func (m *Model) NoteUsed(name string) {
 }
 
 // RecentCommands are the recently accepted commands' names, most recent
-// first: what the application saves (the app's setting
-// math.recentCommands).
+// first: what the app saves in the setting math.recentCommands.
 func (m *Model) RecentCommands() []string { return slices.Clone(m.recent) }
 
 // SetRecentCommands loads saved recently accepted commands, dropping empty

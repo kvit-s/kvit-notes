@@ -1,11 +1,10 @@
 package app
 
-// Keeping work safe (features.md 12.1, 12.4, and the external-change rule in
-// usage.md): the recovery journal written while a note has unsaved changes
-// and offered back when a vault opens after an interruption; noticing a note
-// changed by another program; restoring an earlier version from the
-// backups; the trash, with its notes shown read-only and put back or
-// deleted; and a vault that cannot be written, opened for reading.
+// Keeping work safe: the recovery journal written while a note has unsaved
+// changes and offered back when a vault opens after an interruption; noticing
+// a note changed by another program; restoring an earlier version from the
+// backups; the trash, with its notes shown read-only and put back or deleted;
+// and a vault that cannot be written, opened for reading.
 
 import (
 	"fmt"

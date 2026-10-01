@@ -1,7 +1,6 @@
 package app
 
-// Remote content and the update check (features.md 10.3, Kvit's
-// src/platform/egresspolicy.cpp, updatechecker.cpp, egressfetcher.cpp).
+// Remote content and the update check.
 //
 // Opening a note is not consent: a note is an untrusted document, so nothing
 // remote loads on sight. Automatic loading is off by default
@@ -25,7 +24,7 @@ import (
 	"time"
 )
 
-// The settings keys, as in the app.
+// The settings keys.
 const (
 	autoLoadKey  = "network.autoLoadRemoteContent"
 	originsKey   = "network.allowedOrigins"
@@ -36,11 +35,11 @@ const (
 	updateAvailK = "updates.updateAvailable"
 )
 
-// maxRemoteBytes is the largest remote picture, preview or update answer
-// read: a preview thumbnail or an inline image (egressfetcher.cpp).
 // appBaseVersion mirrors cmd/kvit-notes/version.go baseVersion.
 const appBaseVersion = "2.0.0"
 
+// maxRemoteBytes is the largest remote picture, preview or update answer
+// read: a preview thumbnail or an inline image.
 const maxRemoteBytes = 8 << 20
 
 // originOf is "https://example.com" for any URL on that origin: scheme, host

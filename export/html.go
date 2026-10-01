@@ -1,11 +1,9 @@
 package export
 
-// HTML export, as src/application/documentexporter.cpp builds it for a
-// browser: one self-contained page, the stylesheet inlined, images embedded
-// as data: URIs, code coloured token by token, tables and task boards as
-// static markup, display and inline maths left as TeX for MathJax, and a
-// Mermaid diagram left as source for mermaid.js. Each block's markup is the
-// toHtml of its  block kind (src/domain/blockkinds/).
+// HTML export for a browser: one self-contained page, the stylesheet
+// inlined, images embedded as data: URIs, code coloured token by token,
+// tables and task boards as static markup, display and inline maths left as
+// TeX for MathJax, and a Mermaid diagram left as source for mermaid.js.
 
 import (
 	"encoding/base64"
@@ -74,12 +72,12 @@ type Options struct {
 	// Hugo vault's static/ folder). Empty means VaultRoot.
 	SiteRoot string
 	// MaxAttachmentBytes is the largest image embedded in the page; a larger
-	// one is left out and its path shown instead. 0 means 64 MiB, the
-	// app's budget, and a negative value means no limit.
+	// one is left out and its path shown instead. 0 means 64 MiB, and a
+	// negative value means no limit.
 	MaxAttachmentBytes int64
 	// MaxCombinedChars is the largest combined file a vault export will
-	// build, in UTF-16 code units as the app counts them. 0 means 128 Mi,
-	// the app's budget, and a negative value means no limit.
+	// build, in UTF-16 code units. 0 means 128 Mi, and a negative value
+	// means no limit.
 	MaxCombinedChars int64
 	// EmbedPreview, when set, gives the page title and description the
 	// preview cache holds for a web address, for the card a web embed
@@ -106,7 +104,7 @@ const (
 		"</script>\n"
 )
 
-// stylesheet is DocumentExporter::cssBlock with the theme's colours.
+// stylesheet is the page's CSS in the theme's colours.
 func stylesheet(c Colors) string {
 	c = c.withDefaults()
 	r := strings.NewReplacer(
@@ -168,8 +166,8 @@ func stylesheet(c Colors) string {
 		".hr-deco hr{flex:1;margin:0}")
 }
 
-// wrapPage is DocumentExporter::wrapHtmlDocument: the page around a body,
-// with each script tag only when the body needs it.
+// wrapPage is the page around a body, with each script tag only when the
+// body needs it.
 func wrapPage(body, title string, c Colors, sawMath, sawMermaid bool) string {
 	if title == "" {
 		title = "Kvit Export"
@@ -188,7 +186,7 @@ func wrapPage(body, title string, c Colors, sawMath, sawMermaid bool) string {
 
 // headingSlugs are the anchors headings get, one entry per block and "" for
 // every other block: the heading's text made into a slug, with "-1", "-2"
-// and so on after a repeat (DocumentExporter::headingSlugs).
+// and so on after a repeat.
 func headingSlugs(blocks []block) []string {
 	slugs := make([]string, len(blocks))
 	counts := map[string]int{}
@@ -208,8 +206,8 @@ func headingSlugs(blocks []block) []string {
 	return slugs
 }
 
-// baseSlug is DocumentOutline::baseSlug: lower case, letters and digits kept,
-// spaces, underscores and hyphens made one hyphen, the rest dropped.
+// baseSlug is a heading's text as an anchor: lower case, letters and digits
+// kept, spaces, underscores and hyphens made one hyphen, the rest dropped.
 func baseSlug(text string) string {
 	var sb strings.Builder
 	pending := false
@@ -243,7 +241,7 @@ func newRenderer(doc []block, opt Options) *renderer {
 	return &renderer{opt: opt, colors: opt.Colors.withDefaults(), doc: doc, docSlugs: headingSlugs(doc)}
 }
 
-// body is DocumentExporter::buildHtmlBody. A run of list items of one
+// body is the page's body for blocks. A run of list items of one
 // flavour (numbered, or bullets and to-dos together) is one list, and an item
 // deeper than the one before opens its sublist inside the still-open <li>.
 func (r *renderer) body(blocks []block, slugs []string) string {
@@ -358,8 +356,7 @@ func (r *renderer) blockHTML(b block, slug string) string {
 		return r.boardHTML(parseBoard(b.text))
 	case kQuery:
 		// A query is answered against the open vault; this package has none
-		// to ask, so the spec is written as its source, which is what the
-		// exporter writes when no vault is open.
+		// to ask, so the spec is written as its source.
 		return "<pre><code>" + esc(b.text) + "</code></pre>"
 	case kDivider:
 		return dividerHTML(a)
@@ -588,7 +585,7 @@ func (r *renderer) imageHTML(p imageExpr, a map[string]string) string {
 
 // imageDataURI is the src an image exports with: a web address as it is, a
 // local file as a data: URI, or "" when the path names no file or the file
-// is over the attachment budget (DocumentExporter::dataUriForImagePath).
+// is over the attachment budget.
 func (r *renderer) imageDataURI(stored string) string {
 	resolved := resolveSource(stored, r.opt.NoteDir, r.opt.VaultRoot, r.opt.SiteRoot)
 	if resolved == "" {
@@ -632,10 +629,10 @@ func (r *renderer) imageDataURI(stored string) string {
 	return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(data)
 }
 
-// resolveSource is ImageAssets::resolveSource: a web or data: address as it
-// is, else the first file that exists of the path under the note's folder,
-// under the vault, as given, and, for a path starting with "/", under the
-// site root. The answer for a file is its absolute path.
+// resolveSource is the file or address a stored image path names: a web or
+// data: address as it is, else the first file that exists of the path under
+// the note's folder, under the vault, as given, and, for a path starting
+// with "/", under the site root. The answer for a file is its absolute path.
 func resolveSource(stored, noteDir, root, siteRoot string) string {
 	if stored == "" {
 		return ""
@@ -678,7 +675,7 @@ func resolveSource(stored, noteDir, root, siteRoot string) string {
 }
 
 // mediaLinkHTML is an audio or video file as a link line: an export has no
-// player (mediaLinkHtml in src/domain/blockkinds/mediakinds.cpp).
+// player.
 func mediaLinkHTML(p imageExpr) string {
 	label := p.alt
 	if label == "" {
@@ -692,7 +689,7 @@ func mediaLinkHTML(p imageExpr) string {
 }
 
 // embedHTML is a web page's preview card as a titled link, with whatever the
-// preview cache knows about the page (DocumentExporter::embedCardHtml).
+// preview cache knows about the page.
 func (r *renderer) embedHTML(p imageExpr, a map[string]string) string {
 	var pageTitle, description string
 	if r.opt.EmbedPreview != nil {

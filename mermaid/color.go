@@ -4,8 +4,8 @@ import (
 	"unicode/utf16"
 )
 
-// ParseColor reads a colour as colour's string constructor does, which is
-// what the app reads classDef, style and box colours with. It accepts
+// ParseColor reads a colour that a classDef, style or box statement gives, by
+// the rules the earlier Qt version of Kvit Notes read them with. It accepts
 // #rgb, #rrggbb, #aarrggbb (alpha first), #rrrgggbbb and #rrrrggggbbbb in
 // either case, and the SVG colour names and "transparent" in any case, with
 // spaces and tabs inside the name ignored. Anything else gives a Color that
@@ -20,8 +20,8 @@ func ParseColor(name string) Color {
 	return namedColor(name)
 }
 
-// ColorRGB is colour(r, g, b): an opaque colour, or a Color that is not set
-// when a component is outside 0 to 255.
+// ColorRGB is the opaque colour r, g, b, or a Color that is not set when a
+// component is outside 0 to 255.
 func ColorRGB(r, g, b int) Color {
 	if r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255 {
 		return Color{}
@@ -29,8 +29,8 @@ func ColorRGB(r, g, b int) Color {
 	return Color{R: uint8(r), G: uint8(g), B: uint8(b), A: 255, Set: true}
 }
 
-// utf16Len is the length of s in UTF-16 units, which is how colour measures
-// the names it is given.
+// utf16Len is the length of s in UTF-16 units, the unit the length limits on
+// a colour's text count in.
 func utf16Len(s string) int {
 	n := 0
 	for _, r := range s {
@@ -59,9 +59,8 @@ func hexValue(digits []rune, n int) int {
 	return v
 }
 
-// hexColor reads `#` and 3, 6, 8, 9 or 12 hex digits. colour keeps 16 bits a
-// channel, so each length is first widened to 16 bits and then brought down
-// to 8 the way colour::red and the others do.
+// hexColor reads `#` and 3, 6, 8, 9 or 12 hex digits. Each length is first
+// widened to 16 bits a channel and then brought down to 8 by div257.
 func hexColor(name string) Color {
 	if utf16Len(name) > 13 {
 		return Color{}
@@ -94,13 +93,12 @@ func hexColor(name string) Color {
 }
 
 // div257 brings a 16-bit channel down to 8 bits, rounding x/257 to the
-// nearest as the qt_div_257 does.
+// nearest.
 func div257(x int) uint8 { return uint8((x + 128 - (x+128)>>8) >> 8) }
 
-// namedColor looks a name up in the SVG colour names.  drops spaces and
-// tabs, lowers the case, and turns each character to Latin-1, where one
-// outside Latin-1 becomes a NUL that ends the name: "red" followed by any
-// such character is still red.
+// namedColor looks a name up in the SVG colour names. It drops spaces and
+// tabs, lowers the case, and stops at a NUL or at the first character
+// outside Latin-1: "red" followed by any such character is still red.
 func namedColor(name string) Color {
 	if utf16Len(name) > 255 {
 		return Color{}
@@ -121,9 +119,7 @@ func namedColor(name string) Color {
 	return colorNames[string(key)]
 }
 
-// colorNames are the names colour::colorNames lists, with their values, as
-//
-//	6.10 gives them.
+// colorNames are the SVG colour names with their values.
 var colorNames = map[string]Color{
 	"aliceblue":            {240, 248, 255, 255, true},
 	"antiquewhite":         {250, 235, 215, 255, true},

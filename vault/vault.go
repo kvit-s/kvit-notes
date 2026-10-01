@@ -52,15 +52,15 @@ type Entry struct {
 	Favorite bool
 	Goal     int
 	// Snippet is the start of the note's text as drawn, up to 120
-	// characters, and Words its word count, as the app counts them.
+	// characters, and Words its word count.
 	Snippet string
 	Words   int
 	// Text is the note's text as drawn, which search looks through.
 	Text string
 }
 
-// maxNote is the largest note whose text is read to list it, as in the
-// app; a larger note is listed by its name only.
+// maxNote is the largest note whose text is read to list it; a larger note is
+// listed by its name only.
 const maxNote = 32 << 20
 
 // Open opens the vault in root, creating the folder if it is missing. It
@@ -187,7 +187,7 @@ var ErrReadOnly = errors.New("the vault cannot be written")
 // Save writes a note. When the editor writes a note's Markdown in its own
 // form, so that saving changes lines the reader did not edit, the note as it
 // was is kept once beside it as "<note>.md.bak"; and a timed backup is taken
-// before any save. Both are the app's. The write is atomic: a temporary file renamed over the
+// before any save. The write is atomic: a temporary file renamed over the
 // note, so an interrupted save never leaves a note cut short.
 func (v *Vault) Save(e *Entry, p *Page) error {
 	if v.ReadOnly {
@@ -233,8 +233,8 @@ func (v *Vault) keepBak(rel string, current []byte) {
 	_ = f.Close()
 }
 
-// backupEvery and backupsKept are the app's backup rotation: at most one
-// backup of a note every ten minutes, the ten newest kept.
+// backupEvery and backupsKept are the backup rotation: at most one backup of
+// a note every ten minutes, the ten newest kept.
 const (
 	backupEvery = 10 * time.Minute
 	backupsKept = 10
@@ -298,8 +298,8 @@ func writeAtomic(target string, data []byte) error {
 }
 
 // validName reports whether a name the reader typed can be a note's or a
-// folder's name, by the app's rule: not empty, no space around it, no
-// slash or backslash, and not starting with a dot.
+// folder's name: not empty, no space around it, no slash or backslash, and
+// not starting with a dot.
 func validName(name string) bool {
 	return name != "" && strings.TrimSpace(name) == name && !strings.ContainsAny(name, `/\`) && !strings.HasPrefix(name, ".")
 }
@@ -353,8 +353,8 @@ func (v *Vault) CreateTitled(folder, base string) (*Entry, error) {
 
 // Capture makes a note of captured text in the vault's top folder, named
 // from its first line, or "Untitled" when that is taken or cannot be a
-// name, and writes it in one write, since the text is usually its only copy
-// (NoteCollection::captureNote).
+// name, and writes it in one write, since the text is usually its only
+// copy.
 func (v *Vault) Capture(text string) (*Entry, error) {
 	if v.ReadOnly {
 		return nil, ErrReadOnly
@@ -407,8 +407,8 @@ func (v *Vault) sortEntries() {
 }
 
 // TitleFromText is the name a note takes from the text of its first block,
-// by the app's rule: its first line, without slashes or leading dots, at
-// most 60 characters, or "" when that cannot be a name.
+// its first line, without slashes or leading dots, at most 60 characters, or
+// "" when that cannot be a name.
 func TitleFromText(text string) string {
 	for _, line := range strings.Split(text, "\n") {
 		if t := strings.TrimSpace(line); t != "" {

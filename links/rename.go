@@ -6,16 +6,12 @@ import (
 	"strings"
 )
 
-// Links after a rename or move. The app records a redirect from the old
+// Links after a rename or move. Kvit Notes records a redirect from the old
 // path to the new one and returns at once, so every link keeps resolving;
 // then it rewrites the notes holding those links a few at a time, and drops
-// the redirect once nothing links through it. The rules are in
-// src/repository/notecollection.cpp (rewriteRedirectedTargetsInText,
-// redirectReplacementFor, pruneSettledRedirects, recordRenameRedirects) and
-// src/repository/wikilinkindex.cpp (rewriteTargetsInText,
-// collectReferrers, snapshotNoteReferrers, snapshotFolderReferrers).
+// the redirect once nothing links through it.
 //
-// What the app does when a note is renamed or moved from old to new with
+// What Kvit Notes does when a note is renamed or moved from old to new with
 // "update links" chosen, in this package's terms:
 //
 //	ix.Remove(old)
@@ -24,7 +20,7 @@ import (
 //	ix.Redirects.Record(old, new)
 //	ix.PruneRedirects(bodies)         // then save the table
 //	for each note but the one open in the editor, a few at a time:
-// if ix.NeedsRewrite(body): body, n = ix.RewriteRedirected(body)
+//		if ix.NeedsRewrite(body): body, n = ix.RewriteRedirected(body)
 //	ix.PruneRedirects(bodies)         // save the table if this reports true
 //
 // The open note's text is rewritten in memory with RewriteRedirected, as one
@@ -113,7 +109,7 @@ func (ix *Index) Replacement(note, newPath string) string {
 
 // RewriteRedirected rewrites every link in text that resolves only through
 // the redirect table so it names the note directly, and reports how many
-// it rewrote. This is the rewrite the app applies to each note after a
+// it rewrote. This is the rewrite Kvit Notes applies to each note after a
 // rename, and to the open note's text in memory. "[[Target]]" and
 // "[[target#Head|alias]]" become "[[Renamed]]" and "[[Renamed#Head|alias]]"
 // after Target.md was renamed to Renamed.md.
@@ -146,8 +142,8 @@ func (ix *Index) RewriteRedirected(text string) (string, int) {
 }
 
 // NeedsRewrite reports whether a note body has a link that resolves only
-// through the redirect table, which is what puts the note in the app's
-// rewrite pass.
+// through the redirect table, which is what puts the note in the rewrite
+// pass after a rename.
 func (ix *Index) NeedsRewrite(body string) bool {
 	for _, t := range Targets(body) {
 		if ix.redirected(t) != "" {

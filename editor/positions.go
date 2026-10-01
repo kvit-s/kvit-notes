@@ -9,9 +9,8 @@ package editor
 // comment, a conversation's anchor) is stored in Markdown offsets, which
 // survive the file being opened again, while a range a reader points at
 // arrives in display offsets. MarkdownPosition and DisplayPosition translate
-// between the two, as the core's src/domain/blockpositions.h does: a
-// verbatim block (code, a table, an equation, a picture's line) is its own
-// display text.
+// between the two: a verbatim block (code, a table, an equation, a picture's
+// line) is its own display text.
 
 import (
 	"github.com/richardwilkes/toolbox/v2/geom"

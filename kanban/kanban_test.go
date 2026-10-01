@@ -1,11 +1,10 @@
 package kanban
 
-// These tests are the app's tests/test_kanbandata.cpp, one Go test per
-// test function there and in the same order, with the same inputs and
-// expected outputs. Where the test read a card's `line` through the view markup
-// wrapper KanbanTools::parse, this one calls Card.Line, which is the function
-// that wrapper calls. The functions' default `today` argument is written
-// out here as "".
+// These tests check reading and writing task boards: columns and cards,
+// round trips, every mutation, lines the model does not record, labels and
+// their escapes, due dates, the comment holding a card's dates, and the
+// text of a card's own line (Card.Line). A test that does not care about
+// the day passes "" as today.
 
 import (
 	"fmt"
@@ -264,8 +263,8 @@ func TestLiteralHashesRoundTripThroughTheEscape(t *testing.T) {
 }
 
 // Parse(x).Serialize() == x for arbitrary content, and every unmodelled line
-// survives any single mutation byte for byte. The boards are the ones the
-// test builds: qtRandom reproduces its QRandomGenerator with the same seed.
+// survives any single mutation byte for byte. The boards come from qtRandom
+// with a fixed seed (random_test.go).
 func TestMutationPreservationProperty(t *testing.T) {
 	rng := newQtRandom(0x4b616e62) // fixed seed: failures reproduce
 	triviaShapes := []string{

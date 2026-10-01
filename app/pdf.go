@@ -1,8 +1,8 @@
 package app
 
-// PDF export (features.md 12.5): the note drawn onto A4 pages by the editor
-// itself, in the light theme whatever the window's, through unison's PDF
-// writer. The text keeps its fonts and stays selectable in the PDF.
+// PDF export: the note drawn onto A4 pages by the editor itself, in the light
+// theme whatever the window's, through unison's PDF writer. The text keeps
+// its fonts and stays selectable in the PDF.
 
 import (
 	"errors"

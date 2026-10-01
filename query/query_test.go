@@ -1,11 +1,9 @@
 package query
 
-// A port of the suite tests/test_querydata.cpp, case for case: the spec
-// grammar with its error cases, and evaluation (filters, typed sorting,
-// grouping) against a small fixture collection. The suite writes the
-// fixture notes to a temporary directory and indexes them with
-// NoteCollection; here the fixture type below builds the same Note values
-// from the same file texts, since this package does not read files.
+// The spec grammar with its error cases, and evaluation (filters, typed
+// sorting, grouping) against a small fixture collection. The fixture type
+// below builds the Note values a vault's index would hold for a set of file
+// texts, since this package does not read files.
 
 import (
 	"fmt"
@@ -22,8 +20,8 @@ import (
 var fixtureTime = time.Date(2026, 9, 1, 12, 30, 0, 0, time.Local)
 
 // noteFromFile builds the Note the collection would index for a file with
-// this path and text (vaultscan.cpp entryFromText), for the simple front
-// matter the fixtures use: "key: value" lines between "---" lines at the top.
+// this path and text, for the simple front matter the fixtures use:
+// "key: value" lines between "---" lines at the top.
 func noteFromFile(relPath, content string) Note {
 	note := Note{
 		Path:     relPath,
@@ -63,11 +61,10 @@ func noteFromFile(relPath, content string) Note {
 	return note
 }
 
-// fixture stands in for the suite's temporary directory and the
-// NoteCollection indexing it. writeNote writes a file; refresh indexes the
-// files again and changes the revision, as NoteCollection::refresh and
-// refreshPaths do; openRoot replaces the files and reports the new root to
-// whoever set rootChanged, as NoteCollection::openRoot emits rootChanged.
+// fixture stands in for a vault folder and the index of its notes. writeNote
+// writes a file; refresh indexes the files again and changes the revision;
+// openRoot replaces the files and reports the new root to whoever set
+// rootChanged.
 type fixture struct {
 	mu          sync.Mutex
 	files       map[string]string
@@ -120,15 +117,15 @@ func (f *fixture) Notes() []Note {
 	return slices.Clone(f.notes)
 }
 
-// snapshot is QueryData::snapshotOf: the notes sorted by path.
+// snapshot is the notes sorted by path.
 func (f *fixture) snapshot() []Note {
 	notes := f.Notes()
 	SortNotes(notes)
 	return notes
 }
 
-// makeFixture writes the suite's fixture: four project notes with mixed
-// front matter plus one note without any.
+// makeFixture writes the fixture: four project notes with mixed front matter
+// plus one note without any.
 func makeFixture(t *testing.T) *fixture {
 	t.Helper()
 	f := newFixture()
@@ -439,9 +436,9 @@ func TestQueryToolsCache(t *testing.T) {
 	}
 }
 
-// eventLoop stands in for the event loop the suite runs with
-// QTRY_COMPARE and test wait: Tools.Post queues functions here, and they
-// run only when the test processes them, on the test's goroutine.
+// eventLoop stands in for the window's event loop: Tools.Post queues
+// functions here, and they run only when the test processes them, on the
+// test's goroutine.
 type eventLoop struct {
 	posted chan func()
 }
@@ -455,7 +452,7 @@ func (l *eventLoop) post(fn func()) {
 }
 
 // processUntil runs posted functions until done reports true or timeout
-// passes, and returns done's final answer (QTRY_COMPARE_WITH_TIMEOUT).
+// passes, and returns done's final answer.
 func (l *eventLoop) processUntil(timeout time.Duration, done func() bool) bool {
 	deadline := time.After(timeout)
 	for !done() {
@@ -469,7 +466,7 @@ func (l *eventLoop) processUntil(timeout time.Duration, done func() bool) bool {
 	return true
 }
 
-// wait runs posted functions for d (test wait).
+// wait runs posted functions for d.
 func (l *eventLoop) wait(d time.Duration) {
 	deadline := time.After(d)
 	for {
@@ -586,10 +583,9 @@ func TestQueryToolsRunsOffTheCallingThread(t *testing.T) {
 	}
 }
 
-// The suite budgets this evaluation in process CPU time: a median under
-// 20 ms, and a ceiling of 55 ms that no sample may reach, enforced in release
-// builds. This port times each sample on the wall clock with the same two
-// limits and skips in -short mode, where the suite skips in debug builds.
+// Evaluating 1,000 notes has a budget on the wall clock: a median under
+// 20 ms, and a ceiling of 55 ms that no sample may reach. The test skips in
+// -short mode.
 func TestEvaluate1000NoteBudget(t *testing.T) {
 	if testing.Short() {
 		t.Skip("the 1000-note timing budget is not checked in -short mode")

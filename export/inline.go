@@ -1,15 +1,13 @@
 package export
 
-// Inline Markdown as the exporter reads it: the span parser of
-// src/content/markdownformatter.cpp (MarkdownFormatter::parseSpans), the
-// wiki-link grammar of src/content/wikilinkscanner.cpp, the inline HTML of
-// src/content/htmlinline.cpp, and the marker-free text of
-// src/content/inlinemarkdown.cpp (InlineMarkdown::displayText).
+// Inline Markdown as the exporter reads it: the spans and how they nest, the
+// wiki-link grammar, the HTML each span is written as, and the text with
+// every marker removed.
 //
 // The editor package has its own span parser, which knows fewer span types
-// (no superscript, subscript, colour, inline maths or escapes). An export has
-// to write the same HTML the app writes, so the parser is ported here
-// whole rather than borrowed from the editor.
+// (no superscript, subscript, colour, inline maths or escapes). An export
+// writes every span type as HTML, so this package has a parser of its own
+// for all of them.
 
 import (
 	"strings"
@@ -77,9 +75,9 @@ var spanDefs = []spanDef{
 	{"autolink", autolinkMatcher, "", true, false, false},
 }
 
-// The parse is bounded as the parser bounds it: nesting stops at 24
-// levels, and every scanning loop spends from one budget shared by the whole
-// parse, after which the remaining text stays literal.
+// The parse is bounded: nesting stops at 24 levels, and every scanning loop
+// spends from one budget shared by the whole parse, after which the
+// remaining text stays literal.
 const (
 	maxSpanDepth      = 24
 	parseStepFloor    = 2_000_000
@@ -101,7 +99,8 @@ func (s *parseState) spend(n int) bool {
 
 func isLetterOrNumber(r rune) bool { return unicode.IsLetter(r) || unicode.IsNumber(r) }
 
-// isSpace is QChar::isSpace.
+// isSpace reports whether r is white space as Unicode defines it, the
+// no-break space included.
 func isSpace(r rune) bool { return unicode.IsSpace(r) }
 
 // escapedAt reports whether the character at pos is escaped by an odd run of
@@ -114,7 +113,7 @@ func escapedAt(md []rune, pos int) bool {
 	return n&1 != 0
 }
 
-// indexRunes is string::indexOf for a marker, from a start offset.
+// indexRunes is where marker first occurs in md at or after from, or -1.
 func indexRunes(md []rune, marker []rune, from int) int {
 	if from < 0 {
 		from = 0
@@ -405,7 +404,7 @@ func matchColorOpen(md []rune, pos int) (int, string) {
 	return i - pos, string(md[valueStart:valueEnd])
 }
 
-// wikiMatch is WikiLinkScanner::matchAt: a [[target#heading|alias]] at pos.
+// wikiMatch reads a [[target#heading|alias]] wiki link at pos.
 // It returns the occurrence's length, the target's length (before any "|"),
 // the trimmed target, and whether it has an alias.
 func wikiMatch(md []rune, pos int) (length, targetLen int, target string, alias, ok bool) {
@@ -444,7 +443,7 @@ func wikiMatch(md []rune, pos int) (length, targetLen int, target string, alias,
 	return closeAt + 2 - pos, len(targetPart), trimSpace(string(targetPart)), pipe >= 0, true
 }
 
-// trimSpace is string::trimmed: whitespace by QChar::isSpace.
+// trimSpace trims white space, as isSpace has it, from both ends of s.
 func trimSpace(s string) string { return strings.TrimFunc(s, isSpace) }
 
 const escapable = "*_~^=+`[]\\$#->|"
@@ -703,9 +702,9 @@ func parseSpansWith(md []rune, st *parseState) []fspan {
 	return spans
 }
 
-// displayText is InlineMarkdown::displayText: the text with the markers of
-// every span, at every depth, removed. It is what a plain-text export writes
-// for prose (BlockText::renderedFully) and what heading anchors are made from.
+// displayText is the text with the markers of every span, at every depth,
+// removed. It is what a plain-text export writes for prose and what heading
+// anchors are made from.
 func displayText(markdown string) string {
 	md := []rune(markdown)
 	var out []rune
@@ -726,7 +725,7 @@ func displayText(markdown string) string {
 }
 
 // esc escapes &, <, > and " for HTML, and nothing else: an apostrophe is left
-// alone (src/content/htmlinline.cpp, HtmlInline::esc).
+// alone.
 func esc(text string) string {
 	if !strings.ContainsAny(text, `&<>"`) {
 		return text
@@ -750,15 +749,15 @@ func esc(text string) string {
 }
 
 // escFlowing is Esc with each newline written as <br>, for prose, where a
-// bare newline would collapse to a space (HtmlInline::escFlowing).
+// bare newline would collapse to a space.
 func escFlowing(text string) string {
 	return strings.ReplaceAll(esc(text), "\n", "<br>")
 }
 
 // safeHref is the link target an exported document may put in an href, or
-// "" when it may not (HtmlInline::safeHref). Only schemes that navigate are
-// allowed through: http, https, mailto, ftp, ftps, file, tel and sms. A
-// relative reference, which has no scheme, is kept.
+// "" when it may not. Only schemes that navigate are allowed through: http,
+// https, mailto, ftp, ftps, file, tel and sms. A relative reference, which
+// has no scheme, is kept.
 func safeHref(url string) string {
 	var probe []rune
 	for _, c := range url {
@@ -793,8 +792,8 @@ func safeHref(url string) string {
 }
 
 // inlineHTML renders a block's inline Markdown as HTML, walking the span tree
-// so nesting survives (HtmlInline::renderInline). Inline maths becomes a
-// MathJax \( … \) and sets *sawMath.
+// so nesting survives. Inline maths becomes a MathJax \( … \) and sets
+// *sawMath.
 func inlineHTML(markdown string, sawMath *bool) string {
 	md := []rune(markdown)
 	var list func(spans []fspan, lo, hi int) string

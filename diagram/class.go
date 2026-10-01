@@ -1,10 +1,9 @@
 package diagram
 
-// The class-diagram layout, a port of the app's
-// src/content/diagrams/classlayout.cpp: UML boxes with compartments placed by
-// the layered core, relations drawn from border to border with UML end
-// markers, cardinalities beside their ends, namespaces as frames, and notes
-// below the diagram joined to their class by dashed lines.
+// The class-diagram layout: UML boxes with compartments placed by the
+// layered core, relations drawn from border to border with UML end markers,
+// cardinalities beside their ends, namespaces as frames, and notes below the
+// diagram joined to their class by dashed lines.
 
 import (
 	"fmt"

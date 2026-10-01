@@ -1,14 +1,27 @@
-# kvit-notes-go
+# kvit-notes
 
-Kvit Notes, the Markdown block editor, built on the unison toolkit and
-kvit-ui-go.
+Kvit Notes, a Markdown block editor for the desktop, built on the unison
+toolkit and kvit-ui, the Kvit component library.
+
+Kvit Notes opens a vault, a folder of Markdown notes, in a window with a
+sidebar, a note list and the editor. Each note is an ordinary `.md` file,
+shown rendered, with the Markdown of a span revealed while the caret is in
+it; the vault's lock, backups, recovery journal and trash are kept in its
+`.kvit` folder. The app follows and completes wiki links, finds and
+replaces, searches across notes, and draws code in colour, pictures,
+callouts, tables, task boards, collection queries, Mermaid diagrams (which
+can also be edited on the drawing) and typeset math, with a command menu for
+typing it. It has menus, settings, templates, export and import, a tray icon
+and file associations, and packages for Windows, macOS and Linux
+(`packaging/README.md` says which of them have been tried).
 
 It builds with cgo off and cross-compiles to Windows, macOS and Linux.
 Building needs Go 1.27; with an older Go installed, the `toolchain` line in
-`go.mod` makes Go fetch 1.27 by itself. It needs `~/kvit-ui-go` beside it,
-and zig (https://ziglang.org/download/) on the PATH: math is typeset by
-MicroTeX, which stays C++ and is built by zig as a shared library that the
-program loads at run time.
+`go.mod` makes Go fetch 1.27 by itself. It needs the kvit-ui repository
+checked out beside it (`../kvit-ui`, which the `replace` lines in `go.mod`
+name), and zig (https://ziglang.org/download/) on the PATH: math is typeset
+by MicroTeX, a C++ engine that zig builds as a shared library the program
+loads at run time.
 
 ```sh
 ./build.sh --test        # build, check formatting, vet, run the headless tests
@@ -18,16 +31,5 @@ packaging/build-all.sh   # the Windows, macOS and Linux downloads, into dist/
 build/kvit-notes folder  # open a folder of notes as a vault
 build/kvit-notes note.md # edit one note on its own
 ```
-
-**Status:** the app opens a vault, a folder of Markdown notes, in Kvit's
-window: the sidebar, the note list and the editor, with the app's formats
-on disk, its lock, backups, recovery journal and trash. It follows and
-completes links, finds and replaces, searches across notes, and draws code
-in colour, pictures, callouts, tables, task boards, collection queries,
-Mermaid diagrams (edited on the drawing too) and typeset math, with the
-command menu for typing it. It has the app's menus, settings, templates,
-export and import, tray icon and file associations, and packages for
-Windows, macOS and Linux (`packaging/README.md` says which of them have
-been tried).
 
 **Licence:** MPL-2.0.

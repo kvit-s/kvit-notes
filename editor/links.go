@@ -1,11 +1,10 @@
 package editor
 
-// Links in the text (features.md 2.4): a press on a link follows it when
-// Ctrl (Cmd on macOS) is held, or when its block is not the one being
-// edited, as a note being read is clicked; any other press puts the caret
-// in it. What following means, opening a note or a web page, is the
-// application's. The link dialog (Ctrl+K) finds the link at the caret here
-// and writes the one it is given.
+// Links in the text: a press on a link follows it when Ctrl (Cmd on macOS) is
+// held, or when its block is not the one being edited, as a note being read
+// is clicked; any other press puts the caret in it. What following means,
+// opening a note or a web page, is the application's. The link dialog
+// (Ctrl+K) finds the link at the caret here and writes the one it is given.
 
 import (
 	"strings"
@@ -113,9 +112,9 @@ func (e *Editor) ReplaceRange(id int64, start, end int, replacement string, care
 }
 
 // RemoveLinkAt removes the link formatting at a position, keeping its text:
-// "[text](address)" becomes "text" (Kvit's removeLinkAtCursor). Only a
-// Markdown link is removable; a bare address is its own text and a wiki
-// link keeps its brackets. It reports whether it removed one.
+// "[text](address)" becomes "text". Only a Markdown link is removable; a bare
+// address is its own text and a wiki link keeps its brackets. It reports
+// whether it removed one.
 func (e *Editor) RemoveLinkAt(pos Pos) bool {
 	d := e.Doc
 	b := d.Block(pos.Block)

@@ -1,10 +1,10 @@
 package textdiagram
 
-// These tests are the app's tests/test_textcanvas.cpp, one Go test per
-// test function there and in the same order, with the same inputs and
-// expected outputs. The data function testJunctionTable_data is the table
-// inside TestJunctionTable, one subtest per row. QChar() outside the grid is
-// the rune 0 here.
+// These tests check the Canvas: how it grows, lines and their end points,
+// the junction drawn where arms meet (a table in TestJunctionTable, one
+// subtest per row), boxes and double walls, lines that never draw over
+// text, arrowheads, trimmed output, and the cell limits. A cell outside the
+// grid reads as the rune 0.
 
 import "testing"
 

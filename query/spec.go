@@ -1,6 +1,4 @@
-// Package query runs collection query blocks. It is a port of the app's
-// src/application/querydata.cpp and of the parts of querytools.cpp that do
-// not depend on .
+// Package query runs collection query blocks.
 //
 // A query block is a fenced code block whose language is "query". Its body is
 // a spec, one "key: value" line per setting:
@@ -22,10 +20,10 @@
 //
 // Parse turns a block body into a Spec, or into the error message the block
 // shows instead of results. Evaluate applies a Spec to a list of notes and
-// returns the rows, with each cell formatted as the app formats it. Tools
-// adds the cache and the background evaluation the editor uses, so that
-// several blocks showing the same query cost one evaluation after each change
-// to the collection.
+// returns the rows, with each cell formatted for display. Tools adds the
+// cache and the background evaluation the editor uses, so that several blocks
+// showing the same query cost one evaluation after each change to the
+// collection.
 package query
 
 import (
@@ -100,11 +98,11 @@ type Spec struct {
 	Limit int
 }
 
-// Parse reads a query block body (querydata.cpp QueryData::parse). Blank
-// lines and lines starting with "#" are skipped. The error, when there is
-// one, is the message the block shows in place of results, word for word as
-// the app shows it; unknown keys, views, operators and sort directions
-// are errors rather than being ignored, because the spec is written by hand.
+// Parse reads a query block body. Blank lines and lines starting with "#"
+// are skipped. The error, when there is one, is the message the block shows
+// in place of results, word for word; unknown keys, views, operators and
+// sort directions are errors rather than being ignored, because the spec is
+// written by hand.
 func Parse(body string) (Spec, error) {
 	var spec Spec
 	viewSet := false
@@ -185,7 +183,7 @@ func Parse(body string) (Spec, error) {
 			}
 
 		case "limit":
-			// string::toInt: an int with an optional sign.
+			// A decimal int with an optional sign.
 			limit, err := strconv.ParseInt(value, 10, 32)
 			if err != nil || limit < 1 {
 				return Spec{}, errors.New("'limit:' needs a positive integer")
@@ -210,9 +208,8 @@ func Parse(body string) (Spec, error) {
 	return spec, nil
 }
 
-// splitSkipEmpty is string::split(sep, ::SkipEmptyParts): the parts
-// between separators, leaving out the empty ones. A part made of spaces is
-// not empty.
+// splitSkipEmpty is the parts of s between separators, leaving out the
+// empty ones. A part made of spaces is not empty.
 func splitSkipEmpty(s, sep string) []string {
 	var out []string
 	for _, part := range strings.Split(s, sep) {
@@ -235,11 +232,11 @@ var opTokens = []struct {
 	{" contains ", OpContains}, {" has ", OpHas},
 }
 
-// parseCondition reads one condition, "field op value" or "field exists"
-// (querydata.cpp parseCondition). The field is one word. For each operator
-// in opTokens order it looks at the first place the operator appears,
-// ignoring letter case; if the text before it is not a single word it tries
-// the next operator, which is why "title contains a=b" is a contains test.
+// parseCondition reads one condition, "field op value" or "field exists". The
+// field is one word. For each operator in opTokens order it looks at the
+// first place the operator appears, ignoring letter case; if the text before
+// it is not a single word it tries the next operator, which is why "title
+// contains a=b" is a contains test.
 func parseCondition(text string) (Condition, error) {
 	trimmed := strings.TrimSpace(text)
 	if trimmed == "" {

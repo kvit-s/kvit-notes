@@ -1,6 +1,5 @@
-// Package kanban reads and writes Kvit's task boards. It is a port of the
-// app's src/content/kanbandata.h and kanbandata.cpp (namespace KanbanData)
-// and writes the same text as that code for every input.
+// Package kanban reads and writes Kvit's task boards. It writes the same
+// text for every input as the earlier Qt version of Kvit Notes.
 //
 // A task board is a fenced code block whose language tag is `kanban`. The note
 // stores nothing else about it: the body of the fence is ordinary Markdown that
@@ -8,45 +7,40 @@
 //
 //	## To do
 //	- [ ] Ship the beta #release #"client work" 📅 2026-08-01 <!--kvit created=2026-07-20 modified=2026-07-26-->
-//
-// Lines indented under a card are its description.
-//   - [x] A finished card
-//     ## Done
+//	  Lines indented under a card are its description.
+//	- [x] A finished card
+//	## Done
 //
 // A line starting with `## ` opens a column named by the rest of the line. A
 // line `- [ ] ` or `- [x] ` is a card, done when the box is checked; a `*`
 // bullet and `[X]` also work. On a card's line:
 //   - a `#label` token at the start of the text or after whitespace is a
-//
-// label, so a URL fragment such as https://example.com/#intro stays title
-// text. A label containing a space, a hash, a quote or a backslash is
-// written quoted, as `#"client work"`, with `\` and `"` escaped inside the
-// quotes; the bare spelling is written whenever it fits.
+//     label, so a URL fragment such as https://example.com/#intro stays title
+//     text. A label containing a space, a hash, a quote or a backslash is
+//     written quoted, as `#"client work"`, with `\` and `"` escaped inside the
+//     quotes; the bare spelling is written whenever it fits.
 //   - `📅 YYYY-MM-DD` is the due date. Only a day the calendar has counts;
-//
-// anything else after the marker is title text.
+//     anything else after the marker is title text.
 //   - a backslash before `#` or `📅` makes it literal title text, and a run of
-//
-// backslashes halves, so `\#` is a literal hash and `\\#tag` is a
-// backslash followed by a label.
+//     backslashes halves, so `\#` is a literal hash and `\\#tag` is a
+//     backslash followed by a label.
 //   - an HTML comment `<!--kvit created=… modified=…-->` at the end of the line
-//
-// holds the day the card was added and the day it last changed. Other
-// Markdown tools show nothing for it, and the text the board's inline
-// editor shows is the line without it (Card.Line).
+//     holds the day the card was added and the day it last changed. Other
+//     Markdown tools show nothing for it, and the text the board's inline
+//     editor shows is the line without it (Card.Line).
 //
 // Lines indented by two spaces or a tab under a card are its description,
 // including blank lines between such lines.
 //
 // Everything else in the fence (an introductory paragraph, an HTML comment, a
-// blank line, a stray list item) is not part of the board model. The C++ code
-// calls these lines trivia, and so do the field names here. Each parsed Board,
-// Column and Card keeps the source lines it came from and the trivia lines
-// that followed it, and Serialize writes all of it back, so
-// Parse(x).Serialize() == x for any x and a mutation rewrites only the lines
-// it changes. Trivia belongs to a position rather than to a card: a card that
-// moves leaves the trivia after it where it was, and trivia whose position is
-// removed moves to the position before it.
+// blank line, a stray list item) is not part of the board model. The field
+// names here call these lines trivia. Each parsed Board, Column and Card
+// keeps the source lines it came from and the trivia lines that followed it,
+// and Serialize writes all of it back, so Parse(x).Serialize() == x for any x
+// and a mutation rewrites only the lines it changes. Trivia belongs to a
+// position rather than to a card: a card that moves leaves the trivia after
+// it where it was, and trivia whose position is removed moves to the position
+// before it.
 //
 // Every mutation takes the whole fence body and returns the whole new body,
 // which the editor applies as one undo step. A mutation that changes a card
@@ -63,7 +57,7 @@ import (
 	"unicode"
 )
 
-// Card is one card of a column (KanbanData::Card).
+// Card is one card of a column.
 type Card struct {
 	Title  string
 	Done   bool
@@ -106,7 +100,7 @@ type Card struct {
 	TrailingTrivia []string
 }
 
-// Column is one column of a board (KanbanData::Column).
+// Column is one column of a board.
 type Column struct {
 	Name  string
 	Cards []Card
@@ -118,7 +112,7 @@ type Column struct {
 	LeadingTrivia []string
 }
 
-// Board is the parsed body of a `kanban` fence (KanbanData::Board).
+// Board is the parsed body of a `kanban` fence.
 type Board struct {
 	Columns []Column
 	// Preamble is the unmodelled lines before the first column header.
@@ -132,22 +126,21 @@ func (b *Board) ColumnCount() int { return len(b.Columns) }
 // calendar is the due-date marker, U+1F4C5.
 const calendar = "📅"
 
-// The kanbandata.cpp patterns are compiled by the regular expression
-// without its Unicode-properties option, so PCRE's \s there matches only the
-// six ASCII whitespace characters. Go's \s leaves out the vertical tab, so the
-// patterns below spell the class out. (\d and \w are ASCII-only in both.)
+// White space in the patterns below is the six ASCII whitespace characters:
+// tab, line feed, vertical tab, form feed, carriage return and space. Go's \s
+// leaves out the vertical tab, so the patterns spell the class out. (\d and
+// \w are ASCII-only.)
 const (
 	spaceClass    = `\t\n\v\f\r `
 	space         = `[` + spaceClass + `]`
 	notSpaceOrTag = `[^` + spaceClass + `#]`
 )
 
-// labelRe is a `#label` token (labelRe() in kanbandata.cpp). It is recognized
-// only at a token boundary, the start of the text or right after whitespace,
-// so a URL fragment stays part of the title. A run of backslashes may come
-// before the hash: an odd-length run escapes the hash into a literal one, and
-// the run itself halves, so `\#` is a literal `#` and `\\#tag` is a backslash
-// followed by the label.
+// labelRe is a `#label` token. It is recognized only at a token boundary, the
+// start of the text or right after whitespace, so a URL fragment stays part
+// of the title. A run of backslashes may come before the hash: an odd-length
+// run escapes the hash into a literal one, and the run itself halves, so `\#`
+// is a literal `#` and `\\#tag` is a backslash followed by the label.
 //
 // The label has two spellings. The bare one, everything up to the next space
 // or hash (group 4), is what boards written by hand and by earlier versions of
@@ -157,47 +150,44 @@ const (
 // the next character, so `"` and `\` survive too.
 var labelRe = regexp.MustCompile(`(^|` + space + `)(\\*)#(?:"((?:\\.|[^"\\])*)"|(` + notSpaceOrTag + `*))`)
 
-// dueRe is the due-date marker and its date (dueRe() in kanbandata.cpp), with
-// the same backslash escape as the hash, so a title that reads
-// "📅 2026-07-15" is written with the marker escaped and stays title text.
+// dueRe is the due-date marker and its date, with the same backslash escape
+// as the hash, so a title that reads "📅 2026-07-15" is written with the
+// marker escaped and stays title text.
 var dueRe = regexp.MustCompile(`(\\*)` + calendar + space + `*(\d{4}-\d{2}-\d{2})`)
 
-// cardRe is a card line after trimming (the cardRe in KanbanData::parse):
-// group 1 is the box's content, group 2 the text after it.
+// cardRe is a card line after trimming: group 1 is the box's content, group 2
+// the text after it.
 var cardRe = regexp.MustCompile(`^[-*] \[( |x|X)\] ?(.*)$`)
 
 // cardPrefixRe is a card line's indent, bullet and checkbox (group 1) and the
-// one space that may follow them (group 2), from cardPrefixRe() in
-// kanbandata.cpp. Everything after is the card's text.
+// one space that may follow them (group 2). Everything after is the card's
+// text.
 var cardPrefixRe = regexp.MustCompile(`^(` + space + `*[-*] \[[ xX]\])( ?)`)
 
-// stampRe is the comment holding a card's dates at the end of its line
-// (stampRe() in kanbandata.cpp). It is taken off the end of the line before
-// anything else reads the text, so nothing inside it is read as a label, a
-// due date or title words. Group 1 is the comment's fields.
+// stampRe is the comment holding a card's dates at the end of its line. It is
+// taken off the end of the line before anything else reads the text, so
+// nothing inside it is read as a label, a due date or title words. Group 1 is
+// the comment's fields.
 var stampRe = regexp.MustCompile(space + `*<!--kvit((?:` + space + `+\w+=[0-9-]+)*)` + space + `*-->` + space + `*$`)
 
-// stampFieldRe is one `name=value` field of that comment (the fieldRe in
-// stampExtraFields()).
+// stampFieldRe is one `name=value` field of that comment.
 var stampFieldRe = regexp.MustCompile(`(\w+)=([0-9-]+)`)
 
-// stampValueRe holds, for each field this version reads, the pattern
-// stampValue() in kanbandata.cpp builds from the field's name.
+// stampValueRe holds, for each field this version reads, the pattern that
+// finds the field and its date.
 var stampValueRe = map[string]*regexp.Regexp{
 	"created":  regexp.MustCompile(`created=(\d{4}-\d{2}-\d{2})`),
 	"modified": regexp.MustCompile(`modified=(\d{4}-\d{2}-\d{2})`),
 }
 
-// boxRe is a card line up to its checkbox (the boxRe in
-// KanbanData::toggleCardDone): group 2 is the character inside the box.
+// boxRe is a card line up to its checkbox: group 2 is the character inside
+// the box.
 var boxRe = regexp.MustCompile(`^(` + space + `*[-*] \[)( |x|X)(\])`)
 
 // isRealDate reports whether text is a day the calendar has, written
-// YYYY-MM-DD (isRealDate() in kanbandata.cpp). The code asks
-// QDate::fromString(text, "yyyy-MM-dd"), which in 6.10 accepts exactly ten
-// characters, four ASCII digits, a hyphen, two digits, a hyphen and two
-// digits, naming a day of the proleptic Gregorian calendar from 0001-01-01 to
-// 9999-12-31. Year 0000 does not exist there. Reader and writer both ask this,
+// YYYY-MM-DD: exactly ten characters, four ASCII digits, a hyphen, two digits,
+// a hyphen and two digits, naming a day of the proleptic Gregorian calendar
+// from 0001-01-01 to 9999-12-31. Year 0000 does not exist there. Reader and writer both ask this,
 // so what Serialize writes after the marker is exactly what Parse reads back.
 func isRealDate(text string) bool {
 	if len(text) != 10 || text[4] != '-' || text[7] != '-' {
@@ -227,12 +217,11 @@ func digits(s string) int {
 	return n
 }
 
-// trimmed is string::trimmed(): QChar::isSpace and unicode.IsSpace, which
-// strings.TrimSpace uses, are the same set of characters.
+// trimmed is s without the white space unicode.IsSpace reports at either end.
 func trimmed(s string) string { return strings.TrimSpace(s) }
 
-// simplified is string::simplified(): trimmed, with every inner run of
-// whitespace replaced by one space.
+// simplified is s trimmed, with every inner run of whitespace replaced by one
+// space.
 func simplified(s string) string { return strings.Join(strings.Fields(s), " ") }
 
 // unescapeLabel undoes the escaping writeLabel applies inside a quoted label:
@@ -254,8 +243,8 @@ func unescapeLabel(text string) string {
 }
 
 // writeLabel returns a label as it goes on the card line, without the leading
-// hash: bare when it has no whitespace (QChar::isSpace, the same set as
-// unicode.IsSpace), hash, quote or backslash, and quoted otherwise. It
+// hash: bare when it has no whitespace (as unicode.IsSpace reports it), hash,
+// quote or backslash, and quoted otherwise. It
 // returns "" for the empty label, which cannot be written, and
 // renderedCardBody then leaves it out.
 func writeLabel(label string) string {
@@ -296,7 +285,7 @@ func applyEdits(text string, edits []edit) string {
 }
 
 // parseCardBody reads a card line's text into the card's title, labels and
-// due date (parseCardBody() in kanbandata.cpp).
+// due date.
 func parseCardBody(rest string, card *Card) {
 	body := rest
 
@@ -345,11 +334,11 @@ func parseCardBody(rest string, card *Card) {
 	card.Title = simplified(body)
 }
 
-// escapeTitle is the inverse of parseCardBody's escapes (escapeTitle() in
-// kanbandata.cpp): a hash or a due marker in a title that would be read back
-// as a label or a due date is escaped, so the title survives as text.
-// Doubling the backslash run and adding one leaves an odd run, which
-// parseCardBody reads as literal, and its halving restores the original run.
+// escapeTitle is the inverse of parseCardBody's escapes: a hash or a due
+// marker in a title that would be read back as a label or a due date is
+// escaped, so the title survives as text. Doubling the backslash run and
+// adding one leaves an odd run, which parseCardBody reads as literal, and its
+// halving restores the original run.
 func escapeTitle(title string) string {
 	var edits []edit
 	for _, m := range dueRe.FindAllStringSubmatchIndex(title, -1) {
@@ -372,8 +361,7 @@ func escapeTitle(title string) string {
 }
 
 // stampValue returns one `name=value` date from the comment's fields, or ""
-// when the first such field is not a real day (stampValue() in
-// kanbandata.cpp).
+// when the first such field is not a real day.
 func stampValue(fields, name string) string {
 	m := stampValueRe[name].FindStringSubmatch(fields)
 	if m != nil && isRealDate(m[1]) {
@@ -383,8 +371,7 @@ func stampValue(fields, name string) string {
 }
 
 // stampExtraFields returns the comment's fields other than created= and
-// modified=, verbatim, in source order and joined by single spaces
-// (stampExtraFields() in kanbandata.cpp).
+// modified=, verbatim, in source order and joined by single spaces.
 func stampExtraFields(fields string) string {
 	var kept []string
 	for _, m := range stampFieldRe.FindAllStringSubmatch(fields, -1) {
@@ -413,9 +400,9 @@ func withoutStamp(line string) string {
 }
 
 // stampComment returns the comment for a card that has dates, and "" for one
-// that has none, so an untouched board gains no comments (stampComment() in
-// kanbandata.cpp). modified= is written only when it differs from created=,
-// so a card that was added and not changed since has one date.
+// that has none, so an untouched board gains no comments. modified= is
+// written only when it differs from created=, so a card that was added and
+// not changed since has one date.
 func stampComment(card *Card) string {
 	var fields []string
 	if card.Created != "" {
@@ -434,10 +421,10 @@ func stampComment(card *Card) string {
 }
 
 // stampCard records that a card changed on today: the day it was added if it
-// has none yet and creating is set, and the day it last changed either way
-// (stampCard() in kanbandata.cpp). An empty or unreal today records nothing.
-// The card's source line is edited in place rather than dropped, so a card
-// whose dates changed keeps its spacing, its bullet and its label order.
+// has none yet and creating is set, and the day it last changed either way.
+// An empty or unreal today records nothing. The card's source line is edited
+// in place rather than dropped, so a card whose dates changed keeps its
+// spacing, its bullet and its label order.
 func stampCard(card *Card, today string, creating bool) {
 	if today == "" || !isRealDate(today) {
 		return
@@ -474,8 +461,7 @@ func renderedCardBody(card *Card) string {
 // checkbox and before the comment holding the dates, as the file has it. For
 // a card a mutation created, which has no line yet, it is the text Serialize
 // is about to write. This is the text the board's inline editor shows, and
-// passing it unchanged to SetCardLine leaves the board as it was. It is the
-// `line` value of KanbanTools::parse (cardBody() in kanbandata.cpp).
+// passing it unchanged to SetCardLine leaves the board as it was.
 func (c *Card) Line() string {
 	if c.RawLine == "" {
 		return renderedCardBody(c)
@@ -489,7 +475,7 @@ func (c *Card) Line() string {
 // cardPrefix returns what goes in front of the card's text when it is
 // rewritten: its own indent, bullet and checkbox, so a `*` bullet or an
 // indented card keeps its form and the done state survives an edit of the
-// text (cardPrefix() in kanbandata.cpp).
+// text.
 func cardPrefix(card *Card) string {
 	if m := cardPrefixRe.FindStringSubmatch(card.RawLine); m != nil {
 		return m[1] + " "
@@ -574,7 +560,7 @@ func LooksLikeBoard(content string) bool {
 	return false
 }
 
-// Parse reads the body of a `kanban` fence (KanbanData::parse).
+// Parse reads the body of a `kanban` fence.
 func Parse(content string) *Board {
 	board := &Board{}
 	// Splitting "" gives one empty line, which would come back out as an
@@ -713,10 +699,10 @@ func Parse(content string) *Board {
 	return board
 }
 
-// Serialize writes the board back as the body of a `kanban` fence
-// (KanbanData::serialize). A card, column or description with a source line
-// is written as that line, so what the model does not record (spacing, `*`
-// bullets, label order) is only rewritten on the lines a mutation changed.
+// Serialize writes the board back as the body of a `kanban` fence. A card,
+// column or description with a source line is written as that line, so what
+// the model does not record (spacing, `*` bullets, label order) is only
+// rewritten on the lines a mutation changed.
 func (b *Board) Serialize() string {
 	var out []string
 	out = append(out, b.Preamble...)

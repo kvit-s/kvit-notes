@@ -59,7 +59,7 @@ func TestFrontMatterIsRecognisedAsKvitDoes(t *testing.T) {
 	}
 }
 
-// A change to one key rewrites that key in the app's form and leaves every
+// A change to one key rewrites that key in Kvit's form and leaves every
 // other line as it was.
 func TestFrontMatterEditsKeepForeignLines(t *testing.T) {
 	src := "---\ntitle: \"Kept: exactly\"\naliases:\n  - one\n  - two\ntags:\n  - alpha\n  - \"b,c\"\ncustom: 1\n---\n# Body\n"
@@ -79,8 +79,8 @@ func TestFrontMatterEditsKeepForeignLines(t *testing.T) {
 	if got := p.Text(); got != "---\ntitle: \"Kept: exactly\"\naliases:\n  - one\n  - two\ncustom: 1\n---\n# Body\n" {
 		t.Errorf("removing keys: %q", got)
 	}
-	// A note with no front matter gets one only when a key is set, in the
-	// app's order.
+	// A note with no front matter gets one only when a key is set, with
+	// Kvit's keys in their order.
 	q := parsePage("Just text\n")
 	q.SetFavorite(true)
 	q.SetTags([]string{"x"})
@@ -128,8 +128,8 @@ func TestOpenScansNotesAndSkipsKvitsOwnFolders(t *testing.T) {
 	}
 }
 
-// The lock is flock on .kvit/vault.lock, as the app takes it, so a second
-// opener, in this process or another, is refused.
+// The lock is flock on .kvit/vault.lock, so a second opener, in this process
+// or another, is refused.
 func TestTheVaultLockExcludesOtherOpeners(t *testing.T) {
 	root := t.TempDir()
 	v, err := Open(root)
@@ -201,7 +201,7 @@ func TestSaveBacksUpAndKeepsABakOnlyWhenTheEditorReshapes(t *testing.T) {
 // `diagram` and the drawing straightened (textdiagram.Ingest, which the
 // editor's parser runs). Saving it therefore changes the file, so the first
 // save keeps the note as it was in "<note>.md.bak", and later saves leave
-// that file alone, as the app's one-time backup does.
+// that file alone.
 func TestOpeningADiagramRetagsItAndTheFirstSaveKeepsABak(t *testing.T) {
 	crooked := "Before the drawing.\n\n```\n" +
 		"┌──────────┐\n" +
@@ -335,8 +335,8 @@ func TestMoveFolder(t *testing.T) {
 	}
 }
 
-// collection.json is written as the app writes it, keeping the fields
-// this app does not use yet.
+// collection.json is written back with the fields the app does not use
+// kept.
 func TestCollectionStateRoundTrips(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, "Ideas/Note.md", "x")
@@ -375,8 +375,8 @@ func TestCollectionStateRoundTrips(t *testing.T) {
 	}
 }
 
-// The recovery journal is named as the app names it: the note path
-// percent-encoded into one flat file name.
+// The recovery journal is named after the note path, percent-encoded into one
+// flat file name.
 func TestTheRecoveryJournal(t *testing.T) {
 	if got := journalName("Ideas/Reading list é.md"); got != "Ideas%2FReading%20list%20%C3%A9.md" {
 		t.Errorf("journal name: %q", got)

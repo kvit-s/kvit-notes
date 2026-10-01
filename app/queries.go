@@ -1,8 +1,8 @@
 package app
 
-// Collection query blocks (features.md 1.2.18): the notes of the vault as
-// the query package reads them, and the answer for a block's spec, worked
-// out again whenever the vault has changed since.
+// Collection query blocks: the notes of the vault as the query package reads
+// them, and the answer for a block's spec, worked out again whenever the
+// vault has changed since.
 
 import (
 	"github.com/kvit-s/kvit-notes/query"

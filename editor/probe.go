@@ -152,8 +152,8 @@ func headerColumn(part string) (int, bool) {
 func (d *Doc) UndoSteps() int { return len(d.undo) }
 
 // CaretLineColumn is the caret's 1-based line and column within its block's
-// display text (features.md 9.7, Kvit's cursorLineColumn): the line breaks
-// are the display text's own newlines, as the status bar shows them.
+// display text: the line breaks are the display text's own newlines, as the
+// status bar shows them.
 func (e *Editor) CaretLineColumn() (line, col int) {
 	d := e.Doc
 	b := d.CaretBlock()

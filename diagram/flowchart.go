@@ -1,10 +1,8 @@
 package diagram
 
-// The flowchart layout, a port of layoutFlowchart in the app's
-// src/content/diagrams/diagramlayout.cpp. It measures each node's label,
-// places the nodes with the layered core (or where a `%% mermaid-flow:pos`
-// line pins them), routes the edges, and wraps each subgraph's members in a
-// frame.
+// The flowchart layout. It measures each node's label, places the nodes with
+// the layered core (or where a `%% mermaid-flow:pos` line pins them), routes
+// the edges, and wraps each subgraph's members in a frame.
 
 import (
 	"fmt"
@@ -61,7 +59,7 @@ func sceneShape(s mermaid.NodeShape) ShapeKind {
 
 // resolvedStyle is what the classDef, class and style statements applied to
 // an element add up to. A dashed stroke is not among it: a Shape has no
-// dashes, so the app does not draw one either.
+// dashes, so a node's border is never drawn dashed.
 type resolvedStyle struct {
 	fill, stroke mermaid.Color
 	strokeWidth  float64

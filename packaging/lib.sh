@@ -43,14 +43,13 @@ die() {
 
 # ── Release version
 #
-# The same rules and order as the app's packaging scripts:
+# The rules, in order:
 #   1. KVIT_VERSION_FULL, when set;
 #   2. otherwise the tag being built: GITHUB_REF_NAME in a GitHub tag job, or
 #      a v<version> tag on the checked-out commit (git describe);
 #   3. otherwise the base version, for a local untagged build.
-# The base version is the baseVersion constant in cmd/kvit-notes/version.go,
-# which plays the part CMakeLists.txt's project(VERSION) played for . The
-# version must be SemVer, and its three numbers must be the base version, so
+# The base version is the baseVersion constant in cmd/kvit-notes/version.go.
+# The version must be SemVer, and its three numbers must be the base version, so
 # a tag and the source cannot disagree about what is being released.
 release_version() {
     BASE_VERSION=$(sed -n 's/^const baseVersion = "\([0-9]*\.[0-9]*\.[0-9]*\)"$/\1/p' \
@@ -88,8 +87,7 @@ release_version() {
 # -trimpath keeps this machine's paths out of the executable, -s -w leave out
 # the symbol table and debugging information, and -X sets the version the
 # program reports (cmd/kvit-notes/version.go). On Windows -H windowsgui makes
-# it a window program, so starting it from Explorer opens no console window,
-# as the executable did.
+# it a window program, so starting it from Explorer opens no console window.
 go_build() {
     local os=$1 arch=$2 out=$3
     local ldflags="-s -w -X main.version=$VERSION"
@@ -179,7 +177,7 @@ check_manifest() {
 #
 # The test scripts check that a package's layout lets the program find the
 # math library and its resources, by running the self-test of the Go package
-# mathtex (mathtex.SelfTest, the counterpart of the app's --math-selftest)
+# mathtex (mathtex.SelfTest, which kvit-notes --math-selftest runs)
 # from inside the unpacked package. When the program offers it as
 # --math-selftest, that is used. Until then, math_probe builds a one-line
 # program that calls it, in its own module under build/packaging/mathprobe

@@ -10,14 +10,13 @@ import (
 	"github.com/richardwilkes/unison/enums/mod"
 )
 
-// Three places where the note editor followed a different rule from  Kvit
-// Notes: a line break typed with Shift+Enter, the line that closes a code
-// fence, and the spacing of a paragraph's lines with the placement of a
-// picture.
+// Three rules of the note editor: a line break typed with Shift+Enter, the
+// line that closes a code fence, and the spacing of a paragraph's lines with
+// the placement of a picture.
 
-// features.md 1.2.1: Shift+Enter breaks the line inside a paragraph rather
-// than starting a block, and typing a line break never splits a block, while
-// pasting several lines still makes a paragraph of each.
+// Shift+Enter breaks the line inside a paragraph rather than starting a
+// block, and typing a line break never splits a block, while pasting several
+// lines still makes a paragraph of each.
 func TestShiftEnterBreaksTheLineInsideTheBlock(t *testing.T) {
 	s, e := openEditor(t, "first line\n\n# Heading\n\n- one\n")
 	s.Do(func() { e.FocusBlock(0, len("first line")) })
@@ -61,9 +60,8 @@ func TestShiftEnterBreaksTheLineInsideTheBlock(t *testing.T) {
 }
 
 // A code fence closes only on a line of the opener's character alone, at
-// least as long as the opener, with nothing but spaces around it
-// (DocumentSerializer's isClosingFence), so a line that only starts with the
-// fence is code.
+// least as long as the opener, with nothing but spaces around it, so a line
+// that only starts with the fence is code.
 func TestAFenceClosesOnlyOnALineOfFenceCharacters(t *testing.T) {
 	for _, c := range []struct {
 		name, md string
@@ -116,10 +114,9 @@ func TestAFenceClosesOnlyOnALineOfFenceCharacters(t *testing.T) {
 	}
 }
 
-// the text documents space a block's lines by the line height times the
-// font's own line height (QTextBlockFormat's ProportionalHeight): 22.1 px at
-// 14 px and 1.3, 18 px at 15 px and 1.0, where the font size rule gave 18.2
-// and 15.
+// A block's lines are spaced by the line height times the font's own line
+// height: 22.1 px at 14 px and 1.3, 18 px at 15 px and 1.0, where the line
+// height times the font size would give 18.2 and 15.
 func TestANoteSpacesLinesByTheFontsLineHeight(t *testing.T) {
 	s, e := openEditor(t, accessNote)
 	s.Do(func() {
@@ -142,8 +139,7 @@ func TestANoteSpacesLinesByTheFontsLineHeight(t *testing.T) {
 	})
 }
 
-// features.md 9.2: a picture is centred unless its block is aligned left or
-// right (ImageBlock, imageAlign).
+// A picture is centred unless its block is aligned left or right.
 func TestANoteCentresItsPictures(t *testing.T) {
 	root := t.TempDir()
 	writePicture(t, filepath.Join(root, "p.png"))

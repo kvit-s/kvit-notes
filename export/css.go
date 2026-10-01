@@ -1,7 +1,7 @@
 package export
 
-// The part of CSS the HTML converter needs. QTextDocument applies a page's
-// <style> rules as well as each element's style attribute, and what they say
+// The part of CSS the HTML converter needs. A page's <style> rules apply as
+// well as each element's style attribute, and what they say
 // reaches the Markdown: a rule can make text bold, italic, struck through or
 // monospace, keep its spaces, or give a block margins on both sides, which the
 // converter reads as a quote. So the rules are read here too: type, class,

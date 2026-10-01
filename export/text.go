@@ -1,17 +1,15 @@
 package export
 
-// Plain-text export, as src/application/documentexporter.cpp
-// (DocumentExporter::buildPlainText) and each  block kind's toPlainText
-// write it: the text a reader sees, with a structural prefix where the
-// structure would otherwise be lost ("# " for a heading, "- " or "1. " for a
-// list item, "> " for a quote), each block followed by a blank line.
+// Plain-text export: the text a reader sees, with a structural prefix where
+// the structure would otherwise be lost ("# " for a heading, "- " or "1. "
+// for a list item, "> " for a quote), each block followed by a blank line.
 
 import (
 	"strconv"
 	"strings"
 )
 
-// maxIndent is Block::MaxIndentLevel, the deepest list nesting.
+// maxIndent is the deepest list nesting.
 const maxIndent = 4
 
 // plainText writes blocks as text. doc is the whole document, which the
@@ -46,7 +44,7 @@ func (r *renderer) plainText(blocks []block) string {
 	return strings.Join(lines, "\n")
 }
 
-// indentLines is BlockText::indent: every non-blank line indented.
+// indentLines indents every non-blank line by spaces.
 func indentLines(text string, spaces int) string {
 	pad := strings.Repeat(" ", spaces)
 	lines := strings.Split(text, "\n")
@@ -93,8 +91,7 @@ func (r *renderer) blockText(b block, ordinal int) string {
 		return head + "\n" + indentLines(displayText(b.text), 2)
 	case kCode, kMath, kQuery:
 		// Code and TeX as written. A query is answered against the open
-		// vault, which this package does not have, so its spec is written, as
-		// the exporter writes it when no vault is open.
+		// vault, which this package does not have, so its spec is written.
 		return b.text
 	case kMermaid:
 		return "[mermaid diagram]\n" + b.text
@@ -210,9 +207,8 @@ func boardText(b board) string {
 	return strings.Join(out, "\n")
 }
 
-// alignedTable is BlockText::alignedTable: the header row, a rule under it,
-// then the rows, each column as wide as its widest cell (counted in UTF-16
-// units, as counts them).
+// alignedTable is a table as text: the header row, a rule under it, then
+// the rows, each column as wide as its widest cell (counted in UTF-16 units).
 func alignedTable(headers []string, rows [][]string) string {
 	columns := len(headers)
 	for _, row := range rows {

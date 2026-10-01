@@ -2,10 +2,7 @@ package editor
 
 // What changes about the editor when a program draws it somewhere other than
 // the note pane: a markdown file or a transcript drawn read-only, a message
-// box, a comment field. Kvit Works draws it in all three (its  view markup hosts
-// BlockEditor through core/qml/DocumentView and CompactEditor, and
-// sets BlockEditorSurface's showGutter, contentMargin, trailingScrollSpace,
-// blockSpacing, showImageEditPanel, returnCreatesBlock and readOnly).
+// box, a comment field. Kvit Works draws it in all three.
 //
 // An editor nobody embeds has no seams and every hook below gives the note
 // editor's own answer, so Kvit Notes lays out, draws and answers keys exactly
@@ -24,29 +21,26 @@ import (
 type Embedding struct {
 	// NoGutter takes away the strip left of each row with the add button,
 	// the drag handle and the block menu, and its width with it, so the text
-	// starts near the editor's left edge ( showGutter false).
+	// starts near the editor's left edge.
 	NoGutter bool
 	// Margin is the space between the editor's edges and its rows, in design
 	// pixels, in place of the note's page margin of 20: above the first row,
-	// below the last, and at either side ( contentMargin and
-	// contentTopMargin). Nothing is added below the last row for scrolling
-	// past the end ( trailingScrollSpace 0), so the editor is exactly as
-	// tall as its rows and margins.
+	// below the last, and at either side. Nothing is added below the last
+	// row for scrolling past the end, so the editor is exactly as tall as its
+	// rows and margins.
 	Margin float32
 	// BlockSpacing is the space between two rows in design pixels; 0 keeps
-	// the reader's paragraph spacing ( blockSpacing).
+	// the reader's paragraph spacing.
 	BlockSpacing int
-	// ReadOnlyLook draws no caret, no focus bar and no hover tint, which is
-	// how  draws a document whose text areas are read-only. It does not
-	// refuse edits by itself: set Doc.ReadOnly for that.
+	// ReadOnlyLook draws no caret, no focus bar and no hover tint. It does
+	// not refuse edits by itself: set Doc.ReadOnly for that.
 	ReadOnlyLook bool
-	// HideImageLine never shows an image block's Markdown line, even with
-	// the caret in it ( showImageEditPanel false): the picture keeps the
-	// keyboard as a whole, Backspace or Delete removes it, the arrows leave
-	// it, and nothing can be typed into it.
+	// HideImageLine never shows an image block's Markdown line, even with the
+	// caret in it: the picture keeps the keyboard as a whole, Backspace or
+	// Delete removes it, the arrows leave it, and nothing can be typed into
+	// it.
 	HideImageLine bool
-	// ReturnPressed, when set, takes Enter from the editor (
-	// returnCreatesBlock false with the returnPressed signal): it is called
+	// ReturnPressed, when set, takes Enter from the editor: it is called
 	// with the index of the caret's block instead of the block being split.
 	// Enter still takes the highlighted entry of an open menu, writes a new
 	// line in a code block, makes the next item of a list with text in it,
@@ -59,11 +53,11 @@ type Embedding struct {
 	OpenPicture func(path, alt string)
 	// CopyFragments makes Ctrl+C and Ctrl+X put the selection on the
 	// clipboard as RangeMarkdown gives it: a partly selected block as a
-	// fragment whose inline markers are balanced, as the copy does.
+	// fragment whose inline markers are balanced.
 	CopyFragments bool
 	// Laid, when set, runs each time the rows have been measured again,
-	// for a host that places things over them (the layoutTick). It may ask
-	// where things are, and must not change the editor.
+	// for a host that places things over them. It may ask where things are,
+	// and must not change the editor.
 	Laid func()
 }
 
@@ -241,7 +235,7 @@ func (e *Editor) embeddedRune() (used, stop bool) {
 		return false, true
 	}
 	if e.pictureHoldsKeyboard() {
-		// Letters go nowhere on a picture, as on the image row.
+		// Letters go nowhere on a picture.
 		return true, true
 	}
 	return false, false

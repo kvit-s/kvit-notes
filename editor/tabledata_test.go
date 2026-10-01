@@ -1,7 +1,6 @@
 package editor
 
-// The app's tests/test_tabledata.cpp, ported: the pipe-table
-// parse/serialize/mutate core behind every grid edit.
+// The pipe-table parse/serialize/mutate core behind every grid edit.
 
 import (
 	"slices"

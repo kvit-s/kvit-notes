@@ -1,12 +1,12 @@
 package editor
 
-// Editing a card of a task board (Kvit's KanbanBlock card editor): a
-// field over the card holds its line (the title with its "#labels" and
-// "📅 date" as the file holds them) or its description. A press on the
-// description edits the description, a press elsewhere on the card its
-// line. Tab goes from the line to the description and from the description
-// out; Shift+Tab goes back. Enter keeps what was typed, Shift+Enter breaks a
-// description's line, and Escape leaves the card as it was.
+// Editing a card of a task board: a field over the card holds its line (the
+// title with its "#labels" and "📅 date" as the file holds them) or its
+// description. A press on the description edits the description, a press
+// elsewhere on the card its line. Tab goes from the line to the description
+// and from the description out; Shift+Tab goes back. Enter keeps what was
+// typed, Shift+Enter breaks a description's line, and Escape leaves the card
+// as it was.
 //
 // Both fields have the math typing aids a block of the note has
 // (mathassist.go): `$` puts in a pair of dollars, `\` in math opens the

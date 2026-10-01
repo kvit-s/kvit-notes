@@ -5,9 +5,8 @@ import (
 	"testing"
 )
 
-// A fence language a program adds (the core's
-// tests/test_blockkindregistry.cpp for the registry's rules, and Kvit
-// Works' diff fence).
+// A fence language a program adds: the registry's rules, and Kvit Works'
+// diff fence.
 
 func TestARegisteredFenceLanguageIsRefusedTheSecondTime(t *testing.T) {
 	ResetFenceLanguages()

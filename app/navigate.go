@@ -1,9 +1,9 @@
 package app
 
-// Moving between notes (features.md 8.5): back and forward through the
-// notes opened, from the toolbar's arrows and Alt+Left and Alt+Right, and the
-// quick switcher, Ctrl+P, which finds a note by its title or path and makes
-// one from the words typed when none matches.
+// Moving between notes: back and forward through the notes opened, from the
+// toolbar's arrows and Alt+Left and Alt+Right, and the quick switcher,
+// Ctrl+P, which finds a note by its title or path and makes one from the
+// words typed when none matches.
 
 import (
 	"path"

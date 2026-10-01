@@ -1,12 +1,11 @@
 package app
 
-// Searching across notes (features.md 8.4, Kvit's SearchResultsView over
-// src/search): what is typed in the sidebar's search field is looked for in
-// every note of the scope shown, and the note list becomes the results:
-// each note found, with how often, and under it the lines the text was found
-// on, the text in bold. A date menu keeps the notes changed today, in the
-// last 7, 30 or 365 days. Clicking a note opens it; clicking a line opens it
-// with the caret at that place.
+// Searching across notes: what is typed in the sidebar's search field is
+// looked for in every note of the scope shown, and the note list becomes the
+// results: each note found, with how often, and under it the lines the text
+// was found on, the text in bold. A date menu keeps the notes changed today,
+// in the last 7, 30 or 365 days. Clicking a note opens it; clicking a line
+// opens it with the caret at that place.
 //
 // The index is the search package's. It is built when the window opens, in
 // the background, and kept up to date as notes are saved, made, renamed,
@@ -286,7 +285,7 @@ type ResultsList struct {
 	Counting string
 }
 
-// Result row heights in design pixels (SearchResultsView).
+// Result row heights in design pixels.
 const (
 	resultNoteRow = 28
 	resultHitRow  = 24

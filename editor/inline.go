@@ -6,9 +6,9 @@ package editor
 // The block's Markdown source is the only text there is. The caret and the
 // selection are offsets into it. What is drawn is the source with the markers
 // of every span removed, except the spans the caret or selection touches,
-// whose markers are drawn in a muted colour (features.md 2.2). Because a span
-// touched by the caret always shows its markers, the caret never sits next to
-// a hidden marker, so every caret offset has one place on screen.
+// whose markers are drawn in a muted colour. Because a span touched by the
+// caret always shows its markers, the caret never sits next to a hidden
+// marker, so every caret offset has one place on screen.
 
 import (
 	"strings"
@@ -140,10 +140,9 @@ func (p *iparser) matchAt(i, to int, closing string, record bool) (int, bool) {
 		}
 		return 0, false
 	case p.has(i, "[["):
-		// A wiki link by the shared grammar (links.MatchAt, the port of
-		// WikiLinkScanner::matchAt): with an alias the opening marker
-		// swallows "target|", so only the alias shows away from the caret,
-		// as in the app.
+		// A wiki link by the shared grammar (links.MatchAt): with an alias
+		// the opening marker swallows "target|", so only the alias shows
+		// away from the caret.
 		if l, ok := links.MatchAt(s, i); ok && i+l.Length <= to {
 			if record {
 				cstart := i + 2
@@ -190,7 +189,7 @@ func (p *iparser) matchAt(i, to int, closing string, record bool) (int, bool) {
 		}
 	}
 	if (p.has(i, "https://") || p.has(i, "http://")) && !isWord(p.at(i-1)) {
-		// a bare URL is a link with no markers (Kvit's autolink matcher)
+		// a bare URL is a link with no markers
 		j := i
 		for j < to && !isSpace(s[j]) {
 			j++
@@ -245,11 +244,11 @@ func (p *iparser) matchAt(i, to int, closing string, record bool) (int, bool) {
 	return 0, false
 }
 
-// matchMath reads inline math, $…$, by Pandoc's rule as Kvit reads it: the
-// opening $ is followed by a character other than a space or another $, the
-// content is one line, and the first unescaped $ after it closes it only
-// when it follows a character other than a space and is not followed by a
-// digit, so "$5 and $6" stays prose.
+// matchMath reads inline math, $…$, by Pandoc's rule: the opening $ is
+// followed by a character other than a space or another $, the content is one
+// line, and the first unescaped $ after it closes it only when it follows a
+// character other than a space and is not followed by a digit, so "$5 and $6"
+// stays prose.
 func (p *iparser) matchMath(i, to int, record bool) (int, bool) {
 	s := p.s
 	if i+1 >= to || isSpace(s[i+1]) || s[i+1] == '$' || p.at(i-1) == '$' {
@@ -274,10 +273,9 @@ func (p *iparser) matchMath(i, to int, record bool) (int, bool) {
 	return 0, false
 }
 
-// colorOpen is the length of a colour span's opening tag at i and its
-// value, by Kvit's exact grammar (markdownformatter.cpp, matchColorOpen):
-// <span style="color:VALUE"> with either quote, VALUE #rgb, #rrggbb or a
-// run of ASCII letters, spaces allowed round it. Anything else is not one.
+// colorOpen is the length of a colour span's opening tag at i and its value:
+// <span style="color:VALUE"> with either quote, VALUE #rgb, #rrggbb or a run
+// of ASCII letters, spaces allowed round it. Anything else is not one.
 func (p *iparser) colorOpen(i, to int) (int, string) {
 	const prefix, property = "<span style=", "color:"
 	if !p.has(i, prefix) {
@@ -464,7 +462,7 @@ type projection struct {
 }
 
 // revealed reports whether a span shows its markers for this caret and
-// selection. Touching an edge counts (Kvit's BlockEditorEngine rule).
+// selection. Touching an edge counts.
 func revealed(sp span, caret, selA, selB int) bool {
 	if caret >= sp.Start && caret <= sp.End {
 		return true
@@ -556,8 +554,7 @@ func (p *projection) forClick(d int) int {
 	return b
 }
 
-// cssColors are the CSS colour names a colour span may use, those the
-// app's text colour dialog and other editors write.
+// cssColors are the CSS colour names a colour span may use.
 var cssColors = map[string]string{
 	"black": "#000000", "white": "#ffffff", "gray": "#808080", "grey": "#808080", "silver": "#c0c0c0",
 	"red": "#ff0000", "maroon": "#800000", "orange": "#ffa500", "yellow": "#ffff00", "olive": "#808000",

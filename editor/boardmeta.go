@@ -1,10 +1,10 @@
 package editor
 
-// The rest of a task board (features.md 1.2.12, Kvit's KanbanBlock):
-// dragging columns with a gap indicator, the dragged card drawn under the
-// pointer, label chips that remove themselves with a chip adding one (the
-// board's labels offered for reuse), a date chip opening a calendar for the
-// due date, and the card-details dialog for the structured fields.
+// The rest of a task board: dragging columns with a gap indicator, the
+// dragged card drawn under the pointer, label chips that remove themselves
+// with a chip adding one (the board's labels offered for reuse), a date chip
+// opening a calendar for the due date, and the card-details dialog for the
+// structured fields.
 //
 // Every write goes through the kanban package as one undo step, as the
 // board's other gestures do.
@@ -25,7 +25,7 @@ import (
 
 // colDragState is a press on a column's header: a click renames the column,
 // moving the pointer further than dragThreshold drags it to the gap nearest
-// the pointer (KanbanBlock columnDrag).
+// the pointer.
 type colDragState struct {
 	block  int64
 	from   int
@@ -49,8 +49,8 @@ func (e *Editor) columnSlotAt(i int, where geom.Point) int {
 }
 
 // columnDropIndex turns an insert-before slot into the index MoveColumn
-// takes (QList::move, as dropColumnAt does): every column the dragged one
-// passed on the way right shifts down by one.
+// takes, which counts the columns with the dragged one taken out: every
+// column the dragged one passed on the way right shifts down by one.
 func columnDropIndex(from, slot int) int {
 	if slot > from {
 		return slot - 1
@@ -813,10 +813,10 @@ func splitDetailLabels(s string) []string {
 	return out
 }
 
-// ApplyCardDetails writes the details dialog's fields: the labels and the
-// due date. A due value the stored form cannot hold is refused, as in Kvit:
-// it returns false and writes nothing, so an invalid date never comes back
-// as title text with the due date cleared.
+// ApplyCardDetails writes the details dialog's fields: the labels and the due
+// date. A due value the stored form cannot hold is refused: it returns false
+// and writes nothing, so an invalid date never comes back as title text with
+// the due date cleared.
 func (e *Editor) ApplyCardDetails(id int64, col, index int, labels []string, due string) bool {
 	due = strings.TrimSpace(due)
 	if due != "" && !kanban.IsValidDue(due) {
@@ -933,7 +933,7 @@ func (e *Editor) OpenCardDetails(i, col, index int) {
 		kvitui.NewLabel(e.ui, "Due date, empty for none"),
 		dueField, hint, moveRow, foot)
 	// No default confirm button: saving goes through Save above, which
-	// refuses an invalid due date by staying open, as in Kvit.
+	// refuses an invalid due date by staying open.
 	d.ConfirmText = ""
 	d.CancelText = "Cancel"
 	d.OnAccept = func() {

@@ -162,10 +162,9 @@ func (e *Editor) openTableField(i, row, col int, atStart bool) {
 		return used
 	}
 
-	// A double press on a header cell sorts by its column (Kvit's header
-	// double-click). It has to be caught here: the first press already
-	// opened this field over the cell, so the second press lands in the
-	// field rather than reaching the grid.
+	// A double press on a header cell sorts by its column. It has to be
+	// caught here: the first press already opened this field over the cell,
+	// so the second press lands in the field rather than reaching the grid.
 	press := edit.MouseDownCallback
 	edit.MouseDownCallback = func(where geom.Point, button, clicks int, mods mod.Modifiers) bool {
 		if clicks == 2 && button == unison.ButtonLeft && row == -1 {

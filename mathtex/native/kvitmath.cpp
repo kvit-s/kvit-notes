@@ -2,8 +2,7 @@
 // interface kvitmath.h declares over it.
 //
 // MicroTeX lays a formula out into boxes and draws them through the abstract
-// tex::Graphics2D in graphic/graphic.h. The app painted with the back
-// end (platform/qt/graphic_qt.cpp in the repository); this one keeps the
+// tex::Graphics2D in graphic/graphic.h. The back end here keeps the
 // transform, colour, stroke and font the boxes set, and writes each character,
 // line and rectangle they draw into a byte stream with the transform and
 // colour in force. The Go package mathtex reads the stream and draws it with
@@ -54,8 +53,7 @@ std::vector<std::string> g_fontPaths;
 
 // MicroTeX works on std::wstring. wchar_t is 32 bits on Linux and macOS and 16
 // on Windows, so a character outside the Basic Multilingual Plane is one
-// wchar_t on the first and a surrogate pair on the second, as the
-// toStdWString gave the app on each.
+// wchar_t on the first and a surrogate pair on the second.
 std::wstring toWide(const char *s, int64_t n) {
     std::wstring out;
     out.reserve(static_cast<size_t>(n));
@@ -124,8 +122,7 @@ void appendUtf8(std::string &out, uint32_t cp) {
     }
 }
 
-// Wide strings can end in a NUL MicroTeX left there, which ends the text, as
-// the back end's wstring_to_string does.
+// Wide strings can end in a NUL MicroTeX left there, which ends the text.
 std::string toUtf8(const std::wstring &w) {
     std::string out;
     for (size_t i = 0; i < w.size(); i++) {
@@ -144,11 +141,10 @@ std::string toUtf8(const std::wstring &w) {
     return out;
 }
 
-// The generated NewTX fonts repeat every TeX slot below 33 at U+E000 + slot,
-// because  could not draw those codes (see
-// tools/build_newtx_outline_fonts.py in the repository). The back end
-// drew the alias whenever the NewTX fonts were in use; the same codes are
-// recorded here, so the Go side finds the glyph through the same map entry.
+// The generated NewTX fonts repeat every TeX slot below 33, the codes of
+// control characters, at U+E000 + slot. Whenever the NewTX fonts are in use
+// the alias is recorded here, so the Go side finds the glyph through that
+// map entry.
 wchar_t remapLowSlot(wchar_t c) {
     static const bool generated = [] {
         const char *value = std::getenv("KVIT_MATH_FONT");
@@ -243,8 +239,8 @@ public:
     const Font *getFont() const override { return _font; }
     void setFont(const Font *font) override { _font = static_cast<const Font_rec *>(font); }
 
-    // QPainter's order: each operation applies in the coordinates the ones
-    // before it set up, so it multiplies the transform on the right.
+    // Each operation applies in the coordinates the ones before it set up,
+    // so it multiplies the transform on the right.
     void translate(float dx, float dy) override {
         _m[4] += _m[0] * dx + _m[2] * dy;
         _m[5] += _m[1] * dx + _m[3] * dy;
@@ -453,13 +449,13 @@ int32_t fail(KvitMathResult *out, const std::string &message) {
 
 // parse lays tex out at size, as LaTeX::parse does, in display or text
 // style. Text style is the size TeX sets a $...$ span in: limits beside a
-// large operator, and fractions at script size. The app asked for it by
-// wrapping the TeX in \textstyle{...}, whose argument MicroTeX parses as a
-// formula of its own and, in its lenient mode, drops the parse errors of:
-// "a & b" typeset to nothing instead of saying '&' needs an array, and before
-// the local fix in core/formula.cpp crashed. Setting the style of the whole
-// formula lays it out the same (the tests compare the two) and keeps the
-// errors.
+// large operator, and fractions at script size. Wrapping the TeX in
+// \textstyle{...} would give the same style, but MicroTeX parses that
+// argument as a formula of its own and, in its lenient mode, drops its parse
+// errors: "a & b" typesets to nothing instead of saying '&' needs an array,
+// and before the local fix in core/formula.cpp it crashed. Setting the style
+// of the whole formula lays it out the same (the tests compare the two) and
+// keeps the errors.
 tex::TeXRender *parse(const std::wstring &tex, float size, bool display) {
     static tex::Formula *formula = new tex::Formula();
     static tex::TeXRenderBuilder builder;

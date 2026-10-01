@@ -1,16 +1,12 @@
 package diagram
 
-// These tests are the app's tests/test_diagramlayout.cpp, one Go test per
-// test function there and in the same order, with the same sources and
-// expectations, measured as helpers_test.go describes. Four  functions are
-// not here because they test the painter or the DiagramCanvas item, which
-// become the editor's: canvasSelectionAndLinking,
-// resetSceneDropsLastGoodAcrossReuse, savePngWritesImage and
-// painterTypesetsRatherThanDrawingTheSource. The scene-level half of
-// canvasSelectionAndLinking (finding the node and edge under a point, and
-// the source offset of a node) is TestSceneHitTesting in hittest_test.go.
-// deterministicScene compares the whole scene, which covers the positions
-// the test compares.
+// These tests check the flowchart layout and the renderer, measured as
+// helpers_test.go describes: shapes and paths are produced, the same source
+// gives the same scene, nodes do not overlap, edges end on node borders,
+// subgraphs become groups, cycles and a 100-node flowchart lay out in time,
+// the renderer flags a family it does not draw and reuses its cache, edges
+// and their labels keep clear of nodes, and labels that are one $$…$$
+// expression are typeset. Drawing a scene is tested in the editor.
 
 import (
 	"fmt"
@@ -214,9 +210,7 @@ func TestRankSkippingEdgeClearsTheNodeBetween(t *testing.T) {
 	}
 }
 
-// The five sources of the app's docs/qa-checklist.md item 6, one per
-// family. The checklist asks a person to confirm every edge label sits in
-// open space; this is that check.
+// Every edge label sits in open space, in one diagram of each family.
 func TestChecklistDiagramsKeepLabelsOffBoxes(t *testing.T) {
 	cases := []struct{ name, src string }{
 		{"flowchart", "flowchart LR\n" +
@@ -323,7 +317,7 @@ func TestChecklistDiagramsKeepLabelsOffBoxes(t *testing.T) {
 	}
 }
 
-// ---- mathematics in labels (diagram-math.md) ----
+// ---- mathematics in labels ----
 
 // Only a whole `$$…$$` label is an expression. Everything else stays text,
 // which keeps every diagram written before math labels drawn as it was.
@@ -357,7 +351,7 @@ func TestMathLabelRecognizesWholeLabelsOnly(t *testing.T) {
 
 // An expression that does not typeset falls back to its source: no size, so
 // layout measures the label's text and the editor draws it. Here fakeMath
-// does the rejecting that MicroTeX does in the test.
+// rejects the expression as MicroTeX would.
 func TestUnparseableMathFallsBackToItsSource(t *testing.T) {
 	o := testOpts()
 	if _, ok := o.mathSize(MathLabel("$$x^2$$")); !ok {

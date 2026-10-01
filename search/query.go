@@ -1,8 +1,6 @@
 package search
 
-// A query across notes and what it finds. The rules are
-// SearchIndexDb::query, SearchMatching::scanOccurrences and buildMatch in
-// src/search/searchindexdb.cpp.
+// A query across notes and what it finds.
 //
 // The search box has no query syntax: what is typed is looked for
 // literally, quotes and colons included. A query of one or two characters
@@ -10,7 +8,7 @@ package search
 // matches anywhere ("row" is found in "brown"). Either way case is ignored
 // and accents are not ("cafe" does not find "café"). The folder, the tag
 // and the dates are separate filters the window sets from the sidebar and
-// the results' date menu (qml/main, qml/SearchResultsView).
+// the results' date menu.
 
 import (
 	"slices"
@@ -38,11 +36,11 @@ type Query struct {
 	Now time.Time
 }
 
-// Dates is the results' date menu (SearchResultsView).
+// Dates is the results' date menu.
 type Dates int
 
 // The date filters. The last days are counted back from the current time in
-// whole days of 24 hours, a year as 365 of them, as the app does.
+// whole days of 24 hours, a year as 365 of them.
 const (
 	AnyTime     Dates = iota // every note
 	Today                    // modified since midnight
@@ -183,7 +181,7 @@ func newPlan(q Query) *plan {
 			p.floor, p.hasFloor = startOfDay(q.From).UnixMilli(), true
 		}
 		if !q.To.IsZero() {
-			// The last millisecond of the day, as QDate::endOfDay.
+			// The last millisecond of the day.
 			p.ceil, p.hasCeil = startOfDay(q.To).AddDate(0, 0, 1).UnixMilli()-1, true
 		}
 	}
@@ -266,13 +264,13 @@ func (p *plan) scan(list []*entry, out []Result) []Result {
 	return out
 }
 
-// occurrences finds needle in folded text as scanOccurrences does: case is
-// already folded away, occurrences do not overlap, and the scan moves past
-// an occurrence even when it is refused, which is what keeps it linear. A
-// whole-word occurrence must have no word character (isWordScalar) either
-// side of it; the NUL between blocks is not one. It keeps the byte offsets
-// of the first `keep` occurrences in at, and counts them all when all is
-// set, or stops at the last one kept (at the first when keep is 0).
+// occurrences finds needle in folded text: case is already folded away,
+// occurrences do not overlap, and the scan moves past an occurrence even when
+// it is refused, which is what keeps it linear. A whole-word occurrence must
+// have no word character (isWordScalar) either side of it; the NUL between
+// blocks is not one. It keeps the byte offsets of the first `keep`
+// occurrences in at, and counts them all when all is set, or stops at the
+// last one kept (at the first when keep is 0).
 func occurrences(text, needle string, whole bool, keep int, all bool, at []int) (int, []int) {
 	count := 0
 	for from := 0; from <= len(text)-len(needle); {

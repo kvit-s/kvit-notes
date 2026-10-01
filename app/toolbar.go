@@ -1,8 +1,8 @@
 package app
 
-// The strip across the top of a window (Kvit's Toolbar): the File and
-// View menus, Back and Forward, the kind of block the caret is in, the
-// inline formats and text colour, alignment, and Insert.
+// The strip across the top of a window: the File and View menus, Back and
+// Forward, the kind of block the caret is in, the inline formats and text
+// colour, alignment, and Insert.
 
 import (
 	"github.com/kvit-s/kvit-notes/editor"
@@ -43,8 +43,8 @@ type Toolbar struct {
 	groups []toolbarGroup
 }
 
-// toolbarGroup is one show/hide group of the strip (Kvit's Toolbar
-// showBlockGroup and friends, persisted per group).
+// toolbarGroup is one show/hide group of the strip, remembered per group in
+// the settings.
 type toolbarGroup struct {
 	key   string // settings key
 	label string // menu line

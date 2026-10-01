@@ -1,9 +1,9 @@
 package app
 
-// The sidebar's list (Kvit's Sidebar): the scopes a note list can show,
-// in one column. All Notes and Favorites at the top, the folder tree under a
-// "Folders" heading, the tags under a "Tags" heading, and the trash at the
-// foot. Each row has a count; a folder row opens and closes.
+// The sidebar's list: the scopes a note list can show, in one column. All
+// Notes and Favorites at the top, the folder tree under a "Folders" heading,
+// the tags under a "Tags" heading, and the trash at the foot. Each row has a
+// count; a folder row opens and closes.
 
 import (
 	"strconv"
@@ -52,7 +52,7 @@ type ScopeRow struct {
 	HasMark    bool // a folder's or tag's colour, drawn before the label
 }
 
-// The rows' geometry in design pixels (Sidebar).
+// The rows' geometry in design pixels.
 const (
 	scopeRow      = 28
 	scopeHeading  = 26

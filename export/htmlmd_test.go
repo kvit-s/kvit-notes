@@ -7,8 +7,8 @@ import (
 	"testing"
 )
 
-// htmlMDCases are Kvit's HtmlToMarkdown tests (tests/test_htmltomarkdown.cpp)
-// that compare the whole result, one row per input, named after the test.
+// htmlMDCases compare the whole result of a conversion, one row per input,
+// each named after what it checks.
 var htmlMDCases = []struct{ name, html, want string }{
 	{"testHeadings/h1", "<h1>Title</h1>", "# Title"},
 	{"testHeadings/h2", "<h2>Section</h2>", "## Section"},
@@ -56,7 +56,7 @@ func TestHTMLToMarkdown(t *testing.T) {
 	}
 }
 
-// The rest of the converter's tests, which check parts of the result.
+// Conversions whose result is checked in parts.
 func TestHTMLToMarkdownParts(t *testing.T) {
 	fenced := HTMLToMarkdown("<pre>int main() {}</pre>")
 	if !strings.HasPrefix(fenced, "```") || !strings.Contains(fenced, "int main() {}") || !strings.HasSuffix(fenced, "```") {
@@ -103,8 +103,7 @@ func TestHasStructure(t *testing.T) {
 }
 
 // An inline code span's fence is longer than any backtick run inside it, and
-// reading the result back recovers the code exactly
-// (testInlineCodeChoosesFenceLongerThanContent).
+// reading the result back recovers the code exactly.
 func TestInlineCodeFenceFitsItsContent(t *testing.T) {
 	for _, code := range []string{"ls -l", "a ` b", "a `` b", "a ``` b", "`x", "x`", "``"} {
 		md := HTMLToMarkdown("<p>run <code>" + html.EscapeString(code) + "</code> now</p>")
@@ -129,8 +128,8 @@ func TestInlineCodeFenceFitsItsContent(t *testing.T) {
 	}
 }
 
-// A <pre> fence outruns a backtick run inside it (testCodeFenceChoosesFenceLongerThanContent,
-// testMultiLinePreIsOneFence).
+// A <pre> fence is longer than any backtick run inside it, and a <pre> of
+// several lines is one fence.
 func TestCodeFenceFitsItsContent(t *testing.T) {
 	md := HTMLToMarkdown("<pre>a ``` b</pre>")
 	opener, _, _ := strings.Cut(md, "\n")
@@ -149,8 +148,7 @@ func TestCodeFenceFitsItsContent(t *testing.T) {
 	}
 }
 
-// A link address with parentheses is percent-encoded so it fits
-// (testLinkDestinationWithParenthesesSurvives).
+// A link address with parentheses is percent-encoded so it fits.
 func TestLinkDestinationWithParentheses(t *testing.T) {
 	md := HTMLToMarkdown(`<p><a href="http://x/a_(b)_c">wiki</a></p>`)
 	var link string
@@ -168,8 +166,7 @@ func TestLinkDestinationWithParentheses(t *testing.T) {
 }
 
 // An <img> becomes a Markdown image, its address encoded like a link's, and
-// a paragraph that is only an image reads back as an image block
-// (testImagesBecomeMarkdownImages).
+// a paragraph that is only an image reads back as an image block.
 func TestImagesBecomeMarkdownImages(t *testing.T) {
 	md := HTMLToMarkdown(`<p>before<img src="http://h/pic.png">after</p>`)
 	if !strings.Contains(md, "![](http://h/pic.png)") || !strings.HasPrefix(md, "before") || !strings.HasSuffix(md, "after") {
@@ -184,8 +181,8 @@ func TestImagesBecomeMarkdownImages(t *testing.T) {
 	}
 }
 
-// What QTextDocument does with HTML the tests do not cover, and the
-// converter therefore sees: a <br> is a line separator inside the paragraph,
+// How the converter splits HTML into blocks, beyond what the tests above
+// check: a <br> is a line separator inside the paragraph,
 // whitespace between elements makes no paragraph, and a list's items are
 // numbered within it.
 func TestHTMLToMarkdownReadsLikeQTextDocument(t *testing.T) {

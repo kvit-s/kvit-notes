@@ -1,14 +1,8 @@
 package mermaid
 
-// These tests are the parser tests of the app's tests/test_mermaider.cpp,
-// one Go test per test function there and in the same order, with the same
-// inputs and expected outputs. The file's layout tests
-// (layoutEntityTables, layoutCrowsFootMarkers, layoutNonIdentifyingIsDashed,
-// layoutDeterministic and rendererRendersErDiagram) lay the diagram out into
-// a scene and belong to the diagram package; demoCorpusParsesClean, which
-// comes between them there, is here after the other parser tests. Some
-// inputs follow demos/er.html of mermaid@11.16.0 (MIT license, (c) Knut
-// Sveidqvist).
+// These tests check the entity-relationship parser; laying these diagrams
+// out is tested in the diagram package. Some inputs follow demos/er.html of
+// mermaid@11.16.0 (MIT license, (c) Knut Sveidqvist).
 
 import (
 	"fmt"

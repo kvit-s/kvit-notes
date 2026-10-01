@@ -49,7 +49,7 @@ func (e *Editor) draw(gc *unison.Canvas, dirty geom.Rect) {
 	for i := first; i <= last; i++ {
 		if e.drag != nil && e.drag.active && e.Doc.Blocks[i].ID == e.drag.id {
 			// The row being dragged is drawn faded, gutter and all, where
-			// it has got to, as Kvit draws it.
+			// it has got to.
 			gc.SaveWithOpacity(dragOpacity)
 			e.drawGutter(gc, i)
 			e.drawRow(gc, i)
@@ -57,8 +57,7 @@ func (e *Editor) draw(gc *unison.Canvas, dirty geom.Rect) {
 			continue
 		}
 		if e.Typewriter != nil && e.Doc.Focused && e.Doc.Blocks[i].ID != e.Doc.Caret.Block {
-			// Typewriter mode fades every block but the caret's, as Kvit
-			// does (EditableBlock, typewriterDim).
+			// Typewriter mode fades every block but the caret's.
 			gc.SaveWithOpacity(typewriterOpacity)
 			e.drawRow(gc, i)
 			gc.Restore()
@@ -128,8 +127,8 @@ func (e *Editor) gapRect(g int, h float32) (geom.Rect, bool) {
 }
 
 // caretVisible reports whether the caret shows: a code block clips it to
-// its viewport, as the clipped TextArea does, so a caret scrolled away
-// with the scrollbar is not drawn over the panel.
+// its viewport, so a caret scrolled away with the scrollbar is not drawn
+// over the panel.
 func (e *Editor) caretVisible(r geom.Rect) bool {
 	if !e.showsCaret() {
 		return false
@@ -252,10 +251,10 @@ func (e *Editor) drawCodeText(gc *unison.Canvas, i int, l *blockLayout, o geom.P
 	drawInlineMath(gc, l.text, l.proj, o.X, o.Y)
 }
 
-// drawDivider draws a divider in its style, thickness, colour and width
-// (qml/DividerDelegate): solid unless style says dashed, dotted or
-// double, 2 px unless thickness says 1 to 12, the border colour unless
-// color names one, the full width unless width gives a share.
+// drawDivider draws a divider in its style, thickness, colour and width:
+// solid unless style says dashed, dotted or double, 2 px unless thickness
+// says 1 to 12, the border colour unless color names one, the full width
+// unless width gives a share.
 func (e *Editor) drawDivider(gc *unison.Canvas, i int) {
 	b := &e.Doc.Blocks[i]
 	t := e.tok()
@@ -434,11 +433,11 @@ func (e *Editor) languageButton(i int) geom.Rect {
 	return geom.NewRect(p.X+e.px(codePadSide)-pad, p.Y+(e.px(codeHeader)-h)/2-pad, w+2*pad, h+2*pad)
 }
 
-// languageItems are the language menu (LanguagePicker): plain text,
-// plain code, the two diagram kinds, then every language Kvit colours. A
-// choice goes through Doc.SetCodeLanguage, so choosing "Text diagram"
-// straightens the block's drawing, and "Plain code" keeps the block from
-// ever being tagged as a diagram.
+// languageItems are the language menu: plain text, plain code, the two
+// diagram kinds, then every language Kvit colours. A choice goes through
+// Doc.SetCodeLanguage, so choosing "Text diagram" straightens the block's
+// drawing, and "Plain code" keeps the block from ever being tagged as a
+// diagram.
 func (e *Editor) languageItems(id int64) []kvitui.MenuItem {
 	b := e.Doc.Block(id)
 	if b == nil {
@@ -488,9 +487,8 @@ func (e *Editor) drawCodePanel(gc *unison.Canvas, i int) {
 }
 
 // drawCodeHint names the key that leaves a code block in its footer, while
-// the caret is in it, as Kvit's BlockKeyHint does. It draws after the
-// scrollbar, as Kvit's footer draws above it, so the hint stays readable
-// where the two overlap.
+// the caret is in it. It draws after the scrollbar, so the hint stays
+// readable where the two overlap.
 func (e *Editor) drawCodeHint(gc *unison.Canvas, i int) {
 	b := &e.Doc.Blocks[i]
 	d := e.Doc

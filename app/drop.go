@@ -1,9 +1,9 @@
 package app
 
-// Opening a note file dropped on a window (features.md 15.3): a Markdown or
-// text file dragged from the file manager opens as the File menu's Open
-// File… would open it, in the vault's window when it is one of the vault's
-// notes, and on its own otherwise.
+// Opening a note file dropped on a window: a Markdown or text file dragged
+// from the file manager opens as the File menu's Open File… would open it, in
+// the vault's window when it is one of the vault's notes, and on its own
+// otherwise.
 
 import (
 	"path/filepath"
@@ -21,7 +21,7 @@ import (
 // comes first, as unison asks the panel under the pointer before its
 // parents, and the window's content is the last of those. The window also
 // registers the text and address types so the editor can take drops from
-// other applications (features.md 5.4); the content itself only takes note
+// other applications; the content itself only takes note
 // files.
 func AcceptDroppedNotes(win *kvitui.Window, open func(path string)) {
 	win.RegisterForDragTypes(uti.FileURL, uti.URL, uti.UTF8PlainText)

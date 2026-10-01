@@ -1,10 +1,9 @@
 package editor
 
-// Document statistics (features.md 19.1, Kvit's src/domain/documentstats.cpp):
-// words, characters with and without spaces, paragraphs, blocks and reading
-// time, for the whole note or the selected text. They are counted in the
-// text as the reader sees it: a formatted span's markers are left out, a
-// code block's text is taken as written, and a divider has none.
+// Document statistics: words, characters with and without spaces, paragraphs,
+// blocks and reading time, for the whole note or the selected text. They are
+// counted in the text as the reader sees it: a formatted span's markers are
+// left out, a code block's text is taken as written, and a divider has none.
 
 import (
 	"math"

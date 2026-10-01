@@ -1,10 +1,10 @@
 package export
 
 // Code-block syntax highlighting, as the exporter colours a code block's
-// tokens (src/content/codelanguages.cpp): one rule table per language read by
-// a shared scanner for the C-like languages, and separate scanners for
-// markup, CSS, Markdown and Mermaid. Multi-line constructs (block comments,
-// Python's triple-quoted strings) continue from one line to the next.
+// tokens: one rule table per language read by a shared scanner for the
+// C-like languages, and separate scanners for markup, CSS, Markdown and
+// Mermaid. Multi-line constructs (block comments, Python's triple-quoted
+// strings) continue from one line to the next.
 
 import (
 	"strings"

@@ -1,10 +1,9 @@
 package export
 
-// Exporting several notes of a vault: the export dialog's "Selected notes"
-// and "Whole collection" scopes (DocumentExporter::exportNotes and
-// exportCollection in src/application/documentexporter.cpp). Each note
-// becomes one file under the destination, at its path in the vault with the
-// format's extension, or all of them become one file named collection.<ext>.
+// Exporting several notes of a vault, or all of them, as the export dialog's
+// "Whole collection" scope does. Each note becomes one file under the
+// destination, at its path in the vault with the format's extension, or all
+// of them become one file named collection.<ext>.
 //
 // Before anything is made, the whole plan is checked, and a plan that would
 // write over a note is refused as a whole. Deciding one note at a time would
@@ -24,13 +23,12 @@ type VaultNote struct {
 	// "Sub/Beta.md".
 	RelPath string
 	// Text is the note's file as saved, front matter included. For the note
-	// open in the editor, pass its unsaved state, as the app does
-	// (DocumentExporter::setLiveNote): exporting reads what the reader sees
-	// and does not save it.
+	// open in the editor, pass its unsaved state: exporting reads what the
+	// reader sees and does not save it.
 	Text string
 	// Title is the note's title, used for an HTML page's title and a
 	// combined Markdown file's headings; "" means the file name without
-	// ".md", which is the app's title.
+	// ".md".
 	Title string
 }
 
@@ -65,8 +63,8 @@ type File struct {
 	Content []byte
 }
 
-// Refusal is an export the app would refuse before writing anything, with
-// the app's message saying why.
+// Refusal is an export refused before anything is written, with a message
+// saying why.
 type Refusal struct {
 	Reason string
 }
@@ -99,7 +97,7 @@ func Vault(e VaultExport) ([]File, error) {
 	return files, nil
 }
 
-// noteTitle is the app's title for a note: its file name without ".md".
+// noteTitle is a note's title: its Title, or its file name without ".md".
 func noteTitle(n VaultNote) string {
 	if n.Title != "" {
 		return n.Title
@@ -120,9 +118,9 @@ func (e VaultExport) noteOptions(n VaultNote) Options {
 	return opt
 }
 
-// one is a note's own file (DocumentExporter::exportOneNote). A Markdown
-// export is the note itself, so it includes the note's front matter in the
-// form the app writes it; the other formats leave the front matter out.
+// one is a note's own file. A Markdown export is the note itself, so it
+// includes the note's front matter in the canonical form; the other formats
+// leave the front matter out.
 func (e VaultExport) one(n VaultNote) string {
 	s := splitFrontMatter(n.Text)
 	opt := e.noteOptions(n)
@@ -139,10 +137,9 @@ func (e VaultExport) one(n VaultNote) string {
 	return TextFromMarkdown(s.body, opt)
 }
 
-// combined is every note in one file (DocumentExporter::appendCombinedNote
-// and writeCombined). Markdown puts each note under a "# Title" heading; text
-// runs the notes on; HTML makes one page with one section per note, each
-// after the first starting a new printed page.
+// combined is every note in one file. Markdown puts each note under a
+// "# Title" heading; text runs the notes on; HTML makes one page with one
+// section per note, each after the first starting a new printed page.
 func (e VaultExport) combined(out string) ([]File, error) {
 	limit := e.Options.MaxCombinedChars
 	if limit == 0 {
@@ -187,8 +184,9 @@ func (e VaultExport) combined(out string) ([]File, error) {
 	return []File{{Path: out, Content: []byte(content)}}, nil
 }
 
-// isPlainRelativePath is VaultPaths::isPlainRelativePath: relative, with "/"
-// between folders, already clean, and with no "." or ".." in it.
+// isPlainRelativePath reports whether rel is a plain relative path:
+// relative, with "/" between folders, already clean, and with no "." or ".."
+// in it.
 func isPlainRelativePath(rel string) bool {
 	if rel == "" || path.IsAbs(rel) || filepath.IsAbs(rel) || filepath.VolumeName(rel) != "" ||
 		strings.Contains(rel, `\`) || path.Clean(rel) != rel {
@@ -204,7 +202,7 @@ func isPlainRelativePath(rel string) bool {
 
 // canonicalTarget is a path made absolute with its symbolic links resolved,
 // for a path that need not exist yet: the deepest ancestor that exists is
-// resolved and the rest appended (DocumentExporter::canonicalTarget).
+// resolved and the rest appended.
 func canonicalTarget(p string) string {
 	if p == "" {
 		return ""
@@ -245,8 +243,7 @@ func isInsideDirectory(p, dir string) bool {
 	return strings.HasPrefix(p, prefix)
 }
 
-// plan is DocumentExporter::buildOutputPlan: where each note goes, or the
-// reason the export is refused.
+// plan is where each note goes, or the reason the export is refused.
 func (e VaultExport) plan() ([]string, error) {
 	if len(e.Notes) == 0 || e.Root == "" {
 		return nil, &Refusal{"There is nothing to export."}

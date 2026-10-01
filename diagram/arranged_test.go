@@ -1,12 +1,12 @@
 package diagram
 
-// These tests are the functions of the app's tests/test_mermaidedits.cpp
-// that test render and layout rather than edits, in that file's order, with
-// the same sources and expectations: partialParseIsNotValid,
-// cleanParseIsStillValid, hugeCoordinatesDoNotExplodeSceneBounds, the four
-// arrangedMode functions, and pluginWrittenLinesParse. The rest of that file
-// tests the on-diagram edits and moves with them. arrangedModeRoutesBeziers
-// looks for a CurveToElement in the path; here it is a CubicTo segment.
+// These tests check what rendering and layout make of sources the
+// on-diagram edits write: a parse that stops part way is not valid and a
+// clean one is, huge pinned coordinates do not blow up the scene's bounds,
+// an arranged diagram keeps its pinned centres, places unpinned nodes beyond
+// them, routes its edges as curves (a CubicTo segment in the path) and bows
+// parallel edges apart, and lines a plugin wrote parse. The edits
+// themselves are tested in package mermaid.
 
 import (
 	"math"

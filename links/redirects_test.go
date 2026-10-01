@@ -45,8 +45,8 @@ func table(entries ...Redirect) *Redirects {
 	return r
 }
 
-// The rules of LinkRedirects::record: no chains, nothing standing where a
-// note arrived, one entry per old path, and nothing malformed.
+// The rules of Record: no chains, nothing standing where a note arrived, one
+// entry per old path, and nothing malformed.
 func TestRecord(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -129,7 +129,8 @@ func TestLookup(t *testing.T) {
 	}
 }
 
-// The file is the app's compact JSON, and an empty table deletes it.
+// The file is compact JSON, as the earlier Qt version of Kvit Notes wrote
+// it, and an empty table deletes it.
 func TestSaveWritesTheQtFormat(t *testing.T) {
 	root := t.TempDir()
 	r := table(Redirect{"Target.md", "Renamed.md"}, Redirect{`Odd "name".md`, "Ideas/Café.md"})
@@ -153,7 +154,7 @@ func TestSaveWritesTheQtFormat(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, ".kvit", "redirects.json")); !os.IsNotExist(err) {
 		t.Error("an empty table left its file")
 	}
-	// Control characters are escaped as escapes them.
+	// Control characters are escaped: a tab as \t, the others as \u00XX.
 	if got := string(table(Redirect{"a\tb\x01.md", "c.md"}).encode()); got !=
 		`{"redirects":[{"from":"a\tb\u0001.md","to":"c.md"}],"version":1}` {
 		t.Errorf("escaped: %s", got)
@@ -164,8 +165,7 @@ func TestSaveWritesTheQtFormat(t *testing.T) {
 	}
 }
 
-// From TestNoteCollection::testRedirectFileIsOptionalAndStaysInsideTheVault:
-// no file is an empty table, and an entry naming a path outside the vault,
+// No file is an empty table, and an entry naming a path outside the vault,
 // either end, is left out. So is anything that is not the table.
 func TestLoadRefusesWhatIsNotAPlainTable(t *testing.T) {
 	root := t.TempDir()
@@ -209,8 +209,7 @@ func TestLoadRefusesAnOversizedFile(t *testing.T) {
 	}
 }
 
-// .kvit standing as a link is refused for reading and writing, as the
-// app refuses to write through it.
+// .kvit standing as a link is refused for reading and writing.
 func TestALinkedKvitDirectoryIsRefused(t *testing.T) {
 	root, elsewhere := t.TempDir(), t.TempDir()
 	write(t, elsewhere, "redirects.json", `{"redirects":[{"from":"a.md","to":"b.md"}],"version":1}`)

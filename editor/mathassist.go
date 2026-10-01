@@ -1,31 +1,29 @@
 package editor
 
-// Typing mathematics (features.md 1.2.15, Kvit's MathEntryAssist and the
-// source editor of MathBlock): the `$…$` pair, the backslash command menu
+// Typing mathematics: the `$…$` pair, the backslash command menu
 // (mathmenu.go), and Tab walking the empty slots a template leaves.
 //
 // They work on a math surface: a block of the note (blockSurface) or a field
 // of a card on a task board (cardmath.go). Where they apply is a math unit:
-// the text an editor of the app would hold. In a block of inline Markdown
-// it is the block; in a table showing its Markdown it is the cell holding the
-// caret, between its pipes; in a display equation (a Math block) it is the
-// block's TeX; in a card's field it is the field. Code and every other block
-// type dollars and backslashes as they are.
+// in a block of inline Markdown it is the block; in a table showing its
+// Markdown it is the cell holding the caret, between its pipes; in a display
+// equation (a Math block) it is the block's TeX; in a card's field it is the
+// field. Code and every other block type dollars and backslashes as they are.
 //
 //   - Typing `$` in a block or a cell puts in "$$" with the caret between,
-// unless a dollar before the caret is still open, the dollar would be
-// escaped (\$), the caret is in inline code, or a letter, a digit or a
-// dollar follows (a price). While that pair is empty, Backspace takes out
-// both dollars and Delete only the closing one, which leaves a literal
-// dollar; a `$` typed just before the closing dollar steps over it. With
-// a selection, `$` puts the selection between two dollars.
+//     unless a dollar before the caret is still open, the dollar would be
+//     escaped (\$), the caret is in inline code, or a letter, a digit or a
+//     dollar follows (a price). While that pair is empty, Backspace takes out
+//     both dollars and Delete only the closing one, which leaves a literal
+//     dollar; a `$` typed just before the closing dollar steps over it. With
+//     a selection, `$` puts the selection between two dollars.
 //   - Typing `\` inside $…$ (or inside a fresh pair), or anywhere in a display
-// block's TeX, opens the command menu, which follows the letters typed
-// after the backslash. Choosing an entry puts its template in place of
-// the backslash and the letters, with the caret in the template's first
-// empty slot.
+//     block's TeX, opens the command menu, which follows the letters typed
+//     after the backslash. Choosing an entry puts its template in place of
+//     the backslash and the letters, with the caret in the template's first
+//     empty slot.
 //   - After a template with empty {} or [] slots, Tab and Shift+Tab move
-// between the empty slots of the same formula.
+//     between the empty slots of the same formula.
 //   - Ctrl+Space opens the menu again for the backslash word at the caret.
 //
 // What is remembered between keys (the open pair, the template whose slots

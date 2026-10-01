@@ -63,9 +63,9 @@ func format(spans []Span) string {
 	return strings.Join(parts, " ")
 }
 
-// Every sample of the corpus, in every language, is coloured exactly as the
-// app's highlighter colours it. testdata/ref-spans.txt is the
-// highlighter's output, kept as a frozen reference.
+// Every sample of the corpus, in every language, is coloured exactly as
+// testdata/ref-spans.txt says. The expected spans in that file were recorded
+// from the earlier Qt version of Kvit Notes.
 func TestReferenceSpans(t *testing.T) {
 	samples := corpus(t)
 	data, err := os.ReadFile("testdata/ref-spans.txt")
@@ -99,8 +99,8 @@ func TestReferenceSpans(t *testing.T) {
 
 // Colouring a whole text is colouring its lines one after another, each
 // starting in the state the line before ended in, and moving each line's
-// spans by where the line starts (wholeTextEqualsThreadedLines). That is the
-// contract that lets an editor colour only the lines an edit changed.
+// spans by where the line starts. That is the contract that lets an editor
+// colour only the lines an edit changed.
 func TestWholeTextEqualsThreadedLines(t *testing.T) {
 	for _, s := range corpus(t) {
 		for _, id := range ids() {

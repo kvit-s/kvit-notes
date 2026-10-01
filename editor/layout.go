@@ -77,8 +77,8 @@ func (e *Editor) styleFor(f runeFlags, base text.Style) text.Style {
 	}
 	if f&fMath != 0 && !mathtex.Available() {
 		// Without the math library a formula's TeX is drawn in italics. With
-		// it, the TeX shows only while it is edited, upright as Kvit shows
-		// it; the rest of the time the formula is typeset (mathinline.go).
+		// it, the TeX shows only while it is edited, upright; the rest of
+		// the time the formula is typeset (mathinline.go).
 		st.Italic = true
 	}
 	switch {
@@ -168,15 +168,15 @@ func (e *Editor) layOut(b *Block, width float32, caret, selA, selB int) *blockLa
 	}
 	var reveal func(span) bool
 	if caret >= 0 {
-		// A selection reveals the spans it covers only inside one block, as
-		// Kvit does; across blocks the markers stay hidden.
+		// A selection reveals the spans it covers only inside one block;
+		// across blocks the markers stay hidden.
 		a, c := selA, selB
 		reveal = func(sp span) bool { return revealed(sp, caret, a, c) }
 	}
 	proj := e.typesetInline(project(src, spans, reveal), e.blockStyle(b))
 	fl := proj.flags
 	if b.Kind == Code && b.Lang != "" {
-		// Syntax colours, a class to a run (codelanguages.cpp).
+		// Syntax colours, a class to a run.
 		fl = slices.Clone(fl)
 		for _, sp := range highlight.Highlight(b.Lang, b.Text) {
 			for k := sp.Start; k < sp.End && k < len(fl); k++ {
@@ -219,13 +219,12 @@ func (e *Editor) layOut(b *Block, width float32, caret, selA, selB int) *blockLa
 	pitch := e.pitch(base)
 	opt := text.Options{MaxWidth: width, Pitch: pitch, KeepTrailingSpace: true}
 	if e.codeNoWrap(b) {
-		// Code blocks scroll horizontally rather than wrap (the
-		// TextEdit.NoWrap): line breaks in the source still start new
-		// lines, but a long line runs past the panel under a clip.
+		// Code blocks scroll horizontally rather than wrap: line breaks in
+		// the source still start new lines, but a long line runs past the
+		// panel under a clip.
 		opt.MaxWidth = 0
 	}
-	// A block's alignment, as the app applies it (EditableBlock,
-	// blockAlign).
+	// A block's alignment, from its align attribute.
 	switch a, _ := b.Attr("align"); a {
 	case "center":
 		opt.Align = text.AlignMiddle
@@ -236,9 +235,8 @@ func (e *Editor) layOut(b *Block, width float32, caret, selA, selB int) *blockLa
 	return &blockLayout{proj: proj, text: tl, style: base, pitch: pitch, width: width}
 }
 
-// height is the height of the laid-out text, down to a whole pixel, as the
-// text areas report theirs, so rows stack at whole pixels however many
-// lines each holds.
+// height is the height of the laid-out text, down to a whole pixel, so rows
+// stack at whole pixels however many lines each holds.
 func (l *blockLayout) height() float32 {
 	_, h := l.text.Size()
 	return float32(math.Floor(float64(h) + 1e-3))

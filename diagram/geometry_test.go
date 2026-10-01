@@ -1,8 +1,8 @@
 package diagram
 
-// Not a port: checks of the QPainterPath and QRectF behaviour geometry.go
-// reproduces, with the values  gives for the same calls, and of the
-// outlines and markers in outlines.go.
+// Checks of the path and rectangle geometry in geometry.go and of the
+// outlines and markers in outlines.go. The expected values of the geometry
+// checks were recorded from the earlier Qt version of Kvit Notes.
 
 import (
 	"math"
@@ -41,7 +41,7 @@ func TestOutlinePercentAlongPolyline(t *testing.T) {
 	if p := o.PointAtPercent(0.5); !near(p.X, 10) || !near(p.Y, 10) {
 		t.Errorf("middle = %v, want (10, 10)", p)
 	}
-	// Down the page is 270 degrees, as measures with y up.
+	// Down the page is 270 degrees, measured with y up.
 	if a := o.AngleAtPercent(0.5); !near(a, 270) {
 		t.Errorf("angle = %g, want 270", a)
 	}
@@ -64,8 +64,9 @@ func TestOutlineBoundsAreTight(t *testing.T) {
 	if !near(b.H, 50) || !near(b.W, 100) {
 		t.Errorf("bounds = %v, want 100 x 50", b)
 	}
-	// keeps a quadratic curve as the cubic whose control points are two
-	// thirds of the way to the quadratic's, and measures those.
+	// The outline keeps a quadratic curve as the cubic whose control points
+	// are two thirds of the way to the quadratic's, and the control bounds
+	// measure those.
 	if cb := o.ControlBounds(); !near(cb.H, 200.0/3) {
 		t.Errorf("control bounds = %v", cb)
 	}
@@ -74,7 +75,7 @@ func TestOutlineBoundsAreTight(t *testing.T) {
 func TestOutlineIntersectsCountsTheClosingLine(t *testing.T) {
 	// An open path around a rectangle's corner: its lines miss the
 	// rectangle, and the line that would close it runs through it, which
-	// QPainterPath::intersects counts.
+	// Intersects counts.
 	var o Outline
 	o.MoveTo(Point{0, 50})
 	o.LineTo(Point{0, 0})

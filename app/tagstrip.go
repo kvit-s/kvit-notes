@@ -1,8 +1,8 @@
 package app
 
-// The tag strip above a note (Kvit's TagStrip): the note's tags as
-// removable tags, and a small field that offers the vault's tags as the
-// reader types and adds the one chosen, or a new one.
+// The tag strip above a note: the note's tags as removable tags, and a small
+// field that offers the vault's tags as the reader types and adds the one
+// chosen, or a new one.
 
 import (
 	"strings"
@@ -11,7 +11,7 @@ import (
 	"github.com/richardwilkes/unison"
 )
 
-// tagFieldWidth is the add field's width in design pixels (TagStrip).
+// tagFieldWidth is the add field's width in design pixels.
 const tagFieldWidth = 110
 
 // TagStrip shows a note's tags and adds and removes them.

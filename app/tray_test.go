@@ -41,7 +41,7 @@ func (s *session) shown() bool {
 	return shown
 }
 
-// features.md 15.2: the icon has the app's tooltip and menu.
+// The icon has its tooltip and menu.
 func TestTheTrayIconAndItsMenu(t *testing.T) {
 	s := openVault(t, demo)
 	tr := s.withTray()
@@ -178,7 +178,7 @@ func waitDone(t *testing.T, s *session) {
 }
 
 // The General section of Settings, with the tray setting, is there only
-// with a tray, as the app shows its tray setting only where one exists.
+// with a tray.
 func TestTheTraySettingIsShownOnlyWithATray(t *testing.T) {
 	s := openVault(t, demo)
 	s.press("File")
@@ -208,9 +208,8 @@ func (s *session) has(name string) bool {
 	return false
 }
 
-// features.md 15.3: a note of the vault dropped on the window opens in it;
-// a Markdown file from elsewhere opens on its own; anything else is not
-// taken.
+// A note of the vault dropped on the window opens in it; a Markdown file from
+// elsewhere opens on its own; anything else is not taken.
 func TestDroppedNoteFilesOpen(t *testing.T) {
 	s := openVault(t, notes{"A.md": "Alpha\n", "B.md": "Beta\n"})
 	outside := filepath.Join(t.TempDir(), "Elsewhere.md")

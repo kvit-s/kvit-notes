@@ -6,13 +6,9 @@ import (
 	"unicode/utf8"
 )
 
-// The translation of one gitignore line into a regular expression, from
-// the anonymous namespace of the app's src/platform/ignorerules.cpp
-// (compileRule, globRegularExpression, markerIsEscaped) and its
-// IgnoreRules::Rule.
+// The translation of one gitignore line into a regular expression.
 
-// rule is one compiled line of an ignore file or of the settings list
-// (IgnoreRules::Rule).
+// rule is one compiled line of an ignore file or of the settings list.
 type rule struct {
 	// expression matches a path relative to the folder the rule belongs
 	// to, either the path itself or one of its ancestors followed by "/".
@@ -29,16 +25,16 @@ type rule struct {
 	descendantCapture int
 }
 
-// ruleGroup is the rules of one file, applied to the paths below baseDir
-// (IgnoreRules::RuleGroup). baseDir is "" for the root folder, git's
-// exclude file and the settings list.
+// ruleGroup is the rules of one file, applied to the paths below baseDir.
+// baseDir is "" for the root folder, git's exclude file and the settings
+// list.
 type ruleGroup struct {
 	baseDir string
 	rules   []rule
 }
 
-// matches reports whether the rule matches p, a path relative to the
-// rule's folder (IgnoreRules::Rule::matches).
+// matches reports whether the rule matches p, a path relative to the rule's
+// folder.
 func (r rule) matches(p string, isDirectory bool) bool {
 	if !r.directoryOnly {
 		return r.expression.MatchString(p)
@@ -54,9 +50,8 @@ func (r rule) matches(p string, isDirectory bool) bool {
 	return suffix == "/" || isDirectory
 }
 
-// compilePatterns compiles each line and keeps the ones that are rules
-// (IgnoreRules::compilePatterns). Blank lines, comments and lines whose
-// expression does not compile are dropped.
+// compilePatterns compiles each line and keeps the ones that are rules. Blank
+// lines, comments and lines whose expression does not compile are dropped.
 func compilePatterns(patterns []string, baseDir string) ruleGroup {
 	group := ruleGroup{baseDir: cleanRelative(baseDir)}
 	for _, pattern := range patterns {
@@ -84,12 +79,10 @@ func markerIsEscaped(text string, at int) bool {
 // class, with a leading "!" turned into "^". A backslash makes the next
 // character literal, and every other character is literal.
 //
-// The function writes each literal character through
-// regular expression::escape, which puts a backslash before everything but
-// ASCII letters, digits and "_". Go's regexp rejects a backslash before a
-// letter outside ASCII, so literals are written with regexp.QuoteMeta, which
-// escapes only the characters that are special; both match the character
-// itself.
+// Literal characters are written with regexp.QuoteMeta, which escapes only
+// the characters that are special. A backslash before every character but
+// ASCII letters, digits and "_" would match the same text, but Go's regexp
+// rejects a backslash before a letter outside ASCII.
 func globRegularExpression(glob string) string {
 	var result strings.Builder
 	result.Grow(len(glob) * 2)
@@ -138,10 +131,9 @@ func globRegularExpression(glob string) string {
 	return result.String()
 }
 
-// compileRule compiles one line of an ignore file (compileRule in the
-// source). It reports false for a line that is not a rule: blank, a
-// comment, nothing left after "!" or "/", or an expression that does not
-// compile.
+// compileRule compiles one line of an ignore file. It reports false for a
+// line that is not a rule: blank, a comment, nothing left after "!" or "/",
+// or an expression that does not compile.
 func compileRule(pattern string) (rule, bool) {
 	var r rule
 

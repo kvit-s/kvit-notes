@@ -1,11 +1,10 @@
 package search
 
-// Finding in one note: the find bar (features.md 7.1). The rules are
-// src/domain/documentsearch.cpp's (DocumentSearch::recompute, scanText and
-// compiledPattern). A note is searched as the text of each block as the
-// reader sees it, so a query matches across the markers of a span ("is bold"
-// in "This is **bold** text") and never matches a marker; a code block's
-// text is its source, so its asterisks match. A divider has no text.
+// Finding in one note: the find bar. A note is searched as the text of each
+// block as the reader sees it, so a query matches across the markers of a
+// span ("is bold" in "This is **bold** text") and never matches a marker; a
+// code block's text is its source, so its asterisks match. A divider has no
+// text.
 
 import (
 	"regexp"
@@ -17,20 +16,20 @@ import (
 // Options are the find bar's toggles.
 type Options struct {
 	// CaseSensitive compares letters exactly; otherwise by their simple case
-	// folding, as the ::CaseInsensitive does.
+	// folding.
 	CaseSensitive bool
 	// WholeWord accepts a match only where a word starts and where one ends,
 	// by the rule of the regular expression \b: the characters either side
 	// of each end of the match differ in whether they are word characters.
 	// Those are letters and digits of any script and the underscore; with
 	// Regex the pattern is wrapped in \b(?:...)\b, whose word characters are
-	// the ASCII ones, as in .
+	// the ASCII ones.
 	WholeWord bool
 	// Regex takes the query as a regular expression. The syntax is Go's
-	// (RE2), which is the PCRE2 without backreferences and lookaround; a
-	// query that uses those does not compile. As in , . does not match a
-	// line break; unlike , $ matches only at the end of a block's text,
-	// not also before a line break that ends it.
+	// (RE2): PCRE syntax without backreferences and lookaround; a query that
+	// uses those does not compile. "." does not match a line break, and
+	// "$" matches only at the end of a block's text, not also before a line
+	// break that ends it.
 	Regex bool
 	// PreserveCase gives a replacement the case of the text it replaces. It
 	// changes what replacements are, never what matches.
@@ -52,8 +51,8 @@ type Match struct {
 }
 
 // Pattern is a query compiled with its options, ready to scan many blocks.
-// The find bar compiles once per change of query or option
-// (DocumentSearch::recompute), not once per block.
+// The find bar compiles once per change of query or option, not once per
+// block.
 type Pattern struct {
 	opts   Options
 	re     *regexp.Regexp
@@ -63,8 +62,7 @@ type Pattern struct {
 
 // Compile compiles a query. The error is not nil only for a regular
 // expression that does not compile, which the find bar shows as an error
-// state with no matches (DocumentSearch::patternError). An empty query
-// compiles and finds nothing.
+// state with no matches. An empty query compiles and finds nothing.
 func Compile(query string, opts Options) (*Pattern, error) {
 	p := &Pattern{opts: opts, length: utf8.RuneCountInString(query)}
 	if query == "" {
@@ -198,9 +196,8 @@ func wordEdges(hay string, at, end int) bool {
 
 // Domain is the part of a note a search is kept inside: the blocks or the
 // text that were selected when the find bar's "in selection" toggle was
-// armed (DocumentSearch::setBlockDomain and setTextDomain). The app
-// remembers the blocks by their ids so the domain survives blocks moving;
-// here the caller passes the blocks' current indexes.
+// armed. The find bar remembers the blocks by their ids so the domain
+// survives blocks moving, and passes their current indexes here.
 type Domain interface {
 	contains(m Match) bool
 }
@@ -252,11 +249,10 @@ func InText(startBlock, startPos, endBlock, endPos int) Domain {
 
 // Nearest is the index of the match the find bar makes current when the
 // query or an option changes: the first match at or after the caret, or
-// the note's first match when none follows it (DocumentSearch::recompute).
-// The caret is a block and a display offset; a block of -1 means there is no
-// caret. It is -1 when there are no matches. After a replacement the app
-// puts the caret just after the replacement, which is how it moves on to
-// the next match.
+// the note's first match when none follows it. The caret is a block and a
+// display offset; a block of -1 means there is no caret. It is -1 when there
+// are no matches. After a replacement the find bar puts the caret just after
+// the replacement, which is how it moves on to the next match.
 func Nearest(matches []Match, block, pos int) int {
 	if len(matches) == 0 {
 		return -1
@@ -271,9 +267,9 @@ func Nearest(matches []Match, block, pos int) int {
 	return i
 }
 
-// Next is the match after current, wrapping from the last to the first
-// (DocumentSearch::next). With no current match (-1) it is the first. It is
-// -1 when there are no matches.
+// Next is the match after current, wrapping from the last to the first.
+// With no current match (-1) it is the first. It is -1 when there are no
+// matches.
 func Next(current, count int) int {
 	switch {
 	case count <= 0:
@@ -284,8 +280,8 @@ func Next(current, count int) int {
 	return (current + 1) % count
 }
 
-// Previous is the match before current, wrapping from the first to the last
-// (DocumentSearch::previous). With no current match (-1) it is the last.
+// Previous is the match before current, wrapping from the first to the
+// last. With no current match (-1) it is the last.
 func Previous(current, count int) int {
 	switch {
 	case count <= 0:

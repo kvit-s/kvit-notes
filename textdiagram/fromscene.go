@@ -1,12 +1,10 @@
 package textdiagram
 
-// FromScene, a port of the app's src/content/diagrams/textdiagram.cpp:
-// "Copy as text" on a rendered Mermaid diagram. It reads the same laid-out
-// diagram.Scene the editor draws, so what is copied matches what is shown,
-// and draws it on a Canvas, which uses only the characters Repair
-// recognizes, so Repair leaves the text unchanged and Classify takes it for
-// a character diagram.
-//
+// FromScene: "Copy as text" on a rendered Mermaid diagram. It reads the same
+// laid-out diagram.Scene the editor draws, so what is copied matches what is
+// shown, and draws it on a Canvas, which uses only the characters Repair
+// recognizes, so Repair leaves the text unchanged and Classify takes it for a
+// character diagram.
 // Flowcharts and sequence diagrams come out best. Class, state and ER
 // diagrams go through the same drawing with simpler markers: a UML head is
 // △, ◇ or o, and a crow's foot is < > ^ or v by the way its line runs.
@@ -86,7 +84,7 @@ func opposite(d Direction) Direction {
 
 // markerGlyph is the character a marker is drawn as. An arrow keeps the
 // arrowheads Repair knows; the UML heads become △ ◇ o x and a crow's foot
-// < > ^ v by the way its line runs, on purpose, as the app does.
+// < > ^ v by the way its line runs, on purpose.
 func markerGlyph(m diagram.Marker, dir Direction) rune {
 	switch m {
 	case diagram.MarkerArrow, diagram.MarkerOpenArrow:
@@ -226,8 +224,8 @@ type builder struct {
 
 // ---- nodes ----
 
-// containsRect is QRectF::contains for a rectangle: r holds every point of
-// o, and neither is empty.
+// containsRect reports whether r holds every point of o, neither of them
+// empty.
 func containsRect(r, o diagram.Rect) bool {
 	r, o = r.Normalized(), o.Normalized()
 	if r.W == 0 || r.H == 0 || o.W == 0 || o.H == 0 {
@@ -467,7 +465,8 @@ func (b *builder) anchorFor(n *textNode, pixel diagram.Point, travel Direction) 
 	return a
 }
 
-// clamp is std::clamp: v kept between lo and hi, lo winning when hi < lo.
+// clamp is v kept between lo and hi: lo when v is below lo, otherwise hi
+// when v is above hi.
 func clamp(v, lo, hi int) int {
 	if v < lo {
 		return lo

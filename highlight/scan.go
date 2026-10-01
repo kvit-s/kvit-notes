@@ -1,17 +1,16 @@
 package highlight
 
-// The scanners, one line at a time, ported rule for rule from
-// src/content/codelanguages.cpp. Each takes the state the line before ended
-// in and returns the state this line ends in.
+// The scanners, one line at a time. Each takes the state the line before
+// ended in and returns the state this line ends in.
 
 import (
 	"strings"
 	"unicode"
 )
 
-// generic is the scanner most languages share (scanGeneric): Python,
-// JavaScript, TypeScript, C++, C#, Java, Go, Rust, view markup, SQL, Bash and JSON,
-// told apart only by their rules.
+// generic is the scanner most languages share: Python, JavaScript,
+// TypeScript, C++, C#, Java, Go, Rust, QML, SQL, Bash and JSON, told apart
+// only by their rules.
 func (sc *scan) generic(r *rules, st state) state {
 	s, n, i := sc.s, len(sc.s), 0
 
@@ -155,7 +154,7 @@ func (sc *scan) generic(r *rules, st state) state {
 			}
 			word := string(s[i:j])
 			if r.foldCase {
-				// lowers İ to an i and a combining dot, as Unicode's
+				// İ is lowered to an i and a combining dot, as Unicode's
 				// full case mapping does, where strings.ToLower makes it a
 				// plain i, and so "İN" would be the keyword "in".
 				word = strings.ToLower(strings.ReplaceAll(word, "İ", "i̇"))
@@ -183,9 +182,9 @@ func (sc *scan) generic(r *rules, st state) state {
 	return normal
 }
 
-// markup is the scanner for HTML and XML (scanMarkup). A tag's name is a
-// Keyword, its attributes' names are Types and their quoted values Strings;
-// an entity such as &amp; is a Number, and a comment may span lines.
+// markup is the scanner for HTML and XML. A tag's name is a Keyword, its
+// attributes' names are Types and their quoted values Strings; an entity such
+// as &amp; is a Number, and a comment may span lines.
 func (sc *scan) markup(st state) state {
 	s, n, i := sc.s, len(sc.s), 0
 
@@ -258,9 +257,9 @@ func (sc *scan) markup(st state) state {
 	return normal
 }
 
-// css is the scanner for CSS (scanCss): comments, which may span lines,
-// strings, at-rules, !important, colours, selectors, numbers with their
-// units, and a property's name before its ':'.
+// css is the scanner for CSS: comments, which may span lines, strings,
+// at-rules, !important, colours, selectors, numbers with their units, and a
+// property's name before its ':'.
 func (sc *scan) css(st state) state {
 	s, n, i := sc.s, len(sc.s), 0
 
@@ -376,10 +375,10 @@ func (sc *scan) css(st state) state {
 	return normal
 }
 
-// markdown is the scanner for Markdown shown in a code block (scanMarkdown),
-// a light pass: a heading line is a Keyword, a block quote line a Comment, a
-// list marker a Type, a code span a String, a link's target a Type, and a
-// ``` fence with everything inside it a String.
+// markdown is the scanner for Markdown shown in a code block, a light pass: a
+// heading line is a Keyword, a block quote line a Comment, a list marker a
+// Type, a code span a String, a link's target a Type, and a ``` fence with
+// everything inside it a String.
 func (sc *scan) markdown(st state) state {
 	s, n := sc.s, len(sc.s)
 	lead := 0
@@ -449,12 +448,12 @@ func (sc *scan) markdown(st state) state {
 	return normal
 }
 
-// mermaid is the scanner for Mermaid (scanMermaid). Mermaid is a notation of
-// one statement per line rather than a C-like language, and what it means is
-// in five things: the %% comment and the %%{ }%% directive, the diagram and
-// statement words, the links, the labels in brackets or quotes, and the
-// message text after a colon. Everything else, node names above all, stays
-// in the text colour.
+// mermaid is the scanner for Mermaid. Mermaid is a notation of one statement
+// per line rather than a C-like language, and what it means is in five
+// things: the %% comment and the %%{ }%% directive, the diagram and statement
+// words, the links, the labels in brackets or quotes, and the message text
+// after a colon. Everything else, node names above all, stays in the text
+// colour.
 func (sc *scan) mermaid(st state) state {
 	s, n, i := sc.s, len(sc.s), 0
 
@@ -581,8 +580,7 @@ func (sc *scan) mermaid(st state) state {
 // [Start], ((Round)) or {"text"}: just past the bracket that closes it, or
 // the end of the line when none does, as while it is being typed. Brackets
 // are counted, so a doubled bracket closes in the right place, and a quoted
-// string inside is skipped, so a bracket in its text does not end the label
-// (scanMermaidLabel).
+// string inside is skipped, so a bracket in its text does not end the label.
 func mermaidLabel(s []rune, i int) int {
 	open, shut := s[i], '}'
 	switch open {
@@ -617,10 +615,9 @@ func isLinkRune(c rune) bool {
 	return strings.ContainsRune("-=.<>~", c)
 }
 
-// number is the end of the number starting at s[i], a digit or a '.' before
-// a digit (scanNumber): a 0x, 0b or 0o number, or digits with underscores, a
-// fraction and an exponent, followed by any letters, such as C++'s f and u or
-// a CSS unit.
+// number is the end of the number starting at s[i], a digit or a '.' before a
+// digit: a 0x, 0b or 0o number, or digits with underscores, a fraction and an
+// exponent, followed by any letters, such as C++'s f and u or a CSS unit.
 func number(s []rune, i int) int {
 	n, j := len(s), i
 	if s[j] == '0' && j+1 < n && strings.ContainsRune("xXbBoO", s[j+1]) {
@@ -654,10 +651,10 @@ func number(s []rune, i int) int {
 	return j
 }
 
-// quoted is the end of the string whose opening quote q is at s[i]: just
-// past its closing quote, or the end of the line when it has none
-// (scanString). A backslash escapes the rune after it, except when doubled
-// is set, as for SQL, where a doubled quote stands for one quote instead.
+// quoted is the end of the string whose opening quote q is at s[i]: just past
+// its closing quote, or the end of the line when it has none. A backslash
+// escapes the rune after it, except when doubled is set, as for SQL, where a
+// doubled quote stands for one quote instead.
 func quoted(s []rune, i int, q rune, doubled bool) int {
 	n, j := len(s), i+1
 	for j < n {

@@ -57,7 +57,6 @@ func TestInlineSpans(t *testing.T) {
 	}
 }
 
-// features.md 2.2.3 and 2.2.7
 func TestRevealFollowsCaret(t *testing.T) {
 	s := "This is **important** *information* here"
 	if got := render(s, 0, false); got != "This is important information here" {
@@ -428,11 +427,9 @@ func TestStatisticsCountWhatTheReaderSees(t *testing.T) {
 	}
 }
 
-// The tests from here to TestAsCodeOptsOut are the character-diagram tests
-// of the app's tests/test_documentserializer.cpp
-// (testIngestTagsCharacterDiagram to testDiagramFenceRoundTrips), with the
-// same inputs, then the Doc's side of tests/tst_integration's
-// test_69h4 and test_69h5.
+// The tests from here to TestAsCodeOptsOut cover character diagrams in code
+// fences, tagged and straightened when a note is read, pasted or given a
+// language, and the Doc's paste, move and insert operations.
 
 // diagramBody is a compact two-box character diagram the classifier
 // accepts: two framed regions joined by a connector.
@@ -599,7 +596,7 @@ func TestPasteIntoCodeBlockStraightensDiagram(t *testing.T) {
 // Markdown pasted into a paragraph goes through the same step as a note
 // being opened: an untagged diagram fence arrives tagged and straightened,
 // as one undo step. Lines opening a fence become blocks even with no blank
-// line among them (tst_integration's test_zx0i).
+// line among them.
 func TestPastedFenceBecomesItsBlock(t *testing.T) {
 	d := newTestDoc("")
 	d.SetCaret(d.Blocks[0].ID, 0)
@@ -790,7 +787,7 @@ func TestAsCodeOptsOut(t *testing.T) {
 	if p.Blocks[0].Lang != "plain" {
 		t.Fatalf("Plain code: %q", p.Blocks[0].Lang)
 	}
-	// Choosing plain text instead tags it again at once, as in the app.
+	// Choosing plain text instead tags it again at once.
 	p.SetCodeLanguage(p.Blocks[0].ID, "")
 	if p.Blocks[0].Lang != "diagram" {
 		t.Errorf("plain text on a diagram: %q", p.Blocks[0].Lang)
@@ -809,8 +806,7 @@ func TestAsCodeOptsOut(t *testing.T) {
 }
 
 // An aliased wiki link shows only its alias away from the caret, the whole
-// inside with the caret in it (the BlockEditorEngine over
-// WikiLinkScanner::matchAt); following still resolves the target.
+// inside with the caret in it; following still resolves the target.
 func TestWikiAliasShowsAlias(t *testing.T) {
 	const src = "See [[Plan|the plan]] now"
 	sps := spansOf(src)

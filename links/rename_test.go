@@ -10,8 +10,8 @@ import (
 	"testing"
 )
 
-// move does to the index and the table what the app does when a note
-// is renamed or moved, with its links updated or left alone.
+// move does to the index and the table what Kvit Notes does when a note is
+// renamed or moved, with its links updated or left alone.
 func move(ix *Index, bodies map[string]string, from, to string, updateLinks bool) {
 	bodies[to] = bodies[from]
 	delete(bodies, from)
@@ -24,9 +24,9 @@ func move(ix *Index, bodies map[string]string, from, to string, updateLinks bool
 	}
 }
 
-// rewritePass is the app's background rewrite after a rename: every note
-// that links through the table is rewritten, and then the table keeps only
-// what is still needed. It returns the links and notes it changed.
+// rewritePass is the background rewrite after a rename: every note that links
+// through the table is rewritten, and then the table keeps only what is still
+// needed. It returns the links and notes it changed.
 func rewritePass(ix *Index, bodies map[string]string) (links, notes int) {
 	for _, p := range slices.Sorted(maps.Keys(bodies)) {
 		if !ix.NeedsRewrite(bodies[p]) {
@@ -49,9 +49,8 @@ func newIndex(bodies map[string]string) *Index {
 	return ix
 }
 
-// From TestNoteCollection::testRewriteWikiTargetsInTextSurgical: only the
-// note part changes; spaces, heading and alias stay, and code and math are
-// left alone.
+// Only the note part changes; spaces, heading and alias stay, and code and
+// math are left alone.
 func TestRewriteTargetsIsSurgical(t *testing.T) {
 	cases := []struct {
 		text, want string
@@ -76,10 +75,10 @@ func TestRewriteTargetsIsSurgical(t *testing.T) {
 	}
 }
 
-// From TestNoteCollection::testRenameRewritesReferringLinks: the rename
-// counts the links it will change, the old name resolves through the table
-// until the notes are rewritten, the rewrite keeps aliases and headings and
-// leaves fences alone, and the table is gone once nothing needs it.
+// The rename counts the links it will change, the old name resolves through
+// the table until the notes are rewritten, the rewrite keeps aliases and
+// headings and leaves fences alone, and the table is gone once nothing needs
+// it.
 func TestRenameRewritesReferringLinks(t *testing.T) {
 	const ref = "One [[Target]] and [[target#Head|alias]] here.\n```\n[[Target]] stays untouched in a fence\n```\n"
 	bodies := map[string]string{
@@ -136,8 +135,7 @@ func TestRenameRewritesReferringLinks(t *testing.T) {
 	}
 }
 
-// From TestNoteCollection::testRenameOnlyAndConcurrentEditDuringTheRewrite:
-// a rename that leaves links alone records nothing, so the old name names
+// A rename that leaves links alone records nothing, so the old name names
 // nothing; and the rewrite works on the text a note has when it gets there.
 func TestRenameWithLinksLeftAlone(t *testing.T) {
 	bodies := map[string]string{"Target.md": "target\n", "Ref.md": "before [[Target]] after\n"}
@@ -162,9 +160,8 @@ func TestRenameWithLinksLeftAlone(t *testing.T) {
 	}
 }
 
-// From TestNoteCollection::testFolderRenameRewritesQualifiedLinksOnly: a
-// folder rename records one redirect per note, and only links written with
-// the folder's path change.
+// A folder rename records one redirect per note, and only links written
+// with the folder's path change.
 func TestFolderRenameRewritesQualifiedLinksOnly(t *testing.T) {
 	bodies := map[string]string{
 		"Ideas/Target.md": "target\n",
@@ -205,7 +202,6 @@ func TestFolderRenameRewritesQualifiedLinksOnly(t *testing.T) {
 	}
 }
 
-// From TestNoteCollection::testRedirectChainCollapsesToOneHop.
 func TestRedirectChainCollapsesToOneHop(t *testing.T) {
 	bodies := map[string]string{"A.md": "the note\n", "Ref.md": "see [[A]]\n"}
 	ix := newIndex(bodies)
@@ -223,7 +219,6 @@ func TestRedirectChainCollapsesToOneHop(t *testing.T) {
 	}
 }
 
-// From TestNoteCollection::testANoteCreatedAtARedirectedPathWinsOverTheRedirect.
 func TestANoteCreatedAtARedirectedPathWins(t *testing.T) {
 	bodies := map[string]string{"A.md": "the note\n", "Ref.md": "see [[A]]\n"}
 	ix := newIndex(bodies)
@@ -243,11 +238,9 @@ func TestANoteCreatedAtARedirectedPathWins(t *testing.T) {
 	}
 }
 
-// From TestNoteCollection::testInterruptedLinkRewriteBecomesARedirect,
-// testUnfinishedRedirectRewriteResumesAtTheNextOpen and
-// testRedirectRewriteLeavesTheOpenNoteToItsSession: a table saved before
-// the rewrite finished makes the links resolve at the next open, and the
-// rewrite runs then; the open note's text is rewritten in memory.
+// A table saved before the rewrite finished makes the links resolve at the
+// next open, and the rewrite runs then; the open note's text is rewritten in
+// memory.
 func TestTheTableOutlivesAnInterruptedRewrite(t *testing.T) {
 	root := t.TempDir()
 	bodies := map[string]string{"Target.md": "the target\n", "Ref.md": "see [[Target]]\n"}

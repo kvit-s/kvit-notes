@@ -1,11 +1,10 @@
 package editor
 
-// Embeds (features.md 1.2.14, Kvit's mediakinds.cpp and EmbedBlock): an
-// image line whose address is a web page rather than a picture or a media
-// file is drawn as a card: a picture, the page's title and the site. The
-// page is fetched only when the reader presses Load preview, since reading
-// a note must not tell a web site that it was read; until then the card
-// shows the address.
+// Embeds: an image line whose address is a web page rather than a picture or
+// a media file is drawn as a card: a picture, the page's title and the site.
+// The page is fetched only when the reader presses Load preview, since
+// reading a note must not tell a web site that it was read; until then the
+// card shows the address.
 
 import (
 	"net/url"
@@ -37,7 +36,7 @@ func isEmbed(ref ImageRef) bool {
 }
 
 // isRemoteURL reports whether s has an http or https scheme, case
-// insensitively (ImageAssets::isRemote, via QUrl::scheme).
+// insensitively.
 func isRemoteURL(s string) bool {
 	sch := embedScheme(s)
 	return strings.EqualFold(sch, "http") || strings.EqualFold(sch, "https")
@@ -65,7 +64,7 @@ func embedScheme(s string) string {
 
 // isHostWithPort reports whether s is a bare host with a numeric port,
 // such as "localhost:8080/wiki", which parses as a URL whose scheme is the
-// host (ImageAssets::isHostWithPort).
+// host.
 func isHostWithPort(s string) bool {
 	i := strings.IndexByte(s, ':')
 	if i <= 0 {
@@ -90,9 +89,8 @@ func isHostWithPort(s string) bool {
 	return rest[j] == '/' || rest[j] == '?' || rest[j] == '#'
 }
 
-// normalizeEmbedURL is ImageAssets::normalizeEmbedUrl: what typed text is
-// inserted as. A bare host gains "https://"; text that cannot be a web
-// address yields "".
+// normalizeEmbedURL is what typed text is inserted as. A bare host gains
+// "https://"; text that cannot be a web address yields "".
 func normalizeEmbedURL(input string) string {
 	u := strings.TrimSpace(input)
 	if u == "" || strings.ContainsFunc(u, unicode.IsSpace) {
@@ -115,7 +113,7 @@ func normalizeEmbedURL(input string) string {
 func NormalizeEmbedURL(input string) string { return normalizeEmbedURL(input) }
 
 // isEmbedURL reports whether u is an address the embed card draws: remote
-// with no picture or media extension (ImageAssets::isEmbedUrl).
+// with no picture or media extension.
 func isEmbedURL(u string) bool {
 	if !isRemoteURL(u) {
 		return false
@@ -165,7 +163,7 @@ func escapeImageField(s string) string {
 }
 
 // formatImageRef writes an image line, preserving its alt text, width and
-// caption (src/content/imageassets.cpp).
+// caption.
 func formatImageRef(ref ImageRef) string {
 	alt := escapeImageField(ref.Alt)
 	if ref.Width > 0 {
@@ -179,7 +177,7 @@ func formatImageRef(ref ImageRef) string {
 }
 
 // SetEmbedURL rewrites an embed block's address, keeping its alt text, as
-// one undo step (the block menu's Edit URL…, EmbedBlock editEmbedUrl).
+// one undo step (the block menu's Edit URL…).
 func (e *Editor) SetEmbedURL(id int64, url string) bool {
 	b := e.Doc.Block(id)
 	if b == nil {
@@ -203,8 +201,8 @@ func (e *Editor) SetEmbedURL(id int64, url string) bool {
 }
 
 // SetEmbedSize gives embed blocks a configured width and height in px, kept
-// in their attributes (EmbedBlock embedWidth/embedHeight): 0 clears to
-// the default full-width card.
+// in their width= and height= attributes: 0 clears to the default
+// full-width card.
 func (e *Editor) SetEmbedSize(ids []int64, width, height int) {
 	set := func(id int64, key, value string) {
 		b := e.Doc.Block(id)
@@ -241,7 +239,7 @@ func (e *Editor) SetEmbedSize(ids []int64, width, height int) {
 }
 
 // videoHosts are the video addresses an embed card draws with a play
-// badge, opening externally (EmbedBlock isVideo).
+// badge, opening externally.
 var videoHosts = []string{
 	"youtube.com", "youtu.be", "vimeo.com", "dailymotion.com",
 	"dai.ly", "tiktok.com", "twitch.tv", "peertube",
@@ -262,8 +260,8 @@ func isVideoHost(address string) bool {
 	return false
 }
 
-// The card in design pixels (EmbedBlock): its height, padding and
-// corner, and the picture's size.
+// The card in design pixels: its height, padding and corner, and the
+// picture's size.
 const (
 	embedHeight = 94
 	embedPad    = 10
@@ -326,8 +324,8 @@ func (e *Editor) drawEmbed(gc *unison.Canvas, ref ImageRef, card geom.Rect) {
 		}
 	}
 	if isVideoHost(ref.Path) {
-		// The play affordance over a video host's thumbnail, as
-		// EmbedBlock draws it; the card opens externally.
+		// The play affordance over a video host's thumbnail; the card
+		// opens externally.
 		cx, cy := thumb.X+thumb.Width/2, thumb.Y+thumb.Height/2
 		rad := e.px(15)
 		gc.DrawOval(geom.NewRect(cx-rad, cy-rad, 2*rad, 2*rad), kvitui.Color(t.TextPrimary).Paint(gc, thumb, paintstyle.Fill))
@@ -369,7 +367,7 @@ func (e *Editor) drawEmbed(gc *unison.Canvas, ref ImageRef, card geom.Rect) {
 
 // embedCard is where the embed card of row i is, when the row is an embed
 // drawn as its card: the configured width and height from its attributes,
-// or the default full-width card (EmbedBlock effectiveWidth).
+// or the default full-width card.
 func (e *Editor) embedCard(i int) (geom.Rect, ImageRef, bool) {
 	ref, ok, shows := e.pictureBlock(i)
 	if !ok || !isEmbed(ref) {

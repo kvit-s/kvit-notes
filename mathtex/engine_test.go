@@ -12,9 +12,9 @@ import (
 	"github.com/richardwilkes/unison"
 )
 
-// These go beyond the tests, over what the Go side adds: finding and
-// loading the library, the measure callback, colours, transforms, the cache
-// and the optical size. The benchmarks give the numbers in the migration
+// These tests check what mathtex_test.go does not: finding and loading the
+// library, the measure callback, colours, transforms, the cache and the
+// optical size. The benchmarks give the numbers in the migration
 // log:
 //
 //	go test -run TestLibraryAndResourcesAreFound -v ./mathtex/
@@ -134,7 +134,7 @@ func TestRotatedBoxIsDrawnRotated(t *testing.T) {
 }
 
 // The math font's x-height is the box of a math italic x, 117/256 em with its
-// small depth, as the app measured it.
+// small depth.
 func TestOpticalMathSize(t *testing.T) {
 	needEngine(t)
 	for _, c := range []struct {
@@ -322,9 +322,9 @@ func TestSelfTest(t *testing.T) {
 	}
 }
 
-// Text style is set on the whole formula rather than by wrapping the TeX in
-// \textstyle{…} as the app did, which dropped the argument's parse errors
-// (kvitmath.cpp, parse). For TeX that typesets the two lay out the same.
+// Text style is set on the whole formula (kvitmath.cpp, parse) rather than by
+// wrapping the TeX in \textstyle{…}, which would drop the argument's parse
+// errors. For TeX that typesets, the two lay out the same.
 func TestTextStyleLaysOutAsTheQtAppsWrapping(t *testing.T) {
 	needEngine(t)
 	corpus := []string{`x^2`, `E = mc^2`, `\frac{a}{b}`, `\int_0^\infty e^{-x^2}\,dx`, `\sum_{i=1}^{n} i`,

@@ -1,14 +1,14 @@
-# kvit-notes-go
+# kvit-notes
 
 This repository is Kvit Notes, the Markdown block editor app. It is built on
-the unison toolkit (`github.com/richardwilkes/unison`) and on kvit-ui-go, the
-Kvit component library (`~/kvit-ui-go`).
+the unison toolkit (`github.com/richardwilkes/unison`) and on kvit-ui, the
+Kvit component library (`~/kvit-ui`).
 
 ## What is where
 
 | Package | What it holds |
 |---|---|
-| `editor` | The block editor as a unison widget, public so kvit-works-go and kvit-hub-go can embed it. `model.go` (blocks, Markdown in and out), `inline.go` (inline spans and which markers show), `doc.go` (every operation, and undo) know nothing of the toolkit. `editor.go` (the panel, row geometry), `layout.go` (one block's text through kvit-ui's `text` package), `draw.go`, `keys.go`, `pointer.go`, `slashmenu.go` (the / menu), `blockmenu.go`, `access.go` (what screen readers are told) and `probe.go` (positions for tests and tools). The block kinds drawn as something other than text each have a file: `image.go` (pictures and media), `embed.go` (web page cards), `callout.go` (callouts and toggles), `table.go`, `toc.go` (table of contents), `board.go` (task boards) with `cardedit.go` (a card's line and description, edited in place), `queryblock.go` (collection queries), `dropcap.go`. A Mermaid block is `diagram.go` (its drawing, controls, zoom, preview and source), `diagramdraw.go` (painting a scene), `diagramedit.go` (the gestures on the drawing), `diagramaccess.go` (what a screen reader is told of it) and `mathdiagram.go` (its `$$…$$` labels). Math is `mathblock.go` (display equations), `mathinline.go` (inline formulas, typeset in prose, cells and cards), `mathassist.go` (the `$` pair, the backslash that opens the command menu, Tab through a template's slots) and `mathmenu.go` (the command menu). `print.go` cuts the note into pages for PDF. `commands.go` is what a toolbar asks of the editor, `formatbar.go` the bar over a selection, `wikicomplete.go` the `[[` list, `links.go` following and editing links, `marks.go` the find bar's matches, `stats.go` the counts |
+| `editor` | The block editor as a unison widget, public so kvit-works and kvit-hub can embed it. `model.go` (blocks, Markdown in and out), `inline.go` (inline spans and which markers show), `doc.go` (every operation, and undo) know nothing of the toolkit. `editor.go` (the panel, row geometry), `layout.go` (one block's text through kvit-ui's `text` package), `draw.go`, `keys.go`, `pointer.go`, `slashmenu.go` (the / menu), `blockmenu.go`, `access.go` (what screen readers are told) and `probe.go` (positions for tests and tools). The block kinds drawn as something other than text each have a file: `image.go` (pictures and media), `embed.go` (web page cards), `callout.go` (callouts and toggles), `table.go`, `toc.go` (table of contents), `board.go` (task boards) with `cardedit.go` (a card's line and description, edited in place), `queryblock.go` (collection queries), `dropcap.go`. A Mermaid block is `diagram.go` (its drawing, controls, zoom, preview and source), `diagramdraw.go` (painting a scene), `diagramedit.go` (the gestures on the drawing), `diagramaccess.go` (what a screen reader is told of it) and `mathdiagram.go` (its `$$…$$` labels). Math is `mathblock.go` (display equations), `mathinline.go` (inline formulas, typeset in prose, cells and cards), `mathassist.go` (the `$` pair, the backslash that opens the command menu, Tab through a template's slots) and `mathmenu.go` (the command menu). `print.go` cuts the note into pages for PDF. `commands.go` is what a toolbar asks of the editor, `formatbar.go` the bar over a selection, `wikicomplete.go` the `[[` list, `links.go` following and editing links, `marks.go` the find bar's matches, `stats.go` the counts |
 | `vault` | A vault on disk: the scan (`scan.go`), front matter (`frontmatter.go`), `.kvit/collection.json` (`collection.go`), the lock (`lock*.go`), saving with backups and the one-time `.md.bak`, notes and folders created, renamed, moved, captured and trashed (`vault.go`), the recovery journal, backups and trash (`safety.go`), other programs' changes (`watch.go`), templates (`templates.go`), the picture folders in `.kvit/settings.json` (`vaultsettings.go`), and where a vault and the settings are found (`places*.go`) |
 | `highlight`, `links`, `search`, `export`, `kanban`, `query`, `ignore` | Code colouring by language; wiki-link scanning, resolution, backlinks and the redirects that keep links working after a rename; finding in a note, replacing, and the search index across notes; export to Markdown, HTML and text, import, and HTML to Markdown; the task board's Markdown; the collection query's spec and evaluation; the `.gitignore` rules a vault's scan follows |
 | `mermaid`, `diagram`, `textdiagram` | Diagrams: `mermaid` reads a fence into a syntax tree (flowchart, sequence, class, state and ER, each by mermaid@11.16.0's grammar) and makes the source edits behind the gestures on a drawing; `diagram` lays a tree out into a `Scene` of shapes, paths and text in logical pixels, off the interface thread, with a cache and limits; `textdiagram` is character-cell diagrams: the classifier and straightening a fence goes through when a note is opened or text pasted (`Ingest`), a grid of characters (`Canvas`), and a scene as box-drawing text (Copy as text, `fromscene.go`) |
@@ -39,8 +39,7 @@ rewritten for unison).
   the ones in the dirty rectangle. Put the editor in a `kvitui.Region` to scroll it; it takes the width it is given and is as tall as the note plus a third of the window.
 - **Line spacing.** Lines are the line height times the font's own line
   height (its ascent and descent rounded up to a pixel) apart, with the baseline at the font's ascent (`text.Options.Pitch`), and each block's text
-  height is rounded down to a whole pixel, which is what keeps rows at Kvit's
-  positions. The scenarios run at 15 px and 1.0.
+  height is rounded down to a whole pixel. The scenarios run at 15 px and 1.0.
 - **Screen readers see each block as an editable text** (a virtual child of the editor's node), and the keyboard focus is reported on the block with the caret (`FocusChild`). Text, lines and caret are in drawn offsets, so they
   match what is on the screen.
 - **Menus.** The / menu, the `[[` list and the math command menu are the editor's own panels in the Kvit window's popup layer, because the keyboard
@@ -61,7 +60,9 @@ rewritten for unison).
   an empty notes folder beside the Windows build (`try-vault`); `kvit-notes`
   with no argument opens the vault last had open.
 - **The settings are the app's own file** (`ui.json` in the user's
-  configuration folder, under `kvit-notes`).
+  configuration folder, under `kvit-notes`), made on the first start as a
+  copy of the `settings.json` of Kvit Notes versions built with Qt, whose
+  keys it keeps; that file is never written.
 - **`.kvit/redirects.json` and `.kvit/settings.json`:** the table of renamed
   notes the links follow, and a vault's picture folders. Both are written in their established format.
 
@@ -71,13 +72,13 @@ rewritten for unison).
 ./build.sh               # build every package, the math library and build/kvit-notes
 ./build.sh --test        # also gofmt check, go vet and the headless tests
 ./build.sh --shots       # the scenarios' screenshots into build/shots
-./build.sh --bench       # open, scroll and type in 1,237 blocks of Kvit's docs (KVIT_BENCH_VAULT names the folder)
+./build.sh --bench       # open, scroll and type in 1,237 blocks of Kvit Notes' docs (KVIT_BENCH_VAULT names the folder)
 ./build.sh --cross       # also kvit-notes for Windows, macOS (both) and Linux
-./build.sh --win # kvit-notes for Windows onto D:, started on the Windows desktop
+./build.sh --win         # kvit-notes for Windows onto D:, started on the Windows desktop
 ./build.sh --win-check   # the same, driven through a scripted check, read through UI Automation
 ./build.sh --run         # start kvit-notes here (needs a display)
 packaging/build-all.sh   # the downloads for every platform into dist/ (--test tries them)
-~/kvit-ui-go/tools/check-all.sh   # ./build.sh --test in every Kvit Go repository
+~/kvit-ui/tools/check-all.sh   # ./build.sh --test in every Kvit Go repository
 ```
 
 The git hook in `.githooks/pre-commit` checks the Go files a commit changes:
@@ -100,10 +101,10 @@ not run the tests, so run `./build.sh --test` before committing work
 ## Conventions
 
 - **Module path.** `github.com/kvit-s/kvit-notes`. kvit-ui comes from
-  `../kvit-ui-go` through a `replace` line, and so does kvit-ui's patched
+  `../kvit-ui` through a `replace` line, and so does kvit-ui's patched
   go-text; keep both lines.
-- **unison stays unmodified.** Anything missing goes in this repository or in kvit-ui-go, never into unison.
-- **Go only, with one exception.** The math engine, MicroTeX, stays C++ in `third_party/microtex`, built as a shared library with a C interface
+- **unison stays unmodified.** Anything missing goes in this repository or in kvit-ui, never into unison.
+- **Go only, with one exception.** The math engine, MicroTeX, is C++ in `third_party/microtex`, built as a shared library with a C interface
   (`mathtex/native`) and loaded at run time, so the Go build keeps cgo off.
   No other C or C++ goes into this repository.
 - **The library's rules apply here too:** colours only from the theme's

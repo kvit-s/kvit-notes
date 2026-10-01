@@ -1,13 +1,12 @@
 package app
 
-// HTML on the clipboard (features.md 5.1–5.3): copying from a note puts the
-// Markdown on the clipboard as text and its HTML beside it, so a mail or a
-// word processor keeps the formatting; pasting HTML, as a web page copies
-// it, turns it into Markdown by the app's rules (the export package's
-// HtmlToMarkdown port), unless it is only a wrapper round plain text, when
-// the text is pasted. Each system names HTML on the clipboard its own way:
-// "HTML Format" with a header of offsets on Windows, public.html on macOS
-// and text/html on Linux.
+// HTML on the clipboard: copying from a note puts the Markdown on the
+// clipboard as text and its HTML beside it, so a mail or a word processor
+// keeps the formatting; pasting HTML, as a web page copies it, turns it into
+// Markdown (export.HTMLToMarkdown), unless it is only a wrapper round plain
+// text, when the text is pasted. Each system names HTML on the clipboard its
+// own way: "HTML Format" with a header of offsets on Windows, public.html on
+// macOS and text/html on Linux.
 
 import (
 	"fmt"

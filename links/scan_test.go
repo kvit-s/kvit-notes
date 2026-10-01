@@ -5,9 +5,7 @@ import (
 	"testing"
 )
 
-// From TestMarkdownFormatter::testParseSpansWikiLink and
-// testParseSpansWikiLinkAliasAndHeading: where a link is and what its parts
-// are.
+// Where a link is and what its parts are.
 func TestMatchAtFindsTheParts(t *testing.T) {
 	cases := []struct {
 		text                  string
@@ -30,7 +28,7 @@ func TestMatchAtFindsTheParts(t *testing.T) {
 		{"[[ a b # H 1 | al ]]", 0, 0, 20, "a b # H 1", "a b", "H 1", "al", 11, 9, 15},
 		// "[[" wins over "[": never a [text](url) link.
 		{"[[a]](b)", 0, 0, 5, "a", "a", "", "", 1, -1, -1},
-		// Rune offsets: the emoji is one position here and two in .
+		// Rune offsets: the emoji is one position.
 		{"🙂 [[old]]", 2, 2, 7, "old", "old", "", "", 3, -1, -1},
 	}
 	for _, c := range cases {
@@ -56,8 +54,7 @@ func TestMatchAtFindsTheParts(t *testing.T) {
 	}
 }
 
-// From TestMarkdownFormatter::testWikiLinkPrecedenceAndEdges: unclosed,
-// empty and malformed forms, and an escaped opener, are text.
+// Unclosed, empty and malformed forms, and an escaped opener, are text.
 func TestMalformedLinksAreText(t *testing.T) {
 	for _, text := range []string{
 		`\[[a]]`, "[[a", "[[]]", "[[  ]]", "[[a|]]", "[[a#]]", "[[a|b|c]]", "[[a\nb]]",
@@ -72,8 +69,8 @@ func TestMalformedLinksAreText(t *testing.T) {
 	}
 }
 
-// From testWikiLinkPrecedenceAndEdges: math owns what is inside it, and
-// "![[note]]" is a "!" and an ordinary link.
+// Math owns what is inside it, and "![[note]]" is a "!" and an ordinary
+// link.
 func TestScanSkipsMathAndKeepsEmbedsAsLinks(t *testing.T) {
 	if links := Scan("$[[x]]$"); len(links) != 0 {
 		t.Errorf("inline math: %+v", links)
@@ -84,9 +81,8 @@ func TestScanSkipsMathAndKeepsEmbedsAsLinks(t *testing.T) {
 	}
 }
 
-// From TestNoteCollection::testExtractWikiLinks: targets keep their
-// heading, lose their alias, repeat, and are not found in code, math or
-// after a backslash.
+// Targets keep their heading, lose their alias, repeat, and are not found
+// in code, math or after a backslash.
 func TestTargetsAsTheQtAppExtractsThem(t *testing.T) {
 	cases := []struct {
 		body string

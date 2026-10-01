@@ -1,8 +1,8 @@
 # Packaging Kvit Notes
 
-This folder turns Kvit Notes into the files users
-download: a Windows installer and portable zip, a macOS app and disk image,
-and a Linux tar.gz, AppImage, AUR package and Flatpak manifest. The artifact
+This folder turns Kvit Notes into the files users download: a Windows
+installer and portable zip, a macOS app and disk image, and a Linux tar.gz,
+AppImage, AUR package and Flatpak manifest. The artifact
 names, the Windows installer's identity, the macOS bundle identifier and the
 Linux launcher stay stable across releases, so each package upgrades the one
 before it as the same product.
@@ -36,7 +36,7 @@ be run on its own; it writes into `dist/` and stages its files under
 ## The version
 
 Every artifact, and the version the program reports, comes from one release
-version, chosen by the same rules as the packaging:
+version, chosen by these rules:
 
 1. `KVIT_VERSION_FULL`, when it is set (`KVIT_VERSION_FULL=2.0.0-rc1 packaging/build-all.sh`);
 2. otherwise the tag being built: `GITHUB_REF_NAME` in a GitHub tag job, or a
@@ -99,11 +99,13 @@ KVIT_UPDATE_MANIFESTS=1 packaging/linux/build-linux.sh && git diff packaging/man
   `%LOCALAPPDATA%\Programs\Kvit Notes` without asking for administrator
   rights, adds a Start-menu group, optionally a desktop shortcut, and
   optionally registers `.md` files (the ProgID `KvitNotes.md` under
-  `HKCU\Software\Classes`, and an `OpenWithProgids` entry for `.md`). It keeps
-  the installer's AppId `{7B3D2E1A-9C64-4F58-A2D7-0E5F1B8C6A34}`, product
-  name and folder, so on a machine with Kvit Notes it upgrades that
-  installation in place: it installs into the same folder and
-  extends the same uninstaller.
+  `HKCU\Software\Classes`, and an `OpenWithProgids` entry for `.md`). Its
+  AppId `{7B3D2E1A-9C64-4F58-A2D7-0E5F1B8C6A34}`, product name and folder are
+  those of every Kvit Notes installer, so on a machine with Kvit Notes it
+  upgrades that installation in place: it installs into the same folder,
+  deletes the files of an earlier version built with Qt that this version
+  does not use (Qt and FFmpeg libraries, the Visual C++ runtime, Qt's plugin
+  and QML folders, Qt's licence texts), and extends the same uninstaller.
 - **The portable zip** has the same files under one top folder,
   `Kvit_Notes-<version>-windows-x64`.
 
@@ -111,7 +113,7 @@ KVIT_UPDATE_MANIFESTS=1 packaging/linux/build-linux.sh && git diff packaging/man
 
 `macos/build-macos.sh` builds the program for arm64 and x86_64 and joins the
 two with `lipo` into one universal executable; the math library is joined the
-same way. `Info.plist` keeps the app's bundle identifier `org.kvit.Notes`,
+same way. `Info.plist` has the bundle identifier `org.kvit.Notes`,
 name and icon, declares Markdown documents (`net.daringfireball.markdown`,
 `.md` and `.markdown`, as an alternative editor rather than the default one),
 is high-resolution capable, and requires macOS 13 Ventura, the oldest version
@@ -126,8 +128,8 @@ signs it (ad hoc, or with `KVIT_CODESIGN_IDENTITY` and the hardened runtime),
 checks the signature, runs `kvit-notes --help` in both architectures, makes
 the disk image with `hdiutil`, notarises it when credentials are given, and
 staples the ticket. `KVIT_REQUIRE_SIGNING=1` makes a missing identity or
-notarisation an error. The environment variables are the script's; the
-script's header lists them. To sign the app built on Linux:
+notarisation an error. The script's header lists the environment variables
+it reads. To sign the app built on Linux:
 
 ```sh
 packaging/macos/build-macos.sh --from-zip Kvit_Notes-<version>-macos-universal.zip
@@ -142,7 +144,7 @@ packaging/macos/build-macos.sh --from-zip Kvit_Notes-<version>-macos-universal.z
 - **AppImage**: the same tree as `usr/` of an AppDir whose `AppRun` is a
   link to the program, packed by appimagetool with a separately pinned
   type-2 runtime (both downloaded into `packaging/.tools` and checked by
-  SHA-256, with the script's URLs and digests). It also holds the
+  SHA-256). It also holds the
   runtime's licence texts. The build unpacks the finished AppImage and checks
   its contents against the manifest.
 - **AUR** (`aur/kvit-notes-bin/PKGBUILD`): installs the release tar.gz into
@@ -208,12 +210,12 @@ AppImage runtime (`appimage-runtime/`).
 On this WSL machine: every build step except the ones below, the Windows
 installer (Inno Setup runs on Windows, started from WSL), and both test
 scripts. `test-windows.sh` never runs the real installer, because this
-machine has the Kvit Notes installed under the same AppId and the
+machine has Kvit Notes installed under the same AppId and the
 installer would replace it; it builds a test installer from the same script
 with its own AppId (`{5E0C6B7A-3D1F-4C2B-9A8E-7F60D1B2C3A4}`), name ("Kvit
 Notes Packaging Test") and ProgID, installs it silently into
 `%TEMP%\kvit-notes-packaging-test`, checks the files, the removal of
-files placed there first, the Start-menu shortcut and the association keys,
+stand-ins for a version built with Qt placed there first, the Start-menu shortcut and the association keys,
 starts the program, uninstalls, checks that everything it wrote is gone and
 that the real product's keys did not change. `test-linux.sh` runs the
 AppImage and the unpacked tar.gz with a scratch vault and scratch settings
@@ -237,13 +239,13 @@ part of `macos/build-macos.sh` has not been run.
 4. Publish `dist/` with the disk image; publish `dist/aur/PKGBUILD` to the
    AUR and submit `dist/flatpak/org.kvit.Notes.yaml` to Flathub.
 
-## Compared with the packaging
+## Differences from the packages of the versions built with Qt
 
-The Go program is one executable plus the math library, so the
-packaging's deployment tools (windeployqt, macdeployqt, linuxdeploy and its
- plugin), the Visual C++ runtime, the LGPL checklist and the KDE
-Flatpak runtime have no counterpart here. The per-file manifests now list
-every file of each package rather than only its libraries, and the Linux
-release has a tar.gz, which the AUR package installs instead of unpacking
-the AppImage. The macOS app is universal rather than one architecture per
-build.
+Kvit Notes 1.0.0 was built with Qt. The Go program is one executable plus
+the math library, so the deployment tools those packages needed
+(windeployqt, macdeployqt, linuxdeploy and its Qt plugin), the Visual C++
+runtime, the LGPL checklist for Qt and the KDE Flatpak runtime have no
+counterpart here. The per-file manifests list every file of each package
+rather than only its libraries, and the Linux release has a tar.gz, which
+the AUR package installs instead of unpacking the AppImage. The macOS app
+is universal rather than one architecture per build.

@@ -11,14 +11,10 @@ import (
 	"testing"
 )
 
-// The app's tests/test_ignorerules.cpp, case for case.
-//
-// Three of its cases check the rules through NoteCollection (the vault scan)
-// and FileWatcher, which this package cannot import. Those cases run the
-// same files through scanVault and discoverDirectories below, which repeat
-// the walks of the app's src/repository/vaultscan.cpp and
-// src/platform/filewatcher.cpp in the parts that use the rules, and check
-// the same results.
+// The rules, checked on their own and through the walks that use them. This
+// package cannot import the vault scan or the file watcher, so three tests
+// run their files through scanVault and discoverDirectories below, which
+// repeat those walks in the parts that use the rules.
 
 func writeFile(t *testing.T, file, contents string) {
 	t.Helper()
@@ -99,11 +95,10 @@ type discovery struct {
 	opened             []string
 }
 
-// discoverDirectories walks the vault's folders as FileWatcher::watchRoot
-// and continueDiscovery do: the vault folder and git's exclude file first,
-// then breadth first, watching each folder's .gitignore when it exists and
-// every child folder that is not a link, does not start with "." and is not
-// excluded.
+// discoverDirectories walks the vault's folders as the file watcher does: the
+// vault folder and git's exclude file first, then breadth first, watching
+// each folder's .gitignore when it exists and every child folder that is not
+// a link, does not start with "." and is not excluded.
 func discoverDirectories(t *testing.T, rules *Rules) discovery {
 	t.Helper()
 	type dir struct {
@@ -150,8 +145,8 @@ func discoverDirectories(t *testing.T, rules *Rules) discovery {
 	return result
 }
 
-// isIgnoredPath is FileWatcher::isIgnoredPath: whether a change the system
-// reports at absolutePath is dropped before it reaches the refresh.
+// isIgnoredPath reports whether the file watcher drops a change the system
+// reports at absolutePath before it reaches the refresh.
 func isIgnoredPath(rules *Rules, absolutePath string, isDirectory bool) bool {
 	relative, err := filepath.Rel(filepath.FromSlash(rules.RootPath()), absolutePath)
 	if err != nil {
@@ -209,9 +204,9 @@ func TestGitPatternsAndNestedNegation(t *testing.T) {
 	}
 }
 
-// The case keeps the patterns in a SettingsStore backed by
-// settings.json. Here the settings are the same JSON object, written to
-// settings.json in a folder of its own and read back.
+// Git's exclude file and the settings list apply only to their own vault.
+// The settings are a JSON object, written to settings.json in a folder of
+// its own and read back.
 func TestInfoExcludeAndSettingsAreRootSpecific(t *testing.T) {
 	root := t.TempDir()
 	other := t.TempDir()
@@ -322,11 +317,10 @@ func TestChangingSettingsRescansAnOpenCollection(t *testing.T) {
 	}
 }
 
-// The case also checks FileWatcher::watchDegraded, which says the
-// system refused a watch; discoverDirectories registers no watches, so
-// there is nothing to check for it. The debounce the case drains is the
-// watcher's too. What it measures, that a change inside an excluded folder
-// is dropped, is isIgnoredPath here.
+// The watcher never lists an excluded folder, watches the .gitignore, and
+// drops a change inside an excluded folder (isIgnoredPath).
+// discoverDirectories registers no watches, so a watch the system refuses
+// is not checked here.
 func TestWatcherNeverEntersIgnoredDirectories(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, ".gitignore"), "build/\n")

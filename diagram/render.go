@@ -1,7 +1,6 @@
 package diagram
 
-// Parsing and layout behind a cache, a port of the app's
-// src/content/diagrams/mermaidrenderer.cpp. Render is safe to call from any
+// Parsing and layout behind a cache. Render is safe to call from any
 // goroutine, so the editor can lay a diagram out away from the event loop.
 // Results are kept by the source, the font, the direction and whether
 // formulas are typeset, in one bounded cache for the process that drops the
@@ -37,7 +36,7 @@ type RenderResult struct {
 }
 
 // renderCacheSize is how many results the cache keeps. Scenes are small, so
-// a count stands in for the app's budget of 32 MiB.
+// the cache counts results rather than bytes.
 const renderCacheSize = 96
 
 type renderKey [sha1.Size]byte
@@ -69,7 +68,7 @@ func cacheKey(source string, opts LayoutOptions) renderKey {
 // cache. The returned scene shares nothing with the cache, so the caller
 // may change it. opts.Direction is not used for a flowchart, which is laid
 // out in the direction its header names; the other families ignore it too,
-// as in the app, but it is part of the cache's key.
+// but it is part of the cache's key.
 //
 // FontFamily must name the font Measure measures in, because the cache
 // tells two fonts apart by it, and Measure and Math must be safe to call

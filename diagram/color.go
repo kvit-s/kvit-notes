@@ -1,7 +1,6 @@
 package diagram
 
-// parseCssColor of the app's src/content/diagrams/sequencelayout.cpp: the
-// colour a sequence diagram's `rect` block names.
+// The colour a sequence diagram's `rect` block names.
 
 import (
 	"math"
@@ -43,8 +42,8 @@ func parseCSSColor(raw string) mermaid.Color {
 		}
 		c := mermaid.ColorRGB(rgb[0], rgb[1], rgb[2])
 		if c.Set && len(parts) >= 4 {
-			// the toDouble reads no hexadecimal float, which ParseFloat
-			// does, and the clamp turns NaN into 0.
+			// The alpha is a decimal number: a hexadecimal float, which
+			// ParseFloat would read, is ignored, and NaN counts as 0.
 			alpha := strings.TrimSpace(parts[3])
 			if a, err := strconv.ParseFloat(alpha, 64); err == nil && !strings.ContainsAny(alpha, "xX_") {
 				if math.IsNaN(a) {

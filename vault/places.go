@@ -1,9 +1,9 @@
 package vault
 
 // Where a vault is found when none is named: the vaults open when the app
-// last closed (session.openVaults in the settings), else Documents/Kvit, as
-// the app does (src/qml/windowregistry.cpp, src/qml/processservices.cpp);
-// and the Go app's settings file, which starts as a copy of the app's.
+// last closed (session.openVaults in the settings), else Documents/Kvit; and
+// the app's settings file, which on the first start is a copy of the file at
+// SettingsPath.
 
 import (
 	"encoding/json"
@@ -13,9 +13,9 @@ import (
 	"runtime"
 )
 
-// SettingsPath is the app's own settings file: settings.json in
-// the application configuration folder for organisation "Kvit" and
-// application "Kvit Notes".
+// SettingsPath is the settings file of Kvit Notes versions built with Qt:
+// settings.json in the application configuration folder for organisation
+// "Kvit" and application "Kvit Notes".
 func SettingsPath() string {
 	var base string
 	switch runtime.GOOS {
@@ -34,7 +34,7 @@ func SettingsPath() string {
 	return filepath.Join(base, "Kvit", "Kvit Notes", "settings.json")
 }
 
-// OpenVaults are the vaults the app had open when it last closed, those
+// OpenVaults are the vaults the file at SettingsPath says were open, those
 // that still exist.
 func OpenVaults() []string { return OpenVaultsIn(SettingsPath()) }
 
@@ -66,9 +66,9 @@ func DefaultRoot() string {
 	return filepath.Join(documentsDir(), "Kvit")
 }
 
-// SeedSettings makes the Go app's own settings file, the first time it
-// runs, a copy of the app's, so the theme, typography, panes and vaults
-// carry over without the Go app ever writing the app's file.
+// SeedSettings makes the app's own settings file, the first time it runs, a
+// copy of the file at SettingsPath, so the theme, typography, panes and
+// vaults are kept. The file at SettingsPath is never written.
 func SeedSettings(goSettings string) {
 	if _, err := os.Stat(goSettings); !errors.Is(err, os.ErrNotExist) {
 		return

@@ -1,14 +1,13 @@
 package textdiagram
 
-// These tests are the app's tests/test_textdiagram.cpp, one Go test per
-// test function there and in the same order, with the same sources and
-// expectations; each name starts with FromScene so it cannot meet the
-// package's other tests. The tests lay the sources out with a real font,
-// sans-serif at 14 pixels; these lay them out through diagram.Render with a
-// fixed advance of 8 pixels a character and a line of 17, close to that
-// font. Where a test counts characters of the text, it counts UTF-16
-// units; every character counted here is one unit, so a rune count is the
-// same number, and the size limit is checked in UTF-16 units with utf16Len.
+// These tests check FromScene on flowcharts (back edges, fan-out, fan-in,
+// self-loops, subgraphs) and on sequence, class, state and ER diagrams, and
+// that it draws the same text twice and stays bounded. Each name starts
+// with FromScene so it cannot meet the package's other tests. The sources
+// are laid out through diagram.Render with a fixed advance of 8 pixels a
+// character and a line of 17, close to sans-serif at 14 pixels. Every
+// character counted here is one UTF-16 unit, so a rune count is the same
+// number, and the size limit is checked in UTF-16 units with utf16Len.
 
 import (
 	"fmt"
@@ -358,9 +357,9 @@ func TestFromSceneDeterminism(t *testing.T) {
 }
 
 // A note's arrangement comment decides where nodes sit, and so how large a
-// grid "Copy as text" builds. Two nodes pinned far apart on both axes made
-// a grid of about 2 × 10^8 cells in the app, about 500 MiB. The canvas
-// now stops at a cell limit, so the work and the text are bounded by the
+// grid "Copy as text" builds. Two nodes pinned far apart on both axes would
+// make a grid of about 2 × 10^8 cells, about 500 MiB, without a limit. The
+// canvas stops at a cell limit, so the work and the text are bounded by the
 // limit rather than by the coordinates.
 func TestFromSceneExtremePinnedCoordinatesStayBounded(t *testing.T) {
 	start := time.Now()

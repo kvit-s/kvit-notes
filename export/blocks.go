@@ -2,14 +2,12 @@ package export
 
 // The blocks an export renders. The editor models paragraphs, headings, the
 // three list kinds, quotes, callouts, code, dividers, images, media and
-// tables, and keeps everything else as Raw Markdown. The app models more:
-// a $$ fence is a maths block, a code fence whose language is kanban, toc,
-// mermaid or query renders as a board, a table of contents, a diagram or a
-// query, and a quote is split where its nesting depth changes. Each editor
-// block is read here into the block the parser would have made of the same
-// Markdown (src/domain/documentserializer.cpp, DocumentSerializer::parse, and
-// src/domain/blockkinds.cpp, kindForState), so the renderers can follow the
-// block kinds one to one.
+// tables, and keeps everything else as Raw Markdown. An export tells more
+// apart: a $$ fence is a maths block, a code fence whose language is kanban,
+// toc, mermaid or query renders as a board, a table of contents, a diagram or
+// a query, a quote is split where its nesting depth changes, and a line that
+// is one image expression is an image block of its own. Each editor block is
+// read here into these finer blocks, so that each renderer handles one kind.
 
 import (
 	"net/url"
@@ -49,7 +47,7 @@ const (
 
 func (k kind) isList() bool { return k == kBullet || k == kNumbered || k == kTodo }
 
-// block is one block as the exporter sees it (Block::State).
+// block is one block as the exporter sees it.
 type block struct {
 	kind    kind
 	level   int    // a heading's level, 1 to 4
@@ -62,7 +60,7 @@ type block struct {
 	origin  int    // the index of the editor block this came from
 }
 
-// headingLevel is BlockKindDef::headingLevel: 1 to 4, or 0.
+// headingLevel is a heading's level, 1 to 4, or 0 for any other block.
 func (b *block) headingLevel() int {
 	if b.kind == kHeading {
 		return b.level
@@ -72,11 +70,11 @@ func (b *block) headingLevel() int {
 
 var reCallout = regexp.MustCompile(`^\[!([A-Za-z][A-Za-z0-9_-]*)\]([+-]?)\s*(.*)$`)
 
-// fromEditor reads editor blocks as the parser would read the same
-// Markdown. A leading Raw block holding front matter is left out when
-// skipFrontMatter is set, since no  export renders a note's metadata as
-// part of its body; a leading Raw block that starts with "---" but is not
-// front matter by the app's rule is read as a divider and what follows.
+// fromEditor reads editor blocks into the blocks an export renders. A
+// leading Raw block holding front matter is left out when skipFrontMatter is
+// set, since no export renders a note's metadata as part of its body; a
+// leading Raw block that starts with "---" but is not front matter (see
+// splitFrontMatter) is read as a divider and what follows.
 func fromEditor(src []editor.Block, skipFrontMatter bool) []block {
 	var out []block
 	for i, b := range src {
@@ -100,8 +98,8 @@ func fromEditor(src []editor.Block, skipFrontMatter bool) []block {
 	return out
 }
 
-// rereadDashes reads text the editor took for front matter as the parser
-// reads a body that starts with "---": a divider, then the rest.
+// rereadDashes reads text the editor took for front matter as a body that
+// starts with "---": a divider, then the rest.
 func rereadDashes(text string) []block {
 	first, rest, _ := strings.Cut(text, "\n")
 	line, attrs := stripTag(first)
@@ -122,12 +120,11 @@ func rereadDashes(text string) []block {
 	return out
 }
 
-// reTag is Kvit's attribute tag at the end of a line
-// (src/content/blockattributes.cpp).
+// reTag is Kvit's attribute tag at the end of a line.
 var reTag = regexp.MustCompile(`\s*<!--kvit (.*?)-->\s*$`)
 
 // stripTag splits a trailing attribute tag off a line, returning the line
-// and the tag's payload in canonical order (BlockAttributes::stripTag).
+// and the tag's payload in canonical order.
 func stripTag(line string) (string, string) {
 	if !strings.Contains(line, "<!--kvit ") {
 		return line, ""
@@ -140,7 +137,7 @@ func stripTag(line string) (string, string) {
 }
 
 // canonicalAttrs is a payload with its keys in order, the last of a repeated
-// key winning (BlockAttributes::canonical).
+// key winning.
 func canonicalAttrs(payload string) string {
 	a := parseAttrs(payload)
 	keys := sortedKeys(a)
@@ -168,8 +165,8 @@ func convert(b editor.Block) []block {
 	case editor.Quote:
 		return quotes(b.Text, b.Attrs)
 	case editor.Callout:
-		// Written back as the quote it was read from, so that a nested line
-		// in its body ends it as the parser ends it.
+		// Written back as the quote it was read from, so that quotes splits
+		// it at a nested line in its body, as it splits any quote.
 		header := "[!" + b.Lang + "]"
 		if b.Checked {
 			header += "-"
@@ -210,9 +207,9 @@ func convert(b editor.Block) []block {
 	return paragraphs(b.Text, b.Attrs)
 }
 
-// paragraphs splits a paragraph around its image lines: the parser makes
-// a line that is exactly one image expression an image block of its own,
-// whatever is around it.
+// paragraphs splits a paragraph around its image lines: a line that is
+// exactly one image expression is an image block of its own, whatever is
+// around it.
 func paragraphs(text, attrs string) []block {
 	var out []block
 	var run []string
@@ -241,9 +238,9 @@ func paragraphs(text, attrs string) []block {
 	return out
 }
 
-// quotes splits a quote by nesting depth and recognises a callout, as the
-// parser's quote runs do: each run of lines at one depth is one block,
-// and a run whose first line is "[!type] Title" is a callout.
+// quotes splits a quote by nesting depth and recognises a callout: each run
+// of lines at one depth is one block, and a run whose first line is
+// "[!type] Title" is a callout.
 func quotes(text, attrs string) []block {
 	type line struct {
 		depth int
@@ -252,7 +249,7 @@ func quotes(text, attrs string) []block {
 	var lines []line
 	for _, l := range strings.Split(text, "\n") {
 		// The editor took one ">" and one space off; the rest are counted
-		// here the way the parser counts them.
+		// here, and a space after a ">" is taken off with it.
 		depth, rest := 1, l
 		for strings.HasPrefix(rest, ">") {
 			depth++
@@ -282,7 +279,7 @@ func quotes(text, attrs string) []block {
 }
 
 // raw reads the Markdown the editor keeps verbatim: a pipe table, a $$ fence,
-// and anything else, which the parser would read as a paragraph.
+// and anything else, which is read as a paragraph.
 func raw(text, attrs string) []block {
 	lines := strings.Split(text, "\n")
 	first, firstAttrs := stripTag(lines[0])
@@ -313,7 +310,7 @@ func raw(text, attrs string) []block {
 
 // tableBlocks is a pipe table's rows as a table block. A tag left on a data
 // row, where Kvit once wrote it, is taken off; rows that do not make a table
-// are the paragraph the parser would read them as.
+// are read as a paragraph.
 func tableBlocks(lines []string, attrs string) []block {
 	rows := make([]string, len(lines))
 	for i, l := range lines {
@@ -330,10 +327,10 @@ func tableBlocks(lines []string, attrs string) []block {
 	return paragraphs(content, attrs)
 }
 
-// ---- attributes (src/domain/blockkinds/blockstyle.cpp) ----
+// ---- attributes ----
 
-// parseAttrs is BlockAttributes::parseMap: whitespace-separated key=value
-// tokens and bare flags, a flag mapping to "".
+// parseAttrs reads a tag's payload: whitespace-separated key=value tokens
+// and bare flags, a flag mapping to "".
 func parseAttrs(payload string) map[string]string {
 	m := map[string]string{}
 	for _, tok := range strings.FieldsFunc(payload, isSpace) {
@@ -352,8 +349,7 @@ func sortedKeys(m map[string]string) []string {
 	for k := range m {
 		keys = append(keys, k)
 	}
-	// QMap orders keys by string's comparison, which for these ASCII keys is
-	// byte order.
+	// In byte order, the order a tag's payload is written in.
 	slices.Sort(keys)
 	return keys
 }
@@ -468,9 +464,8 @@ func withDropCap(html string, a map[string]string) string {
 	if start >= len(html) || html[start] == '\\' {
 		return html
 	}
-	// One character. A character outside the Basic Multilingual Plane is two
-	// UTF-16 units to , and the exporter wraps only the first of them;
-	// the whole character is wrapped here, which keeps the output valid.
+	// One character, wrapped whole even when it is outside the Basic
+	// Multilingual Plane, which keeps the output valid.
 	_, size := utf8.DecodeRuneInString(html[start:])
 	end := start + size
 	if html[start] == '&' {
@@ -488,7 +483,7 @@ func withDropCap(html string, a map[string]string) string {
 	return html[:start] + `<span class="dropcap"` + styleAttr(decls) + ">" + html[start:end] + "</span>" + html[end:]
 }
 
-// ---- pipe tables (src/content/tabledata.cpp) ----
+// ---- pipe tables ----
 
 type table struct {
 	valid   bool
@@ -566,7 +561,7 @@ func parseTable(markdown string) table {
 	return t
 }
 
-// ---- image expressions (src/content/imageassets.cpp) ----
+// ---- image expressions ----
 
 type mediaKind int
 
@@ -625,8 +620,8 @@ func lastUnescapedBar(text string) int {
 	return -1
 }
 
-// parseImageLine is ImageAssets::parseLine: one ![alt|width](path "caption")
-// expression that is the whole line.
+// parseImageLine reads one ![alt|width](path "caption") expression that is
+// the whole line.
 func parseImageLine(line string) imageExpr {
 	var p imageExpr
 	m := reImage.FindStringSubmatch(line)
@@ -713,7 +708,7 @@ func urlHost(u string) string {
 	return strings.ToLower(parsed.Hostname())
 }
 
-// ---- task boards (src/content/kanbandata.cpp, the reading half) ----
+// ---- task boards, reading only ----
 
 type card struct {
 	title       string
@@ -770,7 +765,7 @@ func applyEdits(text string, edits []edit) string {
 	return text
 }
 
-// simplified is string::simplified: whitespace runs to one space, trimmed.
+// simplified turns each run of whitespace into one space and trims the ends.
 func simplified(s string) string { return strings.Join(strings.FieldsFunc(s, isSpace), " ") }
 
 func parseCardBody(rest string, c *card) {
@@ -820,8 +815,8 @@ func leadingIndent(line string) string {
 	return line[:i]
 }
 
-// parseBoard reads a kanban fence into columns of cards (KanbanData::parse),
-// keeping only what an export shows.
+// parseBoard reads a kanban fence into columns of cards, keeping only what an
+// export shows.
 func parseBoard(content string) board {
 	var b board
 	if content == "" {

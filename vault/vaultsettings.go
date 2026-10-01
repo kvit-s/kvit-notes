@@ -1,10 +1,9 @@
 package vault
 
-// A vault's own settings (src/repository/vaultsettings.cpp): where a
-// picture path starting with "/" is read from (the site folder, found for a
-// Hugo site and otherwise the vault's folder) and where new pictures are
-// saved (assets/, or images/ in the site folder), each changeable in
-// Settings, This vault, and kept in .kvit/settings.json.
+// A vault's own settings: where a picture path starting with "/" is read from
+// (the site folder, found for a Hugo site and otherwise the vault's folder)
+// and where new pictures are saved (assets/, or images/ in the site folder),
+// each changeable in Settings, This vault, and kept in .kvit/settings.json.
 
 import (
 	"encoding/json"

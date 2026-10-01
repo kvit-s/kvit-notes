@@ -1,9 +1,9 @@
 package main
 
-// --bench: timings on a long note, to compare with the figures in Kvit's
-// selection.md "Sizing" and with the Shirei prototype's: 1,237 blocks of
-// Kvit's own documentation, opened, scrolled a wheel notch at a time, and
-// typed into, on unison's headless screen with its software renderer.
+// --bench: timings on a long note, to compare with the Shirei prototype's:
+// 1,237 blocks of Kvit Notes' own documentation, opened, scrolled a wheel
+// notch at a time, and typed into, on unison's headless screen with its
+// software renderer.
 
 import (
 	"fmt"
@@ -20,7 +20,8 @@ import (
 	"github.com/richardwilkes/unison/enums/mod"
 )
 
-// longNote is Kvit Notes' own documentation, from its  repository.
+// longNote is Kvit Notes' own documentation: the five files below, which
+// this repository has at the tag v1.0.0, read from dir.
 func longNote(dir string) string {
 	var parts []string
 	for _, f := range []string{"features.md", "block-arch.md", "selection.md", "devel.md", "accessibility.md"} {
@@ -42,7 +43,7 @@ func runBench(docs string) error {
 	if len(blocks) == 0 {
 		return fmt.Errorf("no Kvit documentation found in %s", docs)
 	}
-	// Kvit's own measurement used 1,237 blocks.
+	// The first 1,237 blocks, so every run times the same note.
 	blocks = blocks[:min(len(blocks), 1237)]
 	dr, err := startDriver("", "", storyWidth, storyHeight)
 	if err != nil {

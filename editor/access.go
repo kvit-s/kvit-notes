@@ -1,12 +1,12 @@
 package editor
 
-// What a screen reader is told. Each block in view is an editable text, as
-// in Kvit (accessibility.md): named by its kind ("Heading 2 block"), with a
-// to-do's state on the block itself, and carrying its text as drawn, its
-// lines, its styled runs, and the caret and selection when it has them. The
-// keyboard focus the editor holds is reported on the block with the caret.
-// A screen reader can move the caret, select and replace text, and tick a
-// to-do; the gutter's controls of the block under the pointer are buttons.
+// What a screen reader is told. Each block in view is an editable text: named
+// by its kind ("Heading 2 block"), with a to-do's state on the block itself,
+// and carrying its text as drawn, its lines, its styled runs, and the caret
+// and selection when it has them. The keyboard focus the editor holds is
+// reported on the block with the caret. A screen reader can move the caret,
+// select and replace text, and tick a to-do; the gutter's controls of the
+// block under the pointer are buttons.
 
 import (
 	"github.com/kvit-s/kvit-ui/text"

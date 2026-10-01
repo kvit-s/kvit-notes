@@ -1,20 +1,12 @@
 package editor
 
-// Mermaid diagram blocks. The first four tests are the functions of the
-// app's tests/test_diagramlayout.cpp that exercise the DiagramCanvas item or
-// the painter, which the diagram port left for the editor:
-//   - canvasSelectionAndLinking, its half that does not edit the diagram:
-// here through the editor's pointer and keys rather than the canvas's
-// invokable methods, which the editor has no need to expose;
-//   - resetSceneDropsLastGoodAcrossReuse: Kvit's list view reuses a delegate
-// for another block, which the Go editor never does; the canvas's reset is
-// tested as there, and so is the Go counterpart of the reported bug, a
-// block turned into a diagram from another language;
-//   - savePngWritesImage;
-//   - painterTypesetsRatherThanDrawingTheSource, with a stand-in DiagramMath,
-// so the test does not depend on the math library being built: it checks
-// that the painter takes the typesetting branch, as the test does.
-// The tests after them are not ports: switching between the drawing and the
+// Mermaid diagram blocks: selecting shapes and lines with the pointer and
+// the keys, and when the scene is current; a reset of the canvas dropping
+// the last valid scene, and a block turned into a diagram from another
+// language not showing the drawing it had before; the PNG control writing a
+// picture; the painter typesetting a math label rather than drawing its
+// source, checked with a stand-in DiagramMath so the test does not depend on
+// the math library being built; switching between the drawing and the
 // source, the preview that keeps the last valid diagram, zoom and panning,
 // Copy and Copy as text, the PNG control, what a screen reader is told,
 // printing, and the Tab and Enter keys of the source.
@@ -241,8 +233,8 @@ func TestDiagramResetSceneDropsLastGood(t *testing.T) {
 		}
 	})
 
-	// The Go counterpart of the bug: a block turned from a text diagram
-	// into Mermaid must not show the drawing the block had before.
+	// A block turned from a text diagram into Mermaid must not show the
+	// drawing the block had before.
 	s.Do(func() {
 		e.Doc.SetCodeLanguage(e.Doc.Blocks[i].ID, "diagram")
 		e.changed()
@@ -770,7 +762,7 @@ func TestDiagramAsCode(t *testing.T) {
 }
 
 // Enter inside a line's indentation copies only the indentation before
-// the caret, as Kvit's source editors do.
+// the caret.
 func TestDiagramEnterInsideIndentation(t *testing.T) {
 	src := "flowchart LR\n    A --> B"
 	s, e := openEditor(t, mermaidNote(src))
@@ -812,8 +804,8 @@ func TestDiagramSelectionEndsWhenTheCaretMoves(t *testing.T) {
 
 // Found on Windows in the dark theme: a subgraph's title, a label on a
 // light fill the diagram's own style gives, and the lines dividing a class
-// box must all show. Kvit's painter draws the title dark on dark, the label
-// light on light, and the dividers under the box's fill.
+// box must all show, so the title is not dark on dark, the label not light
+// on light, and the dividers not hidden under the box's fill.
 func TestDiagramReadsInTheDarkTheme(t *testing.T) {
 	var e *Editor
 	s := uitest.Open(t, uitest.Options{Width: 700, Height: 700, Theme: tokens.Dark}, func(ui *kvitui.UI) unison.Paneler {

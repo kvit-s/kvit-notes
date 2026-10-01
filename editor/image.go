@@ -1,11 +1,10 @@
 package editor
 
-// Pictures and media (features.md 1.2.8): a line holding nothing but
-// ![alt|width](path "caption") is an image block, or a media block when the
-// path names a sound or a video (src/content/imageassets.cpp). The line is
-// the block's text and is saved unchanged. The picture is drawn below the
-// text while the caret is in the block, so the line can be edited, and on
-// its own otherwise, with its caption under it.
+// Pictures and media: a line holding nothing but ![alt|width](path "caption")
+// is an image block, or a media block when the path names a sound or a video.
+// The line is the block's text and is saved unchanged. The picture is drawn
+// below the text while the caret is in the block, so the line can be edited,
+// and on its own otherwise, with its caption under it.
 
 import (
 	"path"
@@ -66,9 +65,9 @@ func unescapeField(s string) string {
 	return b.String()
 }
 
-// ParseImageLine reads an image line, as Kvit's ImageAssets::parseLine
-// does. It fails for anything that is not exactly one image expression
-// naming a picture, a sound, a video, or a web address.
+// ParseImageLine reads an image line. It fails for anything that is not
+// exactly one image expression naming a picture, a sound, a video, or a web
+// address.
 func ParseImageLine(line string) (ImageRef, bool) {
 	m := reImageLine.FindStringSubmatch(line)
 	if m == nil {
@@ -286,7 +285,7 @@ func (e *Editor) pictureRect(i int) geom.Rect {
 
 // pictureShift is how far right of the text's start a picture w wide is
 // drawn in block i, whose text is textW wide: in the middle, unless the block
-// is aligned left or right (features.md 9.2; ImageBlock, imageAlign).
+// is aligned left or right by its align attribute.
 func (e *Editor) pictureShift(i int, textW, w float32) float32 {
 	switch a, _ := e.Doc.Blocks[i].Attr("align"); a {
 	case "left":

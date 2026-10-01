@@ -1,7 +1,7 @@
 package highlight
 
 // The languages Kvit colours, the names it takes for them, and each
-// language's rules, from src/content/codelanguages.cpp.
+// language's rules.
 
 import (
 	"slices"
@@ -20,11 +20,9 @@ type Language struct {
 	Aliases []string
 }
 
-// menu is the language menu's list in its order (supportedLanguages in
-// codelanguages.cpp), with the names qml/LanguagePicker shows. The picker
-// has names for eleven of the languages and shows the other five by their
-// IDs, and so does this list. The aliases are in the order aliasMap in
-// codelanguages.cpp lists them.
+// menu is the language menu's list in its order, with the names the menu
+// shows: eleven of the languages have names, and the other five are shown
+// by their IDs.
 var menu = []Language{
 	{"python", "Python", []string{"py", "python3"}},
 	{"javascript", "JavaScript", []string{"js", "node", "jsx", "mjs"}},
@@ -44,10 +42,10 @@ var menu = []Language{
 	{"markdown", "Markdown", []string{"md"}},
 }
 
-// canonical maps each name and alias Kvit takes to its language's ID
-// (aliasMap in codelanguages.cpp). It has Mermaid, which the menu does not
-// offer: a mermaid fence is drawn as a diagram rather than as a code block,
-// and Mermaid's colours are for the diagram block's source editor.
+// canonical maps each name and alias Kvit takes to its language's ID. It
+// has Mermaid, which the menu does not offer: a mermaid fence is drawn as a
+// diagram rather than as a code block, and Mermaid's colours are for the
+// diagram block's source editor.
 var canonical = func() map[string]string {
 	m := map[string]string{"mermaid": "mermaid"}
 	for _, l := range menu {
@@ -87,8 +85,8 @@ const (
 	mermaidFamily
 )
 
-// rules is how a language is read (Rules in codelanguages.cpp). All but
-// family are for the shared scanner.
+// rules is how a language is read. All but family are for the shared
+// scanner.
 type rules struct {
 	family family
 	// keywords are coloured Keyword, and types Type.
@@ -131,7 +129,7 @@ func words(list string) map[string]bool {
 	return m
 }
 
-// table is each language's rules, by ID (registry in codelanguages.cpp).
+// table is each language's rules, by ID.
 var table = map[string]*rules{
 	"python": {
 		keywords: words(`and as assert async await break class continue
@@ -282,7 +280,7 @@ var table = map[string]*rules{
 		hashDirective: true,
 		calls:         true,
 	},
-	// view markup is JavaScript's scanner with view markup's object and property
+	// QML is JavaScript's scanner with QML's object and property
 	// declarations added as keywords and types.
 	"qml": {
 		keywords: words(`as break case catch const continue default
@@ -347,11 +345,10 @@ var table = map[string]*rules{
 }
 
 // mermaidKeywords are Mermaid's words that open a diagram and the statement
-// words its diagram kinds share (mermaidKeywords in codelanguages.cpp). Node
-// names are left out on purpose: a node is named whatever the author likes,
-// and leaving names in the text colour is what makes the coloured words
-// stand out. Case matters, as it does in Mermaid (classDef,
-// sequenceDiagram).
+// words its diagram kinds share. Node names are left out on purpose: a node
+// is named whatever the author likes, and leaving names in the text colour
+// is what makes the coloured words stand out. Case matters, as it does in
+// Mermaid (classDef, sequenceDiagram).
 var mermaidKeywords = words(`
 	graph flowchart sequenceDiagram classDiagram stateDiagram
 	erDiagram journey gantt pie quadrantChart mindmap
@@ -368,5 +365,5 @@ var mermaidKeywords = words(`
 
 // mermaidModifiers are the layout directions and the placement words that
 // qualify a statement, coloured Type, so that "flowchart LR" reads as a
-// statement and its argument (mermaidModifiers in codelanguages.cpp).
+// statement and its argument.
 var mermaidModifiers = words(`LR RL TB TD BT of over left right`)

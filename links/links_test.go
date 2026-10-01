@@ -2,8 +2,8 @@ package links
 
 import "testing"
 
-// Paths sort as string compares them, by UTF-16 code unit, so a character
-// beyond the Basic Multilingual Plane comes before U+E000 to U+FFFF.
+// Paths sort by UTF-16 code unit, so a character beyond the Basic
+// Multilingual Plane comes before U+E000 to U+FFFF.
 func TestCompareUTF16(t *testing.T) {
 	cases := []struct {
 		a, b string

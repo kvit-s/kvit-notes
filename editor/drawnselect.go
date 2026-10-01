@@ -1,13 +1,13 @@
 package editor
 
-// Selections of their own over blocks that draw their text (features.md
-// 2.5): the web embed card, a collection query's results and a table of
-// contents carry a character span over what they drew. Drag selects a span,
-// a double-click a word, a third click a whole line, Ctrl+A the block before
-// the document, Ctrl+C copies the text on screen as plain text (tabs between
-// cells on a line, newlines between lines), and Escape drops it. The span
-// stays inside the one block; a document-level range across such a block
-// still takes it whole with its Markdown source.
+// Selections of their own over blocks that draw their text: the web embed
+// card, a collection query's results and a table of contents have a
+// character span over what they drew. Drag selects a span, a double-click a
+// word, a third click a whole line, Ctrl+A the block before the document,
+// Ctrl+C copies the text on screen as plain text (tabs between cells on a
+// line, newlines between lines), and Escape drops it. The span stays inside
+// the one block; a document-level range across such a block still takes it
+// whole with its Markdown source.
 
 import (
 	"strings"

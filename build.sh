@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds kvit-notes-go: every package, and kvit-notes into build/.
+# Builds every package of kvit-notes, and the program into build/kvit-notes.
 #
 #   ./build.sh               build
 #   ./build.sh --test        also check formatting, run go vet and the headless tests
@@ -12,8 +12,8 @@
 #                            its window, reading what Windows' screen-reader interface
 #                            reports, saving a picture of the window and its memory
 #   ./build.sh --shots       run the scenarios and write their screenshots into build/shots
-#   ./build.sh --bench       time opening, scrolling and typing in 1,237 blocks of Kvit's
-#                            documentation, read from the folder KVIT_BENCH_VAULT names
+#   ./build.sh --bench       time opening, scrolling and typing in 1,237 blocks of Kvit
+#                            Notes' documentation, read from the folder KVIT_BENCH_VAULT names
 #   ./build.sh --run         start kvit-notes here (needs a display)
 #
 # LaTeX math is drawn by MicroTeX, a C++ engine built as a shared library the
@@ -30,8 +30,8 @@
 #
 # Everything builds with cgo off. KVIT_WIN_DIR overrides where Windows builds go
 # (default /mnt/d/projects/kvit-notes-go). KVIT_BENCH_VAULT is the notes folder
-# --bench reads, one holding Kvit's features.md, block-arch.md, selection.md,
-# devel.md and accessibility.md; it has no default, and --bench stops without it.
+# --bench reads, holding features.md, block-arch.md, selection.md, devel.md and
+# accessibility.md from the tag v1.0.0; it has no default, and --bench stops without it.
 set -euo pipefail
 cd "$(dirname "$0")"
 export CGO_ENABLED=0
@@ -50,8 +50,9 @@ for a in "$@"; do
     esac
 done
 if [ $bench = 1 ] && [ -z "${KVIT_BENCH_VAULT:-}" ]; then
-    echo "build.sh: --bench needs KVIT_BENCH_VAULT set to a notes folder holding Kvit's" \
-        "documentation (features.md, block-arch.md, selection.md, devel.md, accessibility.md)" >&2
+    echo "build.sh: --bench needs KVIT_BENCH_VAULT set to a notes folder holding Kvit Notes'" \
+        "documentation (features.md, block-arch.md, selection.md, devel.md, accessibility.md" \
+        "from the tag v1.0.0)" >&2
     exit 1
 fi
 

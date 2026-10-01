@@ -11,20 +11,12 @@ import (
 	"unicode/utf8"
 )
 
-// The tests in this file are ported from Kvit's tests/test_searchindexdb.cpp
-// and tests/test_collectionsearch.cpp; each names the test it comes from.
-// The tests of the SQLite database itself (its schema, integrity checks,
-// connections, rebuilding, freshness of files on disk, cancellation and
-// worker threads) have no counterpart: this index is in memory, is filled
-// by the caller and answers in a few milliseconds.
-//
-// The tests load notes from Markdown files. Here each note is given as
-// the text of its blocks as the reader sees it, which is what the app
-// derives from the file (CollectionSearchIndex::parseNote): markers
-// removed, a code block's source kept, front-matter tags passed as tags.
+// These tests check the search across notes. Each note is given as the text
+// of its blocks as the reader sees it: markers removed, a code block's source
+// kept, front-matter tags passed as tags.
 
 // note builds a note from its path and blocks, with the title and folder
-// the app would give it and the current time as its modification time.
+// TitleFolder gives it and the current time as its modification time.
 func note(path string, blocks ...string) Note {
 	title, folder := TitleFolder(path)
 	return Note{Path: path, Title: title, Folder: folder, Modified: time.Now(), Blocks: blocks}
@@ -61,8 +53,8 @@ func result(r Results, path string) *Result {
 	return nil
 }
 
-// testUnicodeScalarRouting: a character outside the Basic Multilingual
-// Plane is one character, and so is a letter typed with a separate accent.
+// A character outside the Basic Multilingual Plane is one character, and so
+// is a letter typed with a separate accent.
 func TestUnicodeScalarRouting(t *testing.T) {
 	cases := []struct {
 		query string
@@ -83,8 +75,7 @@ func TestUnicodeScalarRouting(t *testing.T) {
 	}
 }
 
-// testWholeWordBoundaries: one- and two-character queries match whole
-// words only.
+// One- and two-character queries match whole words only.
 func TestWholeWordBoundaries(t *testing.T) {
 	x := index(
 		note("AI research.md", "AI research"),
@@ -116,7 +107,7 @@ func TestWholeWordBoundaries(t *testing.T) {
 	}
 }
 
-// testLongSubstring: three characters or more match anywhere.
+// Three characters or more match anywhere.
 func TestLongSubstring(t *testing.T) {
 	x := index(note("Brown.md", "The brown fox jumps"), note("Cat.md", "concatenate values"))
 	if r := result(run(x, "row"), "Brown.md"); r == nil || r.MatchCount == 0 {
@@ -131,7 +122,7 @@ func TestLongSubstring(t *testing.T) {
 	}
 }
 
-// testPunctuationShortQueryInert.
+// A short query of punctuation alone finds nothing.
 func TestPunctuationShortQueryInert(t *testing.T) {
 	x := index(note("Code.md", "x :: y"))
 	if r := run(x, "::"); len(r.Notes) != 0 || r.MatchCount != 0 {
@@ -139,7 +130,7 @@ func TestPunctuationShortQueryInert(t *testing.T) {
 	}
 }
 
-// testCodeBlockVerbatimAndPunctuation: a code block's text is its source.
+// A code block's text is its source.
 func TestCodeBlockVerbatimAndPunctuation(t *testing.T) {
 	x := index(note("Ops.md", "Use the arrow", "SELECT a ->> b FROM t"))
 	r := run(x, "->>")
@@ -154,8 +145,8 @@ func TestCodeBlockVerbatimAndPunctuation(t *testing.T) {
 	}
 }
 
-// testTitleMatchesDoNotCountBody, and testMatchesTitlesAndBodies's
-// title-only note.
+// A match in a note's title finds the note but is not counted as a match in
+// its text.
 func TestTitleMatchesDoNotCountBody(t *testing.T) {
 	x := index(note("Bread recipe.md", "Knead the dough well"))
 	r := run(x, "bread")
@@ -165,7 +156,7 @@ func TestTitleMatchesDoNotCountBody(t *testing.T) {
 	}
 }
 
-// testIdenticalBlocksDistinctLocations.
+// Identical blocks are reported as separate hits, each at its own block.
 func TestIdenticalBlocksDistinctLocations(t *testing.T) {
 	x := index(note("Twins.md", "needle here", "filler", "needle here"))
 	r := run(x, "needle")
@@ -175,8 +166,7 @@ func TestIdenticalBlocksDistinctLocations(t *testing.T) {
 	}
 }
 
-// testRowCapAndMoreMatches, testRowCapIsVisibleNeverSilent: ten hits are
-// kept, and the rest are counted.
+// Ten hits are kept, and the rest are counted.
 func TestRowCapAndMoreMatches(t *testing.T) {
 	var blocks []string
 	for i := range 15 {
@@ -189,8 +179,7 @@ func TestRowCapAndMoreMatches(t *testing.T) {
 	}
 }
 
-// testFolderScopeEscapesWildcards, testFolderScopeIsRecursive: a folder
-// keeps the notes inside it at any depth, and only those.
+// A folder keeps the notes inside it at any depth, and only those.
 func TestFolderScope(t *testing.T) {
 	x := index(
 		note("a_b/note.md", "target text"),
@@ -215,7 +204,6 @@ func TestFolderScope(t *testing.T) {
 	}
 }
 
-// testTagFilterComposes.
 func TestTagFilterComposes(t *testing.T) {
 	x := index(
 		tagged(note("Bread.md", "knead the o dough"), "cooking"),
@@ -226,7 +214,6 @@ func TestTagFilterComposes(t *testing.T) {
 	}
 }
 
-// testDatePresetAndCustomRange, and TestCollectionSearch's testDatePreset.
 func TestDatePresetAndCustomRange(t *testing.T) {
 	now := time.Now()
 	day := 24 * time.Hour
@@ -267,7 +254,7 @@ func TestDatePresetAndCustomRange(t *testing.T) {
 	}
 }
 
-// testCaseAndDiacritics: case is ignored, accents are not.
+// Case is ignored, accents are not.
 func TestCaseAndDiacritics(t *testing.T) {
 	x := index(note("Beverages.md", "Café society"))
 	for query, want := range map[string]int{"CAFÉ": 1, "café": 1, "cafe": 0} {
@@ -277,7 +264,7 @@ func TestCaseAndDiacritics(t *testing.T) {
 	}
 }
 
-// testReplaceAndRemoveKeepFtsConsistent, testLiveUpdateOnSave.
+// Replacing a note and removing one change what queries find at once.
 func TestReplaceAndRemove(t *testing.T) {
 	x := index(note("Note.md", "alpha beta gamma"))
 	if len(run(x, "beta").Notes) != 1 {
@@ -299,7 +286,6 @@ func TestReplaceAndRemove(t *testing.T) {
 	}
 }
 
-// testIndexRevisionIncrements.
 func TestIndexRevisionIncrements(t *testing.T) {
 	x := &Index{}
 	if rev := x.Add(note("Rev.md", "first")); rev != 1 {
@@ -316,9 +302,9 @@ func TestIndexRevisionIncrements(t *testing.T) {
 	}
 }
 
-// oracle is the reference matcher of the suite (TestSearchIndexDb::oracle):
-// every block of every note scanned with the rules of section 4, written
-// here rune by rune and independent of the index.
+// oracle is the reference matcher: every block of every note scanned with
+// the matching rules, written here rune by rune and independent of the
+// index.
 func oracle(notes []Note, query string) Results {
 	var res Results
 	q := []rune(trim(query))
@@ -372,9 +358,8 @@ func oracle(notes []Note, query string) Results {
 	return res
 }
 
-// buildMatch is the reference snippet, the buildMatch written over runes:
-// the match's line, trimmed to 32 leading and 120 total characters with
-// ellipses.
+// buildMatch is the reference snippet, written over runes: the match's line,
+// trimmed to 32 leading and 120 total characters with ellipses.
 func buildMatch(text string, start int) (string, int) {
 	t := []rune(text)
 	lineStart := 0
@@ -452,8 +437,9 @@ func expectOracleAgreement(t *testing.T, notes []Note, queries []string) {
 	}
 }
 
-// testDifferentialOracle: ASCII, composed and decomposed Unicode, other
-// scripts, emoji, punctuation, code and formatted text.
+// The index agrees with the reference matcher on ASCII, composed and
+// decomposed Unicode, other scripts, emoji, punctuation, code and formatted
+// text.
 func TestDifferentialOracle(t *testing.T) {
 	notes := []Note{
 		note("ascii.md", "The quick brown fox jumps over the lazy dog", "AI and Go and R and R2 in one line"),
@@ -474,9 +460,8 @@ func TestDifferentialOracle(t *testing.T) {
 	})
 }
 
-// testAstralAndPrivateUseWordBoundaries: a letter beyond the Basic
-// Multilingual Plane is a letter, so it can be searched for as a word, and
-// "x" is not a word inside "𝐀x".
+// A letter beyond the Basic Multilingual Plane is a letter, so it can be
+// searched for as a word, and "x" is not a word inside "𝐀x".
 func TestAstralAndPrivateUseWordBoundaries(t *testing.T) {
 	astral := "\U0001D400"
 	if !hasWordChar(foldString(astral)) {
@@ -492,8 +477,7 @@ func TestAstralAndPrivateUseWordBoundaries(t *testing.T) {
 	}
 }
 
-// testTokenizationDifferentialOracle: private-use characters and combining
-// marks continue a word.
+// Private-use characters and combining marks continue a word.
 func TestTokenizationDifferentialOracle(t *testing.T) {
 	astral := "\U0001D400"
 	private := "\uE000"
@@ -509,7 +493,7 @@ func TestTokenizationDifferentialOracle(t *testing.T) {
 		astral, astral + "x", "x", private, "y", decomposedE, "é", "ve", combining,
 		"naïve", "caf" + decomposedE, "café", "alone", "^", "a^",
 	})
-	// Spot checks against the suite's expectations.
+	// Spot checks of the match counts.
 	x := index(notes...)
 	for query, want := range map[string]int{"y": 1, decomposedE: 1, "é": 1, "ve": 0} {
 		if got := run(x, query).MatchCount; got != want {
@@ -530,8 +514,7 @@ func TestDifferentialOracleLargeVault(t *testing.T) {
 		"café", "CAFÉ", "naïve", "мир", "straße", "é"})
 }
 
-// testHugeBlockKeepsBoundedMatches: counting is exact, and only ten hits
-// are kept.
+// In a huge block, counting is exact, and only ten hits are kept.
 func TestHugeBlockKeepsBoundedMatches(t *testing.T) {
 	block := strings.Repeat("needle ", 20000)
 	r := run(index(note("Huge.md", block)), "needle")
@@ -543,7 +526,7 @@ func TestHugeBlockKeepsBoundedMatches(t *testing.T) {
 	}
 }
 
-// vault is TestCollectionSearch::init's vault.
+// vault is the small vault several tests search.
 func vault() *Index {
 	return index(
 		note("Fox notes.md", "The quick brown fox jumps", "A second fox block"),
@@ -553,7 +536,6 @@ func vault() *Index {
 	)
 }
 
-// testEmptyQueryIsInert.
 func TestEmptyQueryIsInert(t *testing.T) {
 	for _, q := range []string{"", "   ", "\t\n"} {
 		if r := run(vault(), q); len(r.Notes) != 0 || r.MatchCount != 0 {
@@ -562,8 +544,7 @@ func TestEmptyQueryIsInert(t *testing.T) {
 	}
 }
 
-// testMatchesTitlesAndBodies, testResultShapeAndOrder: notes come in path
-// order, hits in document order with display offsets.
+// Notes come in path order, hits in document order with display offsets.
 func TestMatchesTitlesAndBodies(t *testing.T) {
 	r := run(vault(), "fox")
 	if got := paths(r); !slices.Equal(got, []string{"Fox notes.md", "Recipes/Soup/Stock.md"}) {
@@ -579,7 +560,6 @@ func TestMatchesTitlesAndBodies(t *testing.T) {
 	}
 }
 
-// testWholeWordShortQuery.
 func TestWholeWordShortQuery(t *testing.T) {
 	x := vault()
 	x.Add(note("Words.md", "an ant and analysis"))
@@ -588,8 +568,8 @@ func TestWholeWordShortQuery(t *testing.T) {
 	}
 }
 
-// testSnippetWindows: the line, with the match's place in it; a long line
-// is cut before the match with an ellipsis.
+// A snippet is the line, with the match's place in it; a long line is cut
+// before the match with an ellipsis.
 func TestSnippetWindows(t *testing.T) {
 	h := run(vault(), "fox").Notes[0].Hits[0]
 	if s, start := h.Snippet(); s != "The quick brown fox jumps" || start != 16 || h.Length != 3 {
@@ -610,8 +590,8 @@ func TestSnippetWindows(t *testing.T) {
 	}
 }
 
-// The snippet rules of buildMatch in detail: 32 characters before the
-// match, 120 in all, the match's line only, counted in characters.
+// The snippet rules in detail: 32 characters before the match, 120 in all,
+// the match's line only, counted in characters.
 func TestSnippetRules(t *testing.T) {
 	cases := []struct {
 		name, text string
@@ -664,7 +644,6 @@ func TestFoldedLengthChangeKeepsHits(t *testing.T) {
 	}
 }
 
-// testCodeBlockContentMatches.
 func TestCodeBlockContentMatches(t *testing.T) {
 	r := run(vault(), "fox in a code")
 	if len(r.Notes) != 1 || r.Notes[0].Path != "Recipes/Soup/Stock.md" || r.Notes[0].Hits[0].Block != 2 {
@@ -672,7 +651,7 @@ func TestCodeBlockContentMatches(t *testing.T) {
 	}
 }
 
-// testFolderScopeIsRecursive, testTagFilter, testFiltersCompose.
+// The folder and tag filters together.
 func TestFiltersCompose(t *testing.T) {
 	cases := []struct {
 		folder, tag string
@@ -693,9 +672,9 @@ func TestFiltersCompose(t *testing.T) {
 	}
 }
 
-// Results come in the order of string's comparison, by UTF-16 code units,
-// where a character beyond the Basic Multilingual Plane sorts before one
-// from U+E000 up.
+// Results come in the order of their paths' UTF-16 code units, where a
+// character beyond the Basic Multilingual Plane sorts before one from U+E000
+// up.
 func TestResultsAreInQtPathOrder(t *testing.T) {
 	want := []string{"A.md", "B.md", "a.md", "é.md", "😀.md", "Ａ.md"}
 	shuffled := slices.Clone(want)
@@ -711,7 +690,6 @@ func TestResultsAreInQtPathOrder(t *testing.T) {
 	}
 }
 
-// TitleFolder follows CollectionSearchIndex::parseNote.
 func TestTitleFolder(t *testing.T) {
 	cases := []struct{ path, title, folder string }{
 		{"Plain.md", "Plain", ""},
@@ -737,9 +715,8 @@ func TestQueryWithNul(t *testing.T) {
 	}
 }
 
-// testQueryPerformanceGate: a 500-note vault answers well inside the
-// suite's 45 ms budget. The budget is loose on purpose; the benchmark
-// below gives the numbers.
+// A 500-note vault answers well inside a budget of 45 ms. The budget is
+// loose on purpose; the benchmark below gives the numbers.
 func TestQueryPerformanceGate(t *testing.T) {
 	x := index(generate(500, 3)...)
 	for _, q := range []string{"needle", "paragraph", "to"} {

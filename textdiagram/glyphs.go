@@ -2,9 +2,9 @@ package textdiagram
 
 import "strings"
 
-// The characters Repair recognizes as parts of boxes and connectors, from
-// the app's diagramglyphs.h. Canvas draws only characters from these
-// sets, which is why Repair leaves a Canvas's text unchanged.
+// The characters Repair recognizes as parts of boxes and connectors. Canvas
+// draws only characters from these sets, which is why Repair leaves a
+// Canvas's text unchanged.
 
 // IsTopLeft reports whether r is a box's top-left corner.
 func IsTopLeft(r rune) bool { return strings.ContainsRune("┌┏╔╭", r) }

@@ -5,9 +5,7 @@ import (
 	"unicode/utf16"
 )
 
-// The backlinks pane, from WikiLinkIndex::backlinksTo in the app's
-// src/repository/wikilinkindex.cpp.
-
+// The rows of the backlinks pane.
 // Backlink is one note that links to another, as a row of the backlinks
 // pane. The pane shows the note's title, which is the vault's to give.
 type Backlink struct {
@@ -21,11 +19,11 @@ type Backlink struct {
 }
 
 // contextLimit is the length a context line is cut to, in UTF-16 code
-// units as the app counts.
+// units.
 const contextLimit = 200
 
 // Backlinks lists the notes that link to the note at path, sorted by path
-// as the app sorts (code unit by code unit, so capitals first). bodies
+// (UTF-16 code unit by code unit, so capitals first). bodies
 // holds every note's body, front matter removed, by path. A note's links to
 // itself are not listed, and a link resolves as Resolve says, through the
 // redirect table too.

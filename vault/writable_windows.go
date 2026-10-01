@@ -8,8 +8,8 @@ import (
 )
 
 // writable reports whether the vault's folder can be written. Windows says
-// little through permissions alone, so, as the app does, it tries: it
-// makes .kvit and a short-lived file in it.
+// little through permissions alone, so it tries: it makes .kvit and a
+// short-lived file in it.
 func writable(root string) bool {
 	dir := filepath.Join(root, ".kvit")
 	if err := os.MkdirAll(dir, 0o755); err != nil {

@@ -1,15 +1,14 @@
 package editor
 
-// Task boards (features.md 1.2.12, Kvit's KanbanBlock): a code fence of
-// language "kanban" is drawn, while the caret is elsewhere, as columns of
-// cards. A card's box ticks it done; pressing its text edits its line in
-// place, where "#label" and "📅 YYYY-MM-DD" are written as the file holds
-// them; its menu moves it to another column or deletes it. A column's header
-// folds it away, renames it, moves it left or right, adds a card to it and
-// deletes it; "+ Column" adds one. The chips above the board show only the
-// cards with a label, or hide the finished ones. Every change is the kanban
-// package's rewrite of the fence's text, one undo step each. With the caret
-// in the block its Markdown shows, as a table's does.
+// Task boards: a code fence of language "kanban" is drawn, while the caret is
+// elsewhere, as columns of cards. A card's box ticks it done; pressing its
+// text edits its line in place, where "#label" and "📅 YYYY-MM-DD" are written
+// as the file holds them; its menu moves it to another column or deletes it.
+// A column's header folds it away, renames it, moves it left or right, adds a
+// card to it and deletes it; "+ Column" adds one. The chips above the board
+// show only the cards with a label, or hide the finished ones. Every change
+// is the kanban package's rewrite of the fence's text, one undo step each.
+// With the caret in the block its Markdown shows, as a table's does.
 
 import (
 	"fmt"
@@ -38,7 +37,7 @@ func (e *Editor) boardShows(i int) bool {
 	return isBoard(b) && !(e.Doc.Focused && e.Doc.Caret.Block == b.ID)
 }
 
-// The board in design pixels (KanbanBlock).
+// The board in design pixels.
 const (
 	boardPad      = 8
 	boardFilterH  = 26
@@ -246,7 +245,7 @@ func (e *Editor) layBoard(b *Block, width float32) *boardLayout {
 					h = chipY - cy + e.px(boardChipH+4)
 				}
 				// The hovered card offers + tag, and + due when it has no
-				// due date yet: the chip row's way in, as in Kvit.
+				// due date yet: the chip row's way in.
 				if e.boardHoverID == b.ID && e.boardHoverCol == ci && e.boardHoverIdx == k {
 					box.hasAdd = true
 					if len(box.chips) == 0 {
@@ -272,7 +271,7 @@ func (e *Editor) layBoard(b *Block, width float32) *boardLayout {
 				}
 				if card.Description != "" {
 					// Drawn as a prose block draws its text: markers hidden,
-					// math typeset (features.md 1.2.12).
+					// math typeset.
 					box.desc, box.descProj = e.inlineText(card.Description, small, inner)
 					_, dh := box.desc.Size()
 					h += dh + e.px(4)
@@ -524,7 +523,7 @@ func (e *Editor) boardPress(i int, where geom.Point, right bool) bool {
 			return true
 		}
 		// The chip row answers chip by chip; a press there is never the
-		// card's (KanbanBlock metaRow).
+		// card's.
 		if hit, ok := e.cardChipAt(c, p); ok {
 			e.actOnCardChip(i, c, hit)
 			return true
@@ -565,8 +564,7 @@ func (e *Editor) boardPress(i int, where geom.Point, right bool) bool {
 				return true
 			}
 			// A press on a header renames it when let go where it was,
-			// and drags the column when moved, as Kvit's header does
-			// ("Click to rename, drag to reorder").
+			// and drags the column when moved.
 			e.colDrag = &colDragState{block: id, from: ci, start: where, slot: -1}
 		}
 		return true

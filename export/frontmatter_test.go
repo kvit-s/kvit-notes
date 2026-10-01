@@ -2,8 +2,7 @@ package export
 
 import "testing"
 
-// Front matter is recognised by the app's rule (testSplitRecognition in
-// tests/test_notefrontmatter.cpp).
+// Which note texts start with front matter and which do not.
 func TestSplitRecognition(t *testing.T) {
 	cases := []struct {
 		name, text string
@@ -40,9 +39,9 @@ func TestSplitRecognition(t *testing.T) {
 	}
 }
 
-// A note's front matter is written in the app's canonical form
-// (testSerializeCanonicalOrder, testSerializeTagQuoting,
-// testSerializeUnknownLinesAfterKnown, testParseTagsForms).
+// A note's front matter is written in the canonical form: the known keys in
+// their order, tags quoted where they need it, unknown lines after the known
+// ones, and each form of tag list and created date read.
 func TestCanonicalFrontMatter(t *testing.T) {
 	cases := []struct{ in, want string }{
 		{"---\nfavorite: true\npinned: true\ncreated: 2026-07-06T10:30:00\ntags: [b, a]\n---\n",

@@ -13,8 +13,7 @@ import (
 // lollipop) on solid or dotted lines with cardinalities and labels,
 // annotations, one level of namespaces, notes, direction, and classDef,
 // style and cssClass. Interactivity (click, callback, link, href) is kept
-// with a warning, never refused as an unknown statement. It is a port of the
-// app's mermaidclass.cpp.
+// with a warning, never refused as an unknown statement.
 
 // stripClassComment cuts a `%%` comment off a line, outside quotes and
 // backquotes.
@@ -265,8 +264,8 @@ func (p *classParser) parseRelation(line string, lineNo int) bool {
 
 	// Quoted cardinalities next to the relation.
 	if strings.HasSuffix(left, `"`) {
-		// string::lastIndexOf from size-2; from -1 searches the whole of a
-		// one-character string.
+		// The opening quote is the last one before the closing quote. A
+		// left side that is only `"` counts as its own opening quote.
 		open := 0
 		if len(left) > 1 {
 			open = strings.LastIndexByte(left[:len(left)-1], '"')

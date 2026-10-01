@@ -1,20 +1,16 @@
 // Package ignore decides which files and folders a walk over a vault leaves
-// out. It is a port of the app's src/platform/ignorerules.h and
-// ignorerules.cpp, and the scan, the file watcher and the file tree all use
-// the same rules, so a file excluded from one is excluded from all.
+// out. The scan, the file watcher and the file tree all use the same rules,
+// so a file excluded from one is excluded from all.
 //
 // The patterns use gitignore syntax and come from three places, applied in
 // this order:
 //   - git's exclude file, .git/info/exclude, when the vault folder is a git
-//
-// repository or a git worktree;
+//     repository or a git worktree;
 //   - the .gitignore file in the vault folder and in each folder below it,
-//
-// each applying to the paths under its own folder;
+//     each applying to the paths under its own folder;
 //   - a list of patterns the user sets for the vault, kept in the app's
-//
-// settings under SettingsKey, for folders that are not repositories or
-// that need exclusions beyond git's.
+//     settings under SettingsKey, for folders that are not repositories or
+//     that need exclusions beyond git's.
 //
 // A path is excluded when the last pattern that matches it is not a
 // negation (a line starting with "!"), as in git. Because the settings list
@@ -29,8 +25,8 @@
 //
 // Relative paths are relative to the vault folder and use "/"; a backslash
 // is also taken as a separator on Windows. Absolute paths returned by this
-// package use "/" on every system, as the app's do, since the settings
-// list is keyed by the vault folder's path in that form.
+// package use "/" on every system, since the settings list is keyed by the
+// vault folder's path in that form.
 package ignore
 
 import (
@@ -46,17 +42,17 @@ import (
 )
 
 // SettingsKey is the settings key under which the additional patterns are
-// kept (IgnoreRules::SettingsKey). Its value is an object mapping each
-// vault folder, in the form Rules.RootPath returns, to that vault's list:
+// kept. Its value is an object mapping each vault folder, in the form
+// Rules.RootPath returns, to that vault's list:
 //
 //	"vault.ignorePatternsByRoot": {"/home/me/Notes": ["node_modules/", "dist/**"]}
 const SettingsKey = "vault.ignorePatternsByRoot"
 
-// Rules is one vault's exclusion policy (the object IgnoreRules): the
-// vault folder and the additional patterns from the settings. The ignore
-// files themselves are read by Snapshot, so a changed .gitignore applies
-// from the next Snapshot on. The methods may be called from any goroutine.
-// The zero value has no vault folder and excludes nothing.
+// Rules is one vault's exclusion policy: the vault folder and the additional
+// patterns from the settings. The ignore files themselves are read by
+// Snapshot, so a changed .gitignore applies from the next Snapshot on. The
+// methods may be called from any goroutine. The zero value has no vault
+// folder and excludes nothing.
 type Rules struct {
 	mu                 sync.Mutex
 	rootPath           string
@@ -82,13 +78,12 @@ func (r *Rules) RootPath() string {
 }
 
 // SetRootPath moves the rules to the vault folder root, whose additional
-// patterns are additional (IgnoreRules::setRootPath, which reads them from
-// the settings; LoadAdditionalPatterns does that here). It reports whether
-// the folder changed. When it did not, the patterns are left as they are.
+// patterns are additional (the caller reads them from the settings with
+// LoadAdditionalPatterns). It reports whether the folder changed. When it did
+// not, the patterns are left as they are.
 //
 // Revision does not change: the owner that moves the rules to another vault
-// walks the new vault itself, which is what the app's only caller,
-// NoteCollection, asks for by passing notify=false.
+// walks the new vault itself.
 func (r *Rules) SetRootPath(root string, additional []string) bool {
 	normalized := normalizedRoot(root)
 	r.mu.Lock()
@@ -108,11 +103,10 @@ func (r *Rules) AdditionalPatterns() []string {
 	return slices.Clone(r.additionalPatterns)
 }
 
-// SetAdditionalPatterns replaces the patterns from the settings
-// (IgnoreRules::setAdditionalPatterns). Blank patterns and repeated ones
-// are dropped, and the order is kept. It reports whether the list changed;
-// a change adds one to Revision, and the caller then saves the list with
-// StoreAdditionalPatterns and walks the vault again.
+// SetAdditionalPatterns replaces the patterns from the settings. Blank
+// patterns and repeated ones are dropped, and the order is kept. It reports
+// whether the list changed; a change adds one to Revision, and the caller
+// then saves the list with StoreAdditionalPatterns and walks the vault again.
 func (r *Rules) SetAdditionalPatterns(patterns []string) bool {
 	normalized := normalizedPatterns(patterns)
 	r.mu.Lock()
@@ -134,19 +128,18 @@ func (r *Rules) Revision() int {
 	return r.revision
 }
 
-// Reload records that a .gitignore or git's exclude file changed on disk
-// (IgnoreRules::reload). Snapshots read those files afresh, so all it does
-// is add one to Revision.
+// Reload records that a .gitignore or git's exclude file changed on disk.
+// Snapshots read those files afresh, so all it does is add one to Revision.
 func (r *Rules) Reload() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.revision++
 }
 
-// IsExcluded reports whether relativePath is excluded, reading the
-// .gitignore of every folder above it (IgnoreRules::isExcluded). It is for
-// a single path, such as one a file watcher reports; a walk uses a Snapshot,
-// which reads each folder's file once.
+// IsExcluded reports whether relativePath is excluded, reading the .gitignore
+// of every folder above it. It is for a single path, such as one a file
+// watcher reports; a walk uses a Snapshot, which reads each folder's file
+// once.
 func (r *Rules) IsExcluded(relativePath string, isDirectory bool) bool {
 	parent := path.Dir(cleanRelative(relativePath))
 	rules := r.Snapshot()
@@ -157,8 +150,7 @@ func (r *Rules) IsExcluded(relativePath string, isDirectory bool) bool {
 }
 
 // Snapshot reads git's exclude file and the vault folder's .gitignore and
-// returns the policy for the entries of the vault folder
-// (IgnoreRules::snapshot).
+// returns the policy for the entries of the vault folder.
 func (r *Rules) Snapshot() Snapshot {
 	r.mu.Lock()
 	root, patterns := r.rootPath, r.additionalPatterns
@@ -179,7 +171,7 @@ func (r *Rules) Snapshot() Snapshot {
 
 // IsRulesFile reports whether absolutePath is git's exclude file for the
 // vault or a .gitignore file anywhere below the vault folder, so that a
-// change to it calls for Reload (IgnoreRules::isRulesFile).
+// change to it calls for Reload.
 func (r *Rules) IsRulesFile(absolutePath string) bool {
 	root := r.RootPath()
 	if root == "" || absolutePath == "" {
@@ -192,11 +184,10 @@ func (r *Rules) IsRulesFile(absolutePath string) bool {
 	return strings.HasPrefix(clean, root+"/") && path.Base(clean) == ".gitignore"
 }
 
-// LoadAdditionalPatterns returns the patterns kept for the vault folder
-// root in value, the settings value under SettingsKey
-// (IgnoreRules::loadAdditionalPatterns). value is the object as decoded
-// from JSON, or as returned by StoreAdditionalPatterns; anything else holds
-// no patterns.
+// LoadAdditionalPatterns returns the patterns kept for the vault folder root
+// in value, the settings value under SettingsKey. value is the object as
+// decoded from JSON, or as returned by StoreAdditionalPatterns; anything else
+// holds no patterns.
 func LoadAdditionalPatterns(value any, root string) []string {
 	root = normalizedRoot(root)
 	if root == "" {
@@ -207,10 +198,9 @@ func LoadAdditionalPatterns(value any, root string) []string {
 }
 
 // StoreAdditionalPatterns returns a copy of value, the settings value under
-// SettingsKey, with the list for the vault folder root replaced by
-// patterns, or removed when there are none
-// (IgnoreRules::storeAdditionalPatterns). The lists of other vaults are
-// kept. With an empty root the copy is returned unchanged.
+// SettingsKey, with the list for the vault folder root replaced by patterns,
+// or removed when there are none. The lists of other vaults are kept. With an
+// empty root the copy is returned unchanged.
 func StoreAdditionalPatterns(value any, root string, patterns []string) map[string]any {
 	roots := map[string]any{}
 	if old, ok := value.(map[string]any); ok {
@@ -233,8 +223,7 @@ func StoreAdditionalPatterns(value any, root string, patterns []string) map[stri
 	return roots
 }
 
-// stringList reads a settings value as a list of strings, as the
-// QVariant::toStringList does for the values JSON holds: a list gives its
+// stringList reads a settings value as a list of strings: a list gives its
 // elements, with numbers and booleans written as text, and a single string
 // gives a list of one.
 func stringList(v any) []string {
@@ -260,11 +249,10 @@ func stringList(v any) []string {
 	return nil
 }
 
-// Snapshot is the policy at one folder of a walk: the rules of git's
-// exclude file, of every .gitignore from the vault folder down to this
-// folder, and of the settings (IgnoreRules::Snapshot). It is an immutable
-// value; WithDirectory and ThroughDirectory return new ones. The zero value
-// excludes nothing.
+// Snapshot is the policy at one folder of a walk: the rules of git's exclude
+// file, of every .gitignore from the vault folder down to this folder, and of
+// the settings. It is an immutable value; WithDirectory and ThroughDirectory
+// return new ones. The zero value excludes nothing.
 type Snapshot struct {
 	rootPath           string
 	gitInfoExcludePath string
@@ -280,10 +268,9 @@ func (s Snapshot) RootPath() string { return s.rootPath }
 // repository or worktree. A watcher watches it for changes.
 func (s Snapshot) GitInfoExcludePath() string { return s.gitInfoExcludePath }
 
-// IsExcluded reports whether relativePath is excluded
-// (IgnoreRules::Snapshot::isExcluded). isDirectory says whether the entry
-// is a folder, which a pattern ending in "/" needs to match the entry
-// itself. The vault folder and paths outside it are never excluded.
+// IsExcluded reports whether relativePath is excluded. isDirectory says
+// whether the entry is a folder, which a pattern ending in "/" needs to match
+// the entry itself. The vault folder and paths outside it are never excluded.
 func (s Snapshot) IsExcluded(relativePath string, isDirectory bool) bool {
 	cleaned := cleanRelative(relativePath)
 	if cleaned == "" || cleaned == ".." || strings.HasPrefix(cleaned, "../") {
@@ -311,10 +298,10 @@ func (s Snapshot) IsExcluded(relativePath string, isDirectory bool) bool {
 	return excluded
 }
 
-// WithDirectory adds the .gitignore of relativeDir and returns the policy
-// for that folder's children (IgnoreRules::Snapshot::withDirectory). A walk
-// calls it on entering each folder, one level at a time. The vault folder's
-// own .gitignore is already in every snapshot, so "" returns s unchanged.
+// WithDirectory adds the .gitignore of relativeDir and returns the policy for
+// that folder's children. A walk calls it on entering each folder, one level
+// at a time. The vault folder's own .gitignore is already in every snapshot,
+// so "" returns s unchanged.
 func (s Snapshot) WithDirectory(relativeDir string) Snapshot {
 	cleaned := cleanRelative(relativeDir)
 	if cleaned == "" {
@@ -329,10 +316,9 @@ func (s Snapshot) WithDirectory(relativeDir string) Snapshot {
 	return s
 }
 
-// ThroughDirectory adds the .gitignore of every folder from the vault
-// folder down to relativeDir, for a walk that starts below the vault
-// folder, such as a rescan of one changed folder
-// (IgnoreRules::Snapshot::throughDirectory).
+// ThroughDirectory adds the .gitignore of every folder from the vault folder
+// down to relativeDir, for a walk that starts below the vault folder, such as
+// a rescan of one changed folder.
 func (s Snapshot) ThroughDirectory(relativeDir string) Snapshot {
 	result := s
 	accumulated := ""
@@ -351,8 +337,7 @@ func (s Snapshot) ThroughDirectory(relativeDir string) Snapshot {
 }
 
 // IgnoreFileForDirectory returns the path of the .gitignore of relativeDir,
-// whether or not it exists, or "" when the snapshot has no vault folder
-// (IgnoreRules::Snapshot::ignoreFileForDirectory).
+// whether or not it exists, or "" when the snapshot has no vault folder.
 func (s Snapshot) IgnoreFileForDirectory(relativeDir string) string {
 	if s.rootPath == "" {
 		return ""
@@ -364,9 +349,8 @@ func (s Snapshot) IgnoreFileForDirectory(relativeDir string) string {
 	return joinPath(dir, ".gitignore")
 }
 
-// readRuleFile reads an ignore file whose rules apply below baseDir
-// (IgnoreRules::readRuleFile). A file that is missing or cannot be read
-// has no rules.
+// readRuleFile reads an ignore file whose rules apply below baseDir. A file
+// that is missing or cannot be read has no rules.
 func readRuleFile(file, baseDir string) ruleGroup {
 	if file == "" {
 		return ruleGroup{baseDir: baseDir}
@@ -375,20 +359,18 @@ func readRuleFile(file, baseDir string) ruleGroup {
 	if err != nil {
 		return ruleGroup{baseDir: baseDir}
 	}
-	// The app reads the file through a QTextStream set to UTF-8, which
-	// skips a byte order mark and decodes invalid bytes as U+FFFD, and it
-	// opens the file in text mode, which drops the "\r" of a "\r\n" line
-	// end. compileRule removes that "\r" here.
+	// The file is read as UTF-8: a byte order mark is skipped, invalid
+	// bytes are decoded as U+FFFD, and the "\r" of a "\r\n" line end is
+	// dropped (compileRule removes it).
 	text := strings.ToValidUTF8(strings.TrimPrefix(string(data), "\uFEFF"), "\uFFFD")
 	text = strings.TrimSuffix(text, "\n")
 	return compilePatterns(strings.Split(text, "\n"), baseDir)
 }
 
-// gitInfoExcludeForRoot returns the path of git's exclude file for the
-// vault folder root, or "" when root has no .git (IgnoreRules::
-// gitInfoExcludeForRoot). A .git folder holds it directly. A .git file,
-// which git writes for a worktree or a submodule, names the folder that
-// holds it on a first line of the form "gitdir: <path>".
+// gitInfoExcludeForRoot returns the path of git's exclude file for the vault
+// folder root, or "" when root has no .git. A .git folder holds it directly.
+// A .git file, which git writes for a worktree or a submodule, names the
+// folder that holds it on a first line of the form "gitdir: <path>".
 func gitInfoExcludeForRoot(root string) string {
 	if root == "" {
 		return ""
@@ -428,10 +410,9 @@ func firstLine(file string) string {
 	return strings.TrimSpace(strings.ToValidUTF8(line, "\uFFFD"))
 }
 
-// cleanRelative puts a relative path in the form the rules match against:
-// "/" as the separator, no leading "./", no "." or empty segments, and ""
-// for the vault folder itself (cleanRelative in the source, which uses
-// cleanPath).
+// cleanRelative puts a relative path in the form the rules match against: "/"
+// as the separator, no leading "./", no "." or empty segments, and "" for the
+// vault folder itself.
 func cleanRelative(p string) string {
 	p = filepath.ToSlash(p)
 	for strings.HasPrefix(p, "./") {
@@ -448,7 +429,7 @@ func cleanRelative(p string) string {
 }
 
 // normalizedRoot returns root as an absolute, cleaned path with "/" as the
-// separator, or "" for "" (IgnoreRules::normalizedRoot).
+// separator, or "" for "".
 func normalizedRoot(root string) string {
 	if root == "" {
 		return ""
@@ -457,7 +438,7 @@ func normalizedRoot(root string) string {
 }
 
 // normalizedPatterns drops blank patterns and repeated ones and keeps the
-// order (IgnoreRules::normalizedPatterns).
+// order.
 func normalizedPatterns(patterns []string) []string {
 	var result []string
 	for _, p := range patterns {
@@ -469,9 +450,9 @@ func normalizedPatterns(patterns []string) []string {
 }
 
 // absoluteFilePath returns p made absolute against the working folder and
-// cleaned, with "/" as the separator, as QFileInfo::absoluteFilePath
-// returns it. On Windows  writes the drive letter in upper case, and so
-// does this, so that the settings list is found under the same key.
+// cleaned, with "/" as the separator. On Windows the drive letter is written
+// in upper case, as Kvit Notes versions built with Qt wrote it, so that a
+// settings list they saved is found under the same key.
 func absoluteFilePath(p string) string {
 	abs, err := filepath.Abs(filepath.FromSlash(p))
 	if err != nil {
@@ -483,15 +464,14 @@ func absoluteFilePath(p string) string {
 	return filepath.ToSlash(abs)
 }
 
-// isAbsolute reports whether p is absolute in the sense of the
-// directory::filePath: it starts with "/", or it is absolute on this system,
-// such as "C:/Notes" on Windows.
+// isAbsolute reports whether p is absolute: it starts with "/", or it is
+// absolute on this system, such as "C:/Notes" on Windows.
 func isAbsolute(p string) bool {
 	return strings.HasPrefix(p, "/") || filepath.IsAbs(filepath.FromSlash(p))
 }
 
 // joinPath returns name inside the folder dir, or name itself when it is
-// absolute, as directory(dir).filePath(name) does. The result is not cleaned.
+// absolute. The result is not cleaned.
 func joinPath(dir, name string) string {
 	if isAbsolute(name) {
 		return name

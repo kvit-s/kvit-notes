@@ -2,7 +2,7 @@ package editor
 
 import "testing"
 
-// The core's tests/test_blockpositions.cpp, case for case. Blocks: 0 a
+// Positions translated between Markdown and display offsets. Blocks: 0 a
 // formatted paragraph, 1 a code block, 2 a divider, 3 a paragraph whose
 // first character is a marker.
 

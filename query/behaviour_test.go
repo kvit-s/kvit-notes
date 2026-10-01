@@ -1,11 +1,9 @@
 package query
 
-// Checks beyond the suite. The expected values in these tables were
-// produced by running  6.10.1 on the same inputs (date-time::fromString
-// and QDate::fromString with ::ISODate, string::toDouble,
-// string::compare and string::contains with ::CaseInsensitive), so they
-// hold this package to what the app does in the cases the suite does
-// not reach. The error messages are the strings in querydata.cpp.
+// Checks of the cases query_test.go does not reach: how dates, numbers and
+// text are read, compared and matched, and the parse error messages. The
+// expected values in these tables were recorded from the earlier Qt version
+// of Kvit Notes, given the same inputs.
 
 import (
 	"math"
@@ -99,9 +97,9 @@ func TestParseCondition(t *testing.T) {
 			t.Errorf("parseCondition(%q) = %+v, want %+v", c.text, got, c.want)
 		}
 	}
-	// matches the word operators case-insensitively in ASCII only, so a
-	// long s does not stand for "s" there; it does in the " exists" suffix,
-	// which  matches as a string.
+	// The word operators are matched ignoring ASCII case only, so a long s
+	// does not stand for "s" there; it does in the " exists" suffix, which
+	// is matched with full case folding.
 	if _, err := parseCondition("title ſontainſ x"); err == nil {
 		t.Error("long s matched the contains operator")
 	}
@@ -256,14 +254,14 @@ func TestSortNotesUsesUTF16Order(t *testing.T) {
 	for _, n := range notes {
 		got = append(got, n.Path)
 	}
-	// A character above U+FFFF is stored as surrogates, which sort below
-	// U+E000.
+	// A character above U+FFFF sorts by its UTF-16 surrogates, which sort
+	// below U+E000.
 	if want := []string{"B", "a", "b", "\U0001F600", ""}; !slices.Equal(got, want) {
 		t.Errorf("order = %q, want %q", got, want)
 	}
 }
 
-// typedCases lists how  6.10.1 reads each text: "date" with the wall-clock
+// typedCases lists how each text is read: "date" with the wall-clock
 // time and "local", "utc" or the UTC offset in seconds; "number" with the
 // value; or "text".
 var typedCases = []struct{ text, kind, detail string }{
@@ -502,7 +500,7 @@ func TestCompareFoldMatchesQt(t *testing.T) {
 		{"İ", "i", 1, false},
 		{"ı", "I", 1, false},
 		{"ǅ", "ǆ", 0, true},
-		// Folds  6.10 has and Go's unicode tables lack or add.
+		// Folds Unicode 16.0 has and Go's unicode tables lack or add.
 		{"ΐ", "ΐ", 0, true},
 		{"ﬅ", "ﬆ", 0, true},
 		{"Ꭰ", "ꭰ", 0, true},

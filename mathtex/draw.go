@@ -146,9 +146,9 @@ func loadFont(path string) *mathFont {
 	return f
 }
 
-// at is the canvas font at size pixels. Glyphs are placed where MicroTeX put
-// them, as the app drew them as outlines: no hinting, and positions and
-// the baseline kept at fractions of a pixel.
+// at is the canvas font at size pixels. Glyphs are drawn as outlines where
+// MicroTeX put them: no hinting, and positions and the baseline kept at
+// fractions of a pixel.
 func (f *mathFont) at(size float32) *cfont.Font {
 	fontsMu.Lock()
 	defer fontsMu.Unlock()
@@ -334,12 +334,11 @@ func drawGlyphs(gc *unison.Canvas, cmds []command, fg unison.Color) int {
 	return n
 }
 
-// Image draws tex into a new image, as the app's MathRenderer::render
-// rasterised a formula: sizePx pixels per em, in fg, dpr device pixels per
-// logical pixel, with vpad transparent logical pixels above and below and
-// hpad left and right (SideBearingPadding says how much keeps overhanging
-// glyphs inside). The formula is placed hpad from the left edge, so a caller
-// that lines it up with a box shifts it left by hpad.
+// Image draws tex into a new image: sizePx pixels per em, in fg, dpr device
+// pixels per logical pixel, with vpad transparent logical pixels above and
+// below and hpad left and right (SideBearingPadding says how much keeps
+// overhanging glyphs inside). The formula is placed hpad from the left edge,
+// so a caller that lines it up with a box shifts it left by hpad.
 //
 // Blank TeX gives no image and no error. The ratio is capped at
 // MaxDevicePixelRatio and lowered further until the image fits in

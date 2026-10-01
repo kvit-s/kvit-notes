@@ -31,11 +31,11 @@ const (
 // MaxPinnedCoordinate is the largest distance from the origin, in logical
 // pixels, a `%% mermaid-flow:pos` line can pin a node's centre at. A
 // coordinate beyond it is clamped to it, so the node stays visible at the
-// edge. It is Diagram::kMaxPinnedCoordinate of the app's diagrambudget.h.
+// edge.
 const MaxPinnedCoordinate = 200000.0
 
-// newParseResult is a ParseResult with the app's defaults where Go's zero
-// values differ.
+// newParseResult is a ParseResult with the defaults that differ from Go's
+// zero values.
 func newParseResult() ParseResult {
 	var r ParseResult
 	r.Flowchart.ClassDefs = map[string]ClassDef{}

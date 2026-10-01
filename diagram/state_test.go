@@ -1,12 +1,9 @@
 package diagram
 
-// These tests are the layout and render functions of the app's
-// tests/test_mermaidstate.cpp, one Go test per test function and in the
-// same order, with the same sources and expectations; the parser's
-// functions of that file are ported in package mermaid. Each name has
-// "State" added, because every family's test file has a
-// layoutDeterministic. The test tells a note's line by ::DashLine; here
-// it is LineDashed.
+// These tests check the state-diagram layout and renderer: start and end
+// states with a transition, a composite state's frame around its members,
+// a note with its dashed tether, and that the same source lays out the same
+// way twice. The state-diagram parser is tested in package mermaid.
 
 import (
 	"strings"

@@ -1,8 +1,8 @@
 package app
 
-// The toolbar's File and View menus (Kvit's FileMenu and ViewMenu):
-// opening vaults and files, saving, templates, import, export and settings;
-// and which panes and modes are on, the theme, and reduced motion.
+// The toolbar's File and View menus: opening vaults and files, saving,
+// templates, import, export and settings; and which panes and modes are on,
+// the theme, and reduced motion.
 
 import (
 	"os"
@@ -235,7 +235,7 @@ func windowFor(root string) *Window {
 }
 
 // OpenVault opens a vault in a new window. An empty vault gets a first note
-// to read, as the app's does.
+// to read.
 func OpenVault(ui *kvitui.UI, root string) (*Window, error) {
 	v, err := vault.Open(root)
 	if err != nil {

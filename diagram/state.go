@@ -1,12 +1,11 @@
 package diagram
 
-// The state-diagram layout, a port of the app's
-// src/content/diagrams/statelayout.cpp. Composite states are laid out from
-// the inside out: the layered core places each composite's members in the
-// composite's own coordinates, and the composite then takes part in its
-// parent's placement as one node the size of its content. Transitions are
-// routed afterwards between the finished boxes. A note joins its state's
-// scope as a node of its own, tied to the state by a dashed line.
+// The state-diagram layout. Composite states are laid out from the inside
+// out: the layered core places each composite's members in the composite's
+// own coordinates, and the composite then takes part in its parent's
+// placement as one node the size of its content. Transitions are routed
+// afterwards between the finished boxes. A note joins its state's scope as a
+// node of its own, tied to the state by a dashed line.
 
 import (
 	"fmt"

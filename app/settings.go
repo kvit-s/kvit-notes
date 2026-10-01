@@ -1,11 +1,10 @@
 package app
 
-// The settings dialog (Kvit's SettingsDialog): Appearance (theme,
-// accent and highlight colours, interface size, motion), Typography (the
-// note's font, size, line height, block spacing, width and code font),
-// General (keeping the app in the tray, where there is one) and This vault
-// (where pictures are read from and saved). The first two are kvit-ui's
-// settings, which the app shares; the last is the vault's own
+// The settings dialog: Appearance (theme, accent and highlight colours,
+// interface size, motion), Typography (the note's font, size, line height,
+// block spacing, width and code font), General (keeping the app in the tray,
+// where there is one) and This vault (where pictures are read from and
+// saved). The first two are kvit-ui's settings; the last is the vault's own
 // .kvit/settings.json. Each change applies as it is made.
 
 import (
@@ -249,10 +248,8 @@ func typographySettings(ui *kvitui.UI, relayout func()) *unison.Panel {
 }
 
 // generalSettings is the General section: the tray (shown only where the
-// desktop has a notification area, as the app shows its tray setting),
-// remote content (off by default: opening a note is not consent) and the
-// opt-out daily update check. Keys follow the app: the tray and auto-save
-// wait are the Go app's own, network.* and updates.* are shared.
+// desktop has a notification area), remote content (off by default: opening
+// a note is not consent) and the opt-out daily update check.
 func generalSettings(ui *kvitui.UI) *unison.Panel {
 	p := newPrefs(ui)
 	eg := newEgress(p)

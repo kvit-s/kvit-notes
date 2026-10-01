@@ -1,11 +1,10 @@
 package app
 
-// Statistics and writing goals (features.md 19, Kvit's StatisticsPanel
-// and EditorStatusBar): the word count in the status line opens the
+// Statistics and writing goals: the word count in the status line opens the
 // note's counts, or the selection's, with the words written since the note
-// was opened; the goal beside it shows how far the note is towards the
-// word count set for it, kept as "goal" in its front matter, and opens the
-// dialog that sets it.
+// was opened; the goal beside it shows how far the note is towards the word
+// count set for it, kept as "goal" in its front matter, and opens the dialog
+// that sets it.
 
 import (
 	"fmt"

@@ -12,8 +12,7 @@ import (
 	"strings"
 )
 
-// The table of renamed notes, .kvit/redirects.json, from the app's
-// src/repository/linkredirects.h.
+// The table of renamed notes, .kvit/redirects.json.
 //
 // When a note is renamed or moved with its links updated, the table records
 // that the old path is now the new one, and a link naming the old path
@@ -46,16 +45,15 @@ type Redirects struct {
 	byBase  map[string][]int // basename of NormalizeTarget(From) -> entries
 }
 
-// errUnsound is returned when .kvit is a link or not a directory, which
-// the app refuses to write through (src/repository/vaultpaths.cpp).
+// errUnsound is returned when .kvit is a link or not a directory, which the
+// table is never read from or written through.
 var errUnsound = errors.New("links: .kvit is not a directory of the vault's own")
 
 // IsPlainRelativePath reports whether p is a path inside a vault in its
-// plain form, the test every path in redirects.json must pass
-// (VaultPaths::isPlainRelativePath): not empty, not absolute, no
-// backslash, and no empty, "." or ".." segment. A path starting with a
-// drive letter and a colon, or with a colon (a resource path), counts as
-// absolute on every system, as it does for the app on Windows.
+// plain form, the test every path in redirects.json must pass: not empty,
+// not absolute, no backslash, and no empty, "." or ".." segment. A path
+// starting with a drive letter and a colon, or with a colon, counts as
+// absolute on every system.
 func IsPlainRelativePath(p string) bool {
 	if p == "" || strings.HasPrefix(p, "/") || strings.HasPrefix(p, ":") || strings.Contains(p, `\`) {
 		return false
@@ -150,8 +148,8 @@ func (r *Redirects) Save(root string) error {
 	return writeAtomic(path, r.encode())
 }
 
-// encode is the table as the app's JSON document writes it in compact
-// form: keys in alphabetical order, no spaces, no newline at the end.
+// encode is the table as compact JSON: keys in alphabetical order, no
+// spaces, no newline at the end.
 func (r *Redirects) encode() []byte {
 	b := []byte(`{"redirects":[`)
 	for i, e := range r.entries {
@@ -167,8 +165,8 @@ func (r *Redirects) encode() []byte {
 	return append(b, `],"version":1}`...)
 }
 
-// appendJSONString appends s as a JSON string with the escapes: quote,
-// backslash and the control characters, everything else as UTF-8.
+// appendJSONString appends s as a JSON string, escaping the quote, the
+// backslash and the control characters and writing everything else as UTF-8.
 func appendJSONString(b []byte, s string) []byte {
 	b = append(b, '"')
 	for _, c := range []byte(s) {

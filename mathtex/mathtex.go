@@ -1,18 +1,16 @@
 // Package mathtex typesets LaTeX math for Kvit Notes: the formulas of display
-// math blocks ($$…$$) and of inline spans ($…$). It is the port of the
-// app's src/content/mathrenderer.{h,cpp}.
+// math blocks ($$…$$) and of inline spans ($…$).
 //
-// The typesetting is done by MicroTeX, the C++ engine the app vendored,
-// which stays C++: it is built as a shared library (kvitmath.dll,
-// libkvitmath.dylib, libkvitmath.so, from third_party/microtex and
-// mathtex/native by tools/build-mathlib.sh) that this package loads at run
-// time and calls without cgo, through purego on Linux and macOS and through
-// the system's DLL loader on Windows. The library lays a formula out and
-// records what drawing it would do: which character of which font file goes
-// where, and the lines and rectangles. This package draws those on a unison
-// canvas with the same font files. When the library or its resources are not
-// found, math is off: Available is false, LoadError says why, and the editor
-// shows the TeX source.
+// The typesetting is done by MicroTeX, a C++ engine, built as a shared
+// library (kvitmath.dll, libkvitmath.dylib, libkvitmath.so, from
+// third_party/microtex and mathtex/native by tools/build-mathlib.sh) that
+// this package loads at run time and calls without cgo, through purego on
+// Linux and macOS and through the system's DLL loader on Windows. The library
+// lays a formula out and records what drawing it would do: which character of
+// which font file goes where, and the lines and rectangles. This package
+// draws those on a unison canvas with the same font files. When the library
+// or its resources are not found, math is off: Available is false, LoadError
+// says why, and the editor shows the TeX source.
 //
 // MicroTeX is not thread-safe; every call into it holds one mutex. Rendered
 // formulas are cached by TeX, size and style.
@@ -27,12 +25,11 @@ import (
 	"unicode/utf16"
 )
 
-// Ceilings on what a formula can ask for, from the app's
-// src/content/diagrams/diagrambudget.h. A note is untrusted input, and its TeX
-// feeds sizes straight into layout and into rasters.
+// Ceilings on what a formula can ask for. A note is untrusted input, and its
+// TeX feeds sizes straight into layout and into rasters.
 const (
-	// MaxTeXChars is the longest TeX source laid out, in UTF-16 code units
-	// as counts them. Real formulas are a line or two.
+	// MaxTeXChars is the longest TeX source laid out, in UTF-16 code units.
+	// Real formulas are a line or two.
 	MaxTeXChars = 8192
 	// MaxTextSize is the largest size a formula is set at, in pixels per em.
 	MaxTextSize = 512
@@ -85,7 +82,7 @@ func normalizedTeX(tex string) string {
 	return strings.TrimSpace(tex)
 }
 
-// utf16Len is the length  gives a string: its UTF-16 code units.
+// utf16Len is the length of s in UTF-16 code units.
 func utf16Len(s string) int {
 	n := 0
 	for _, r := range s {

@@ -1,18 +1,14 @@
-// Command kvit-notes is the Go version of Kvit Notes, the Markdown block
-// editor. It opens a vault, a folder of notes, in a window with the sidebar,
-// the note list and the editor, or edits one note file on its own.
+// Command kvit-notes is Kvit Notes, the Markdown block editor. It opens a
+// vault, a folder of notes, in a window with the sidebar, the note list and
+// the editor, or edits one note file on its own.
 //
 //	kvit-notes [folder]                    open a vault: the folder, else the one
-//
-// the app had open last, else Documents/Kvit
-//
+//	                                       the app had open last, else Documents/Kvit
 //	kvit-notes note.md                     edit one note file on its own
 //	kvit-notes --scenario all --out DIR    run the scripted scenarios headlessly
 //	kvit-notes --check 12s                 drive the editor in a real window, then close
 //	kvit-notes --tray-check 20s [folder]   show the tray icon and a notification, print
-//
-// what the tray reports, then quit
-//
+//	                                       what the tray reports, then quit
 //	kvit-notes --math-selftest             find the math library, draw one formula, say how it went
 //	kvit-notes --version                   print the version
 //	kvit-notes --help                      every option
@@ -161,8 +157,8 @@ func main() {
 		}))
 }
 
-// settingsPath is the Go app's settings file: the theme, typography, panes
-// and vaults, under the app's keys. It starts as a copy of the app's.
+// settingsPath is the app's settings file: the theme, typography, panes and
+// vaults. On the first start vault.SeedSettings makes it.
 func settingsPath() string {
 	p := kvitui.DefaultSettingsPath("kvit-notes")
 	vault.SeedSettings(p)

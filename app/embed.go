@@ -128,8 +128,8 @@ func (w *Window) loadPreview(address string) {
 	}()
 }
 
-// editEmbed rewrites an embed block's address from the block menu's Edit
-// URL… (features.md 1.2.14, BlockInsertDialogs.editEmbed).
+// editEmbed rewrites an embed block's address when Edit URL… is chosen in
+// the block menu.
 func (w *Window) editEmbed(id int64, current string) {
 	ed := w.Editor
 	if ed.Doc.ReadOnly {

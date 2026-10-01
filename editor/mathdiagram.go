@@ -1,7 +1,6 @@
 package editor
 
-// The math labels of Mermaid diagrams (Kvit's diagramtext.cpp and
-// diagrampainter.cpp, diagram-math.md): a label that is one $$…$$ expression
+// The math labels of Mermaid diagrams: a label that is one $$…$$ expression
 // is typeset in display style at the optical size of the diagram's text, and
 // drawn centred in the box the layout sized from the same measurement. The
 // diagram block asks through Editor.DiagramMath, which the editor sets to

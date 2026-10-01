@@ -2,12 +2,9 @@ package vault
 
 // A note's front matter: the YAML block between "---" lines at the top of a
 // note, where Kvit keeps a note's tags, creation date, pinned and favourite
-// marks and writing goal (src/content/notefrontmatter.cpp). Other tools keep
-// their own keys there. The app rebuilds the block whenever it writes a
-// key; this one is more careful: the block is kept as its lines, and a change
-// rewrites only the key it changes, in the form the app writes, so
-// everything else comes back byte for byte and the app reads the result
-// as it would its own.
+// marks and writing goal. Other tools keep their own keys there, so the block
+// is kept as its lines, and a change rewrites only the key it changes, in the
+// form Kvit writes that key, so everything else comes back byte for byte.
 
 import (
 	"regexp"
@@ -102,7 +99,7 @@ func (f *frontMatter) find(key string) (at, end int) {
 		if k != key {
 			continue
 		}
-		// The last one wins, as in the app.
+		// The last one wins.
 		at, end = i, i+1
 		for end < len(f.lines) {
 			if _, isKey := mappingLine(f.lines[end]); isKey {
@@ -182,7 +179,7 @@ func splitFlow(s string) []string {
 var knownKeys = []string{"tags", "created", "pinned", "favorite", "goal"}
 
 // set writes a key's line in place, or adds it among Kvit's own keys in the
-// app's order; an empty value removes the key.
+// order of knownKeys; an empty value removes the key.
 func (f *frontMatter) set(key, line string) {
 	at, end := f.find(key)
 	if line == "" {
@@ -207,9 +204,8 @@ func (f *frontMatter) set(key, line string) {
 	f.lines = append(f.lines[:insert], append([]string{line}, f.lines[insert:]...)...)
 }
 
-// quoteTag writes a tag as the app writes one in a flow list: quoted when
-// it holds a character a flow list would read differently, or has space
-// around it.
+// quoteTag writes a tag for a flow list: quoted when it holds a character a
+// flow list would read differently, or has space around it.
 func quoteTag(t string) string {
 	if strings.ContainsAny(t, ",[]#:'\"\\") || strings.TrimSpace(t) != t {
 		return `"` + strings.ReplaceAll(strings.ReplaceAll(t, `\`, `\\`), `"`, `\"`) + `"`
@@ -367,7 +363,7 @@ func (p *Page) Goal() int {
 // Fields are the front matter's first-level keys with their values as
 // written after the colon, spaces around them removed and nothing unquoted;
 // a key whose value is a list below it has "". The last of a key written
-// twice counts (NoteFrontMatter::Metadata::fields).
+// twice counts.
 func (p *Page) Fields() map[string]string {
 	out := map[string]string{}
 	if p.fm == nil {

@@ -1,12 +1,11 @@
 package editor
 
-// A Markdown document drawn by the editor where nothing can change it: a
-// file on Kvit Works' stage, a conversation's transcript, the review's
-// merged document, an agent's report ( core/qml/DocumentView under
-// Kvit Works' qml/agent/AgentReadOnlyDocument). It is the editor, so a
-// table is a table, a diagram is a drawing and an equation is set, with
-// every edit refused, no gutter, no caret and no hover tint. The reader can
-// sweep a selection across it and copy it out as Markdown.
+// A Markdown document drawn by the editor where nothing can change it: a file
+// on Kvit Works' stage, a conversation's transcript, the review's merged
+// document, an agent's report. It is the editor, so a table is a table, a
+// diagram is a drawing and an equation is set, with every edit refused, no
+// gutter, no caret and no hover tint. The reader can sweep a selection across
+// it and copy it out as Markdown.
 //
 // It is one of two sizes. By default it is as tall as its document, for a
 // pane of the caller's that scrolls it along with other things; a wheel
@@ -25,21 +24,19 @@ import (
 // DocumentOptions say how a Document is made.
 type DocumentOptions struct {
 	// Scrolls makes the document scroll itself inside the height the caller
-	// gives it ( growsWithDocument false), rather than be as tall as its
-	// document.
+	// gives it, rather than be as tall as its document.
 	Scrolls bool
 	// Margin is the space between the document's edges and its text, in
 	// design pixels. Kvit Works' surfaces use 0, since each is inside a pane
-	// with margins of its own; the DocumentView uses 8.
+	// with margins of its own.
 	Margin float32
 	// BlockSpacing is the space between blocks in design pixels; 0 keeps the
 	// reader's paragraph spacing.
 	BlockSpacing int
 	// Pictures are the folders the document's pictures are looked up in.
 	Pictures PictureFolders
-	// OpenPicture, when set, is asked to show a picture a press landed on,
-	// in place of the editor's own full-size view (Kvit Works'
-	// PictureOpeners opens AgentImagePreview).
+	// OpenPicture, when set, is asked to show a picture a press landed on, in
+	// place of the editor's own full-size view.
 	OpenPicture func(path, alt string)
 }
 

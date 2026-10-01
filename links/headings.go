@@ -6,17 +6,16 @@ import (
 	"unicode"
 )
 
-// Heading anchors, from the app's src/domain/documentoutline.cpp. A
-// [[note#Heading]] link is followed by opening the note and turning the
-// heading text into a slug, which is looked up among the slugs of the
-// note's headings; [text](#slug) links look the slug up directly.
+// Heading anchors. A [[note#Heading]] link is followed by opening the note
+// and turning the heading text into a slug, which is looked up among the
+// slugs of the note's headings; [text](#slug) links look the slug up
+// directly.
 
 // Slug is the anchor text of a heading: lowercased; letters and digits of
 // any script kept; each run of spaces, underscores and hyphens made one
 // hyphen, and none at either end; every other character dropped.
 // "Section 2: Details (v1)" becomes "section-2-details-v1". A character
-// outside the Basic Multilingual Plane is dropped even when it is a letter,
-// as in the app, which sees it as two surrogates.
+// outside the Basic Multilingual Plane is dropped even when it is a letter.
 func Slug(text string) string {
 	var b strings.Builder
 	pending := false
@@ -96,9 +95,8 @@ func FindHeading(headings []Heading, heading string) int {
 }
 
 // Headings is the heading texts of a note body, in order, as [[note#
-// completion offers them (WikiLinkIndex::headingsFor in
-// src/repository/wikilinkindex.cpp): lines of one to six "#" and a space,
-// outside ``` and ~~~ fences, with the text as written, markers included.
+// completion offers them: lines of one to six "#" and a space, outside ```
+// and ~~~ fences, with the text as written, markers included.
 func Headings(body string) []string {
 	var out []string
 	inFence := false

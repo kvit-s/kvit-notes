@@ -1,9 +1,8 @@
 package diagram
 
-// Not a port of one  test: this is the half of canvasSelectionAndLinking
-// in the app's tests/test_diagramlayout.cpp that the scene answers
-// itself, with the same source. The canvas's selection, revision gating and
-// text export move to the editor with the rest of that test.
+// What the scene answers by itself about a point or a source position: the
+// node and edge under a point and the source offset of an element.
+// Selecting and linking on the drawn diagram are tested in the editor.
 
 import (
 	"slices"

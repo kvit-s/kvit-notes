@@ -2,9 +2,9 @@ package query
 
 // Typed field values. A query compares two values as dates when both read as
 // dates, as numbers when both read as numbers, and as case-insensitive
-// strings otherwise (querydata.cpp, TypedValue and compareTyped). Reading a
-// string as a date or a number follows what  6.10 accepts, because a value
-// that is a date in one app and text in the other would sort differently.
+// strings otherwise. The strings that read as a date or a number are the ones
+// the earlier Qt version of Kvit Notes accepted, because a value that is a
+// date in one version and text in the other would sort differently.
 
 import (
 	"math"
@@ -28,8 +28,8 @@ type typedValue struct {
 	exists bool
 }
 
-// typedFromString is querydata.cpp typedFromString: the trimmed text, read
-// as a date if it parses as one, else as a number if it parses as one.
+// typedFromString is the trimmed text, read as a date if it parses as one,
+// else as a number if it parses as one.
 func typedFromString(raw string, exists bool) typedValue {
 	v := typedValue{text: strings.TrimSpace(raw), exists: exists}
 	if v.text == "" {
@@ -47,7 +47,7 @@ func typedFromString(raw string, exists bool) typedValue {
 	return v
 }
 
-// compareTyped is querydata.cpp compareTyped: -1, 0 or 1.
+// compareTyped compares a and b: -1, 0 or 1.
 func compareTyped(a, b typedValue) int {
 	if a.isDate && b.isDate {
 		switch {
@@ -59,8 +59,7 @@ func compareTyped(a, b typedValue) int {
 		return 1
 	}
 	if a.isNumber && b.isNumber {
-		// With NaN on either side neither test holds and the result is 1,
-		// as in the C++.
+		// With NaN on either side neither test holds and the result is 1.
 		if a.number == b.number {
 			return 0
 		}
@@ -72,10 +71,9 @@ func compareTyped(a, b typedValue) int {
 	return compareFold(a.text, b.text)
 }
 
-// parseDate reads text the way typedFromString in querydata.cpp does: first
-// date-time::fromString(text, ::ISODate), and when that fails,
-// QDate::fromString(text, ::ISODate) at the start of that day in local
-// time. The second step matters: QDate only looks at the first ten
+// parseDate reads text as a date: first as a date and time (isoDateTime),
+// and when that fails, as a date alone (isoDate) at the start of that day in
+// local time. The second step matters: isoDate only looks at the first ten
 // characters and rejects a digit after them, so "2026-08-01 is the day" and
 // "2026-08-01T24:30" read as the date 2026-08-01.
 func parseDate(text string) (time.Time, bool) {
@@ -89,11 +87,10 @@ func parseDate(text string) (time.Time, bool) {
 	return time.Time{}, false
 }
 
-// isoDate is QDate::fromString(s, ::ISODate) in 6.10: four digits, any
-// punctuation character, two digits, punctuation, two digits, and then
-// either the end of the string or anything that is not a digit. The year
-// must be 1 to 9999 and the day must exist. "2026/08/01" and "2026_08_01"
-// are dates; "2026-8-1" is not.
+// isoDate reads an ISO 8601 date: four digits, any punctuation character, two
+// digits, punctuation, two digits, and then either the end of the string or
+// anything that is not a digit. The year must be 1 to 9999 and the day must
+// exist. "2026/08/01" and "2026_08_01" are dates; "2026-8-1" is not.
 func isoDate(s []rune) (year, month, day int, ok bool) {
 	if len(s) < 10 || !isPunctUnit(s[4]) || !isPunctUnit(s[7]) {
 		return 0, 0, 0, false
@@ -113,20 +110,20 @@ func isoDate(s []rune) (year, month, day int, ok bool) {
 	return int(y), int(m), int(d), true
 }
 
-// isPunctUnit is QChar::isPunct on one UTF-16 code unit. A character above
-// U+FFFF takes two units in , and a lone surrogate is not punctuation.
+// isPunctUnit reports whether r is punctuation that fits in one UTF-16 code
+// unit. A character above U+FFFF takes two units and does not count.
 func isPunctUnit(r rune) bool {
 	return r <= 0xFFFF && unicode.IsPunct(r)
 }
 
-// isDigitUnit is QChar::isDigit (any Unicode decimal digit) on one UTF-16
-// code unit.
+// isDigitUnit reports whether r is a Unicode decimal digit that fits in one
+// UTF-16 code unit.
 func isDigitUnit(r rune) bool {
 	return r <= 0xFFFF && unicode.IsDigit(r)
 }
 
-// readInt is readInt in the qdatetime.cpp: a non-empty run made only of
-// ASCII digits, and its value. No sign and no spaces.
+// readInt reads a non-empty run made only of ASCII digits, and its value. No
+// sign and no spaces.
 func readInt(s []rune) (uint64, bool) {
 	if len(s) == 0 {
 		return 0, false
@@ -146,11 +143,11 @@ func daysIn(year, month int) int {
 	return time.Date(year, time.Month(month)+1, 0, 0, 0, 0, 0, time.UTC).Day()
 }
 
-// isoDateTime is date-time::fromString(s, ::ISODate) in 6.10: a date as
-// isoDate reads it from exactly the first ten characters, then either
-// nothing (the start of that day, local time) or "T", "t" or a space, a time,
-// and optionally "Z" for UTC or a UTC offset such as "+02:00", "+0200" or
-// "+02". Without an offset the time is local time.
+// isoDateTime reads an ISO 8601 date and time: a date as isoDate reads it
+// from exactly the first ten characters, then either nothing (the start of
+// that day, local time) or "T", "t" or a space, a time, and optionally "Z"
+// for UTC or a UTC offset such as "+02:00", "+0200" or "+02". Without an
+// offset the time is local time.
 func isoDateTime(s []rune) (time.Time, bool) {
 	if len(s) < 10 {
 		return time.Time{}, false
@@ -183,8 +180,8 @@ func isoDateTime(s []rune) (time.Time, bool) {
 		}
 		if sign >= 0 {
 			offset, ok := isoOffset(rest[sign:])
-			// QTimeZone::fromSecondsAheadOfUtc accepts offsets up to 16
-			// hours either way; beyond that the date-time is invalid.
+			// An offset may be up to 16 hours either way; beyond that the
+			// date-time is invalid.
 			if !ok || offset < -16*3600 || offset > 16*3600 {
 				return time.Time{}, false
 			}
@@ -204,9 +201,9 @@ func isoDateTime(s []rune) (time.Time, bool) {
 	return time.Date(y, time.Month(m), d, hour, minute, second, msec*int(time.Millisecond), loc), true
 }
 
-// isoOffset is fromOffsetString in the qdatetime.cpp: a sign, hours, and
-// optionally minutes after a colon or directly after two hour digits, as
-// seconds east of UTC. Hours above 23 or minutes above 59 are rejected.
+// isoOffset reads a UTC offset: a sign, hours, and optionally minutes after a
+// colon or directly after two hour digits, as seconds east of UTC. Hours
+// above 23 or minutes above 59 are rejected.
 func isoOffset(s []rune) (int, bool) {
 	if len(s) < 2 || len(s) > 6 {
 		return 0, false
@@ -246,18 +243,18 @@ func isoOffset(s []rune) (int, bool) {
 	return sign * (hour*60 + minute) * 60, true
 }
 
-// qtToInt is stringView::toInt: a decimal integer with an optional sign,
-// surrounding whitespace allowed.
+// qtToInt reads a decimal integer with an optional sign, surrounding
+// whitespace allowed.
 func qtToInt(s string) (int, bool) {
 	v, err := strconv.ParseInt(strings.TrimSpace(s), 10, 32)
 	return int(v), err == nil
 }
 
-// isoTime is fromIsoTimeString in the qdatetime.cpp for ::ISODate: "HH",
-// "HH:mm" or "HH:mm:ss", optionally followed by "." or "," and a fraction of
-// the last field given. A fraction of an hour or a minute is converted to
-// minutes and seconds, a fraction of a second to milliseconds, rounded.
-// "24:00" (with nothing but zeros after it) reports midnight24 and hour 0.
+// isoTime reads an ISO 8601 time: "HH", "HH:mm" or "HH:mm:ss", optionally
+// followed by "." or "," and a fraction of the last field given. A fraction
+// of an hour or a minute is converted to minutes and seconds, a fraction of a
+// second to milliseconds, rounded. "24:00" (with nothing but zeros after it)
+// reports midnight24 and hour 0.
 func isoTime(s []rune) (hour, minute, second, msec int, midnight24, ok bool) {
 	var tail []rune
 	hasSeparator := false
@@ -367,10 +364,10 @@ func indexOfRune(s []rune, r rune) int {
 	return -1
 }
 
-// powTenthTable holds pow(0.1, n) for small n.  computes a fraction's
-// value with std::pow(0.1, digits), which glibc rounds correctly; Go's
-// math.Pow is off by a unit in the last place for four digits and more, which
-// can move a millisecond that sits on a rounding boundary.
+// powTenthTable holds pow(0.1, n), correctly rounded, for small n. A
+// fraction's value is its digits times pow(0.1, digits); Go's math.Pow is off
+// by a unit in the last place for four digits and more, which can move a
+// millisecond that sits on a rounding boundary.
 var powTenthTable = sync.OnceValue(func() []float64 {
 	table := make([]float64, 41)
 	for n := range table {
@@ -399,11 +396,11 @@ func exactPowTenth(n int) float64 {
 	return f
 }
 
-// parseNumber is string::toDouble in 6.10 on already trimmed text: a
-// decimal number with an optional sign, fraction and exponent (".5", "5.",
-// "1e5", "-.5e2"), or "nan", "inf", "+inf", "-inf" in any letter case. No
-// hexadecimal, no digit grouping, no "infinity". A value too large for a
-// double fails, and so does a nonzero value too small for one.
+// parseNumber reads already trimmed text as a number: a decimal number with
+// an optional sign, fraction and exponent (".5", "5.", "1e5", "-.5e2"), or
+// "nan", "inf", "+inf", "-inf" in any letter case. No hexadecimal, no digit
+// grouping, no "infinity". A value too large for a double fails, and so does
+// a nonzero value too small for one.
 func parseNumber(s string) (float64, bool) {
 	switch {
 	case asciiEqualFold(s, "nan"):

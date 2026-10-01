@@ -1,9 +1,8 @@
 package links
 
-// Finding [[wiki links]] in Markdown, from the app's
-// src/content/wikilinkscanner.cpp. The editor's inline parser and the
-// vault-wide scan use the same grammar there, so a link the editor draws is
-// a link the backlinks pane counts.
+// Finding [[wiki links]] in Markdown. The editor's inline parser and the
+// vault-wide scan use this same grammar, so a link the editor draws is a
+// link the backlinks pane counts.
 
 // Link is one [[wiki link]] in a text. Every position is a rune offset into
 // the text; a part the link does not have has a start of -1.
@@ -297,8 +296,7 @@ func Scan(text string) []Link {
 // Targets is the outgoing links of a note body, in order and with
 // repeats: each link's Target, heading kept and alias dropped. A
 // [[#heading]] link stays inside its note and is left out. This is the
-// list the app keeps for every note (WikiLinkIndex::extractLinks in
-// src/repository/wikilinkindex.cpp).
+// list the index keeps for every note.
 func Targets(body string) []string {
 	var out []string
 	for _, l := range Scan(body) {

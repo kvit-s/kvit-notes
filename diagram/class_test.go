@@ -1,11 +1,9 @@
 package diagram
 
-// These tests are the layout and render functions of the app's
-// tests/test_mermaidclass.cpp, one Go test per test function and in the
-// same order, with the same sources and expectations; the parser's
-// functions of that file are ported in package mermaid. Each name has
-// "Class" added, because every family's test file has a
-// layoutDeterministic.
+// These tests check the class-diagram layout and renderer: compartment
+// boxes, the extension marker, namespace frames, note boxes, and that the
+// same source lays out the same way twice. The class-diagram parser is
+// tested in package mermaid.
 
 import (
 	"strings"

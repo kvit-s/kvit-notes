@@ -1,12 +1,11 @@
 package editor
 
-// What a program may draw inside the editor without changing the document
-// (the core's src/application/documentdecorations.h): panels of its own
-// between blocks and in a column beside them, and washes and outlines over
-// runs of characters. Kvit Works draws a conversation after the block it is
-// about, a Run button beside a shell fence, its comments as washes over the
-// words they are on, and the passage a conversation is anchored to as an
-// outline.
+// What a program may draw inside the editor without changing the document:
+// panels of its own between blocks and in a column beside them, and washes
+// and outlines over runs of characters. Kvit Works draws a conversation after
+// the block it is about, a Run button beside a shell fence, its comments as
+// washes over the words they are on, and the passage a conversation is
+// anchored to as an outline.
 //
 // Nothing here reaches the document: a block's index, its Markdown and the
 // undo history are the same with and without decorations. With none
@@ -29,7 +28,7 @@ import (
 // line the run crosses.
 type SpanStyle int
 
-// The span styles ( DocumentDecorations::SpanStyle).
+// The span styles.
 const (
 	SpanWash SpanStyle = 1 << iota
 	SpanOutline
@@ -37,7 +36,7 @@ const (
 
 // DecorationPanel is what the panel of a container or a margin item may
 // implement to be told which block it is drawn beside: the block a container
-// follows, the block a margin item sits by (the decorationBlock property).
+// follows, the block a margin item sits by.
 type DecorationPanel interface {
 	SetDecorationBlock(block int)
 }
@@ -94,7 +93,7 @@ type decoration struct {
 }
 
 // marginColumnEms is the reserved column's width, in the reading font's
-// size ( marginColumnEms).
+// size.
 const marginColumnEms = 1.5
 
 // Decorations is the editor's decoration registry, made on first use.

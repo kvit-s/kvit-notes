@@ -2,11 +2,9 @@ package textdiagram
 
 import "strings"
 
-// fenceID is a fence's language as the app compares it:
-// string::trimmed and then string::toLower. toLower differs from
-// strings.ToLower only for U+0130 (capital I with a dot), which  lowers
-// to "i" and a combining dot, so a language holding it never equals one of
-// the ASCII names below, as in .
+// fenceID is a fence's language as it is compared: trimmed and in lower
+// case. U+0130 (capital I with a dot) is lowered to "i" and a combining dot,
+// so a language holding it never equals one of the ASCII names below.
 func fenceID(lang string) string {
 	return strings.ToLower(strings.ReplaceAll(trimSpace(lang), "İ", "i̇"))
 }
@@ -22,12 +20,11 @@ func IsDiagramLanguage(lang string) bool {
 	return false
 }
 
-// Ingest is what the app does to a code fence at every point where
+// Ingest is what the editor does to a code fence at every point where
 // Markdown enters a note from outside it: a note opened, Markdown pasted,
-// text pasted into a code block, and a code block given a new language
-// (classifyFenceLanguage and ingestFence in
-// src/domain/documentserializer.cpp). lang is the fence's language, the text
-// after the opening backticks; body is the text between the fence lines.
+// text pasted into a code block, and a code block given a new language.
+// lang is the fence's language, the text after the opening backticks; body
+// is the text between the fence lines.
 //
 // A fence whose language says nothing about its contents (none, `text`,
 // `plaintext` or `ascii`) is given the language `diagram` when Classify

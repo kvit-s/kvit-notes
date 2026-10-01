@@ -304,8 +304,8 @@ func (s *session) exists(rel string) bool {
 	return err == nil
 }
 
-// features.md 8.3: an Untitled note takes its name from its first block
-// once that block is finished.
+// An Untitled note takes its name from its first block once that block is
+// finished.
 func TestAnUntitledNoteIsNamedAfterItsFirstBlock(t *testing.T) {
 	s := openVault(t, demo)
 	s.screen.KeyPress(unison.KeyN, mod.Control)
@@ -331,9 +331,8 @@ func TestAnUntitledNoteIsNamedAfterItsFirstBlock(t *testing.T) {
 	}
 }
 
-// A note that opens with a display equation keeps its automatic name, as the
-// app's titleBearing (qml/NoteAutoTitle) leaves a note that opens with
-// code, a table or a picture.
+// A note that opens with a display equation keeps its automatic name, as a
+// note that opens with code, a table or a picture does.
 func TestAnUntitledNoteOpeningWithAnEquationKeepsItsName(t *testing.T) {
 	s := openVault(t, demo)
 	s.screen.KeyPress(unison.KeyN, mod.Control)
@@ -407,7 +406,7 @@ func TestCtrlBackslashHidesTheSidePanes(t *testing.T) {
 	}
 }
 
-// features.md 8.1: notes move between folders by dragging them onto one.
+// Notes move between folders by dragging them onto one.
 func TestDragANoteOntoAFolder(t *testing.T) {
 	s := openVault(t, demo)
 	i := slices.Index(s.listed(), "Reading list")
@@ -438,7 +437,7 @@ func TestDragANoteOntoAFolder(t *testing.T) {
 	}
 }
 
-// features.md 8.1: folders move by dragging them onto another folder.
+// Folders move by dragging them onto another folder.
 func TestDragAFolderOntoAFolder(t *testing.T) {
 	s := openVault(t, demo)
 	var from, to geom.Point
@@ -472,8 +471,8 @@ func TestDragAFolderOntoAFolder(t *testing.T) {
 	}
 }
 
-// features.md 5.3: a picture on the clipboard pastes as an image block,
-// saved into the vault's picture folder.
+// A picture on the clipboard pastes as an image block, saved into the vault's
+// picture folder.
 func TestPastedPictureIsSavedAsAnImageBlock(t *testing.T) {
 	s := openVault(t, demo)
 	var buf bytes.Buffer
@@ -508,8 +507,8 @@ func TestPastedPictureIsSavedAsAnImageBlock(t *testing.T) {
 	}
 }
 
-// features.md 1.2.8: a lone image line shows its picture, found beside the
-// note or from the top of the vault.
+// A lone image line shows its picture, found beside the note or from the top
+// of the vault.
 func TestPicturesAreDrawn(t *testing.T) {
 	var buf bytes.Buffer
 	img := image.NewRGBA(image.Rect(0, 0, 200, 100))

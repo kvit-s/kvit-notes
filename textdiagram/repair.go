@@ -5,26 +5,26 @@ import (
 	"strings"
 )
 
-// This file is the app's diagramrepair.cpp. Repair works in two phases:
+// Repair works in two phases:
 //
 //  1. Boxes are found (a top edge, lines with a side bar near each of its
-// corners, and a bottom edge whose corners are near the top's), and each
-// side of each box is moved onto the column most of its corners and bars
-// already use.
+//     corners, and a bottom edge whose corners are near the top's), and each
+//     side of each box is moved onto the column most of its corners and bars
+//     already use.
 //  2. Connectors are found (a tee or arrowhead on a box's edge, or a free
-// vertical bar, followed down the rows while each next cell is within
-// two columns), and each is moved onto the column most of its cells use.
+//     vertical bar, followed down the rows while each next cell is within
+//     two columns), and each is moved onto the column most of its cells use.
 //
 // A side or a connector is moved whole or not at all: when one of its cells
 // cannot be moved without disturbing something else, it is left as it was.
 
 // RepairCapChars is the largest fence body Repair changes, in UTF-16 code
-// units as the app counts them; a larger body is returned unchanged. It
-// is the same size as InspectionCapChars.
+// units; a larger body is returned unchanged. It is the same size as
+// InspectionCapChars.
 const RepairCapChars = 256 * 1024
 
 // edgeTolerance is how far a side bar or corner may be from the column of
-// its box's corner and still count as that box's. The flaws in the app's
+// its box's corner and still count as that box's. The flaws in the test
 // corpus of model-written diagrams are one to three columns; anything
 // farther is taken to be drawn that way on purpose.
 const edgeTolerance = 3
@@ -33,12 +33,9 @@ const edgeTolerance = 3
 // next and still count as one connector.
 const runTolerance = 2
 
-// runeAt is line[i], or 0 when i is outside the line. The code reads one
-// past the end of a line in slideAlongEdge, when a connector's column is
-// beyond the end of the edge's line: string::at then returns the string's
-// terminating 0 in the app's release builds (a debug build stops on an
-// assertion), which is not fill, so the slide is refused. runeAt gives the
-// same 0, and the same answer.
+// runeAt is line[i], or 0 when i is outside the line. slideAlongEdge reads
+// one past the end of a line when a connector's column is beyond the end of
+// the edge's line; the 0 it gets there is not fill, so the slide is refused.
 func runeAt(line []rune, i int) rune {
 	if i < 0 || i >= len(line) {
 		return 0
@@ -420,9 +417,8 @@ func (m *edgeMap) isBoxWall(row, col int) bool {
 	return false
 }
 
-// buildEdgeMap finds the boxes in lines. The app searches every box's
-// side bars for each cell; this keeps them by row, which gives the same
-// answers without reading every box for every cell.
+// buildEdgeMap finds the boxes in lines and keeps their side bars by row, so
+// finding the box a cell belongs to does not read every box.
 func buildEdgeMap(lines [][]rune) *edgeMap {
 	m := &edgeMap{
 		topByRow:    map[int][]edge{},

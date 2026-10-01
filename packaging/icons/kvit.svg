@@ -4,7 +4,7 @@
      so it renders identically without font dependencies at every size.
      The mark is an abstract "K": one upright block bar and two accent bars,
      echoing the block-editor model; accent #4a90d9 is the light theme's
-     accent token (src/theme.cpp). -->
+     accent token (Accent in kvit-ui's tokens package). -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">

@@ -1,25 +1,22 @@
 package export
 
-// HTML to Markdown, as src/content/htmltomarkdown.cpp converts it: the HTML a
-// browser or word processor puts on the clipboard, or an HTML file, read into
-// blocks (paragraphs, headings, list items, quotes, code listings and tables)
-// with their bold, italic, struck-through, code and link runs, and written as
-// Kvit's Markdown.
+// HTML to Markdown: the HTML a browser or word processor puts on the
+// clipboard, or an HTML file, read into blocks (paragraphs, headings, list
+// items, quotes, code listings and tables) with their bold, italic,
+// struck-through, code and link runs, and written as Kvit's Markdown.
 //
-// The converter hands the parsing to QTextDocument and walks the document
-// it builds. This file has no QTextDocument, so it reads the HTML itself and
-// builds the same things the converter reads from that document: a block
-// for each paragraph-like element and each line of a <pre>, a line separator
-// (U+2028) for each <br>, list items numbered within their list, table cells
-// in a grid, and runs of text with their character formats, the page's style
-// sheet applied (css.go). It follows how QTextDocument reads HTML where that
-// differs from a browser, as checked against the converter itself: only
-// the elements  knows start blocks, and text in any other element is part of
-// the paragraph around it; a block element reuses an empty paragraph, so an
-// empty list item gives up its number; closing a <div> ends its paragraph only
-// when the div held other elements; a paragraph started by text after a closed
-// block has no margins; whitespace after a block is added to that block; and
-// a table inside a table cell is dropped.
+// The HTML is read into a block for each paragraph-like element and each
+// line of a <pre>, a line separator (U+2028) for each <br>, list items
+// numbered within their list, table cells in a grid, and runs of text with
+// their character formats, the page's style sheet applied (css.go). Where a
+// browser and the earlier Qt version of Kvit Notes read HTML differently, it
+// is read as that version read it, so a paste gives the same Markdown: only
+// the elements in blockElems start blocks, and text in any other element is
+// part of the paragraph around it; a block element reuses an empty
+// paragraph, so an empty list item gives up its number; closing a <div> ends
+// its paragraph only when the div held other elements; a paragraph started
+// by text after a closed block has no margins; whitespace after a block is
+// added to that block; and a table inside a table cell is dropped.
 
 import (
 	"html"
@@ -31,10 +28,10 @@ import (
 )
 
 // hfmt is a run's character format: what the converter writes, and in
-// extra everything else QTextDocument keeps in the format (colour, size,
-// family, underline and the like), in one canonical string. Two runs are one
-// fragment only when all of it is equal, as in QTextDocument, which is why
-// "<b>x<u>y</u>z</b>" converts to three bold runs.
+// extra everything else the format keeps (colour, size, family, underline
+// and the like), in one canonical string. Two runs are one fragment only when
+// all of it is equal, which is why "<b>x<u>y</u>z</b>" converts to three bold
+// runs.
 type hfmt struct {
 	bold, italic, strike, mono bool
 	href                       string
@@ -79,9 +76,9 @@ type hblock struct {
 	list    *hlist // the list the block is an item of
 	indent  int    // that list's nesting depth
 	item    int    // the block's place in its list, from 0, counted at the end
-	inList  bool   // inside a list without being an item, which  indents
+	inList  bool   // inside a list without being an item, which indents it
 	quote   bool   // indented or with margins on both sides
-	pre     bool   // the nonBreakableLines: a <pre>, or white-space pre or nowrap
+	pre     bool   // lines that do not wrap: a <pre>, or white-space pre or nowrap
 	nodes   *[]hnode
 }
 
@@ -135,7 +132,7 @@ type helem struct {
 	nonBreak bool
 	// ownL and ownR are the element's own left and right margins; sumL and
 	// sumR add those of the block elements around it, up to a table cell or
-	// an element that is not a block, as QTextHtmlParser::margin adds them.
+	// an element that is not a block.
 	ownL, ownR float64
 	sumL, sumR float64
 	chain      bool // a block the margins of the blocks inside it add to
@@ -148,11 +145,11 @@ type helem struct {
 	table      *htable
 	inCell     bool
 	skipNL     bool // a <pre> that has not had any text yet
-	block      bool // an element QTextDocument starts a block for
+	block      bool // an element that starts a block
 	hasChild   bool // an element started inside it
 }
 
-// The elements QTextDocument starts a block for, the ones whose margins the
+// The elements that start a block, the ones whose margins the
 // blocks inside them add, the table elements, and the elements with no
 // content.
 var (
@@ -222,8 +219,8 @@ func (c *hconv) splitBlock(e *helem) *hblock {
 	return c.addBlock(&b)
 }
 
-// startBlock starts the block for a block element. QTextDocument reuses the
-// block the cursor is in while it is still empty, whatever made it, so
+// startBlock starts the block for a block element. It reuses the block the
+// cursor is in while that is still empty, whatever made it, so
 // "<li><p>text</p></li>" is one list item and an empty item gives up its
 // place in the list to the next one. A reused list item stays in its list
 // unless another item takes the block.
@@ -252,7 +249,7 @@ func (c *hconv) fresh(e *helem) bool {
 // blockFor is the block text of e goes into: the cursor's block, or, when
 // that is closed or in another frame, a new one. An empty closed block takes
 // text written straight after it, but not text in an element opened after
-// it, as QTextHtmlImporter starts a block for that.
+// it, which starts a block of its own.
 func (c *hconv) blockFor(e *helem) *hblock {
 	if c.cur != nil && c.cur.nodes == e.nodes {
 		if !c.closed {
@@ -267,8 +264,7 @@ func (c *hconv) blockFor(e *helem) *hblock {
 }
 
 // objectBlock is the block an image or a line break goes into: the cursor's
-// block, even when it is closed, as QTextDocument inserts them where the
-// cursor is.
+// block, even when it is closed.
 func (c *hconv) objectBlock(e *helem) *hblock {
 	if c.cur != nil && c.cur.nodes == e.nodes {
 		return c.cur
@@ -308,9 +304,9 @@ func (c *hconv) text(raw string, last bool) {
 	if !e.keepWS {
 		s = reHTMLSpace.ReplaceAllString(s, " ")
 		if s == " " && c.closed && c.cur != nil && c.cur.nodes == e.nodes {
-			// Whitespace after a block. QTextHtmlParser drops a single
-			// whitespace character between a block and the next tag;
-			// anything else is added to the block the cursor is still in.
+			// Whitespace after a block. A single whitespace character
+			// between a block and the next tag is dropped; anything else
+			// is added to the block the cursor is still in.
 			if len(raw) == 1 && !last && c.closedIn == e {
 				return
 			}
@@ -415,7 +411,7 @@ func monoFamily(families string) bool {
 
 // cssMargin is a CSS margin as a number whose sign is what the converter
 // needs: pixels as they are, other units scaled roughly to pixels, and auto,
-// which QTextDocument counts as a margin, as one.
+// which counts as a margin, as one.
 func cssMargin(v string) float64 {
 	v = strings.ToLower(strings.TrimSpace(v))
 	if v == "auto" {
@@ -438,8 +434,8 @@ func cssMargin(v string) float64 {
 	return f
 }
 
-// applyStyle applies the CSS declarations the converter reads. QTextDocument
-// gives "!important" no weight, so it is dropped.
+// applyStyle applies the CSS declarations the converter reads.
+// "!important" has no weight, so it is dropped.
 func applyStyle(e *helem, style string) {
 	for _, decl := range strings.Split(style, ";") {
 		prop, value, ok := strings.Cut(decl, ":")
@@ -558,8 +554,7 @@ var (
 	rowScope  = wordSet("table")
 )
 
-// The inline elements QTextDocument formats. Any other element's text is
-// plain.
+// The inline elements that set a format. Any other element's text is plain.
 func formatFor(name string, attrs map[string]string, e *helem) {
 	switch name {
 	case "b", "strong", "th":
@@ -610,7 +605,7 @@ func formatFor(name string, attrs map[string]string, e *helem) {
 	case "dd":
 		e.ownL = 30
 	case "ul", "ol":
-		// reads the type attribute on either element: a numbering style
+		// The type attribute is read on either element: a numbering style
 		// makes a numbered list, a bullet style a bulleted one.
 		e.ordered = name == "ol"
 		switch t := attrs["type"]; t {
@@ -730,9 +725,9 @@ func spanAttr(v string) int {
 }
 
 // popTo closes the elements from the top of the stack down to index i. A
-// closed block ends the cursor's block for the text after it
-// (QTextHtmlImporter::closeTag): a <div> only when it had elements inside and
-// the text does not end in a line break, every other block always.
+// closed block ends the cursor's block for the text after it: a <div> only
+// when it had elements inside and the text does not end in a line break,
+// every other block always.
 func (c *hconv) popTo(i int) {
 	closed := false
 	for len(c.stack) > i {
@@ -774,7 +769,7 @@ func (c *hconv) end(name string) {
 }
 
 // numberItems gives each list item its place in its list, counting only the
-// blocks that are items when the document is complete, as QTextList does.
+// blocks that are items when the document is complete.
 func (c *hconv) numberItems() {
 	counts := map[*hlist]int{}
 	for _, b := range c.blocks {
@@ -933,7 +928,7 @@ func readTag(s string) (name string, attrs map[string]string, selfClosing, closi
 	return name, attrs, selfClosing, closing, len(s)
 }
 
-// ---- writing Markdown (HtmlToMarkdown in htmltomarkdown.cpp) ----
+// ---- writing Markdown ----
 
 // escapeInline backslash-escapes the characters that would read back as
 // inline Markdown: * _ ` [ ] and the backslash.
@@ -1013,8 +1008,7 @@ func blockIsPreformatted(b *hblock) bool {
 	return saw
 }
 
-// fragments merges neighbouring runs of one format, as QTextDocument keeps
-// them as one fragment.
+// fragments merges neighbouring runs of one format into one.
 func fragments(b *hblock) []hfrag {
 	var out []hfrag
 	for _, f := range b.frags {
@@ -1106,8 +1100,7 @@ func blockToMarkdown(b *hblock) string {
 }
 
 // tableMarkdown is a pipe table with the header rule after the first row.
-// A cell covered by another's colspan or rowspan repeats that cell's text,
-// as QTextTable::cellAt answers with the spanning cell.
+// A cell covered by another's colspan or rowspan repeats that cell's text.
 func tableMarkdown(t *htable) string {
 	var grid [][]*hcell
 	for r, row := range t.rows {
@@ -1210,7 +1203,7 @@ func frameMarkdown(nodes []hnode) string {
 var reBlankRun = regexp.MustCompile(`\n{3,}`)
 
 // HTMLToMarkdown converts HTML to Kvit's Markdown, blocks separated by a
-// blank line, and returns "" for HTML with no text (HtmlToMarkdown::convert).
+// blank line, and returns "" for HTML with no text.
 // Text that would read back as Markdown syntax is escaped, a code span or
 // fence is made longer than any backtick run inside it, and a link or image
 // address is percent-encoded where Markdown cannot hold it.
@@ -1225,6 +1218,5 @@ func HTMLToMarkdown(src string) string {
 var reStructure = regexp.MustCompile(`(?i)<\s*(h[1-6]|p|br|hr|ul|ol|li|blockquote|pre|code|a|img|table|tr|td|th|strong|b|em|i|del|s|strike|u)\b`)
 
 // HasStructure reports whether HTML has any element worth converting, beyond
-// a wrapper around plain text; without any, its plain text is better
-// (HtmlToMarkdown::hasStructure).
+// a wrapper around plain text; without any, its plain text is better.
 func HasStructure(src string) bool { return reStructure.MatchString(src) }

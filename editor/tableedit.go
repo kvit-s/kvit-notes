@@ -1,25 +1,23 @@
 package editor
 
-// Editing a table's cells in its grid (features.md 1.2.11, Kvit's
-// TableBlock): a press in a cell makes it live, opening one field over
-// it; Tab walks the grid in reading order (adding a row past the last
-// cell), Enter moves down the column, Shift+Enter breaks the cell's line
-// (stored as <br> so the row stays one line of the file), Ctrl+Enter leaves
-// for a new block below, and Escape leaves the cell as it was. A press on a
-// header sorts by that column, again going the other way, with ▲ or ▼ in
-// the header. Dragging from one cell to another sweeps a rectangle of
-// cells between them: one cell is an ordinary press, more than one is a
-// selection that owns the copy keys, as Kvit's sweep does. Ctrl+C copies
-// the rectangle as a table of its own (the selected cells under the header
-// cells of their columns, since Markdown has no notation for part of a
-// table), Ctrl+X copies and empties it, Backspace or Delete empties it,
-// and Escape or a press elsewhere drops it; the same copy and clear are on
-// the right-click menu while cells are selected. A selection and a live
-// cell are exclusive: one ends the other. The right-click menu inserts and
-// deletes rows and columns, sorts, aligns and resets widths. Dragging a
-// column's border resizes it, kept in the block's own cols attribute.
-// Every change rewrites the whole Markdown (tabledata.go), one undo step
-// each.
+// Editing a table's cells in its grid: a press in a cell makes it live,
+// opening one field over it; Tab walks the grid in reading order (adding a
+// row past the last cell), Enter moves down the column, Shift+Enter breaks
+// the cell's line (stored as <br> so the row stays one line of the file),
+// Ctrl+Enter leaves for a new block below, and Escape leaves the cell as it
+// was. A press on a header sorts by that column, again going the other way,
+// with ▲ or ▼ in the header. Dragging from one cell to another sweeps a
+// rectangle of cells between them: one cell is an ordinary press, more than
+// one is a selection that owns the copy keys. Ctrl+C copies the rectangle as
+// a table of its own (the selected cells under the header cells of their
+// columns, since Markdown has no notation for part of a table), Ctrl+X copies
+// and empties it, Backspace or Delete empties it, and Escape or a press
+// elsewhere drops it; the same copy and clear are on the right-click menu
+// while cells are selected. A selection and a live cell are exclusive: one
+// ends the other. The right-click menu inserts and deletes rows and columns,
+// sorts, aligns and resets widths. Dragging a column's border resizes it,
+// kept in the block's own cols attribute. Every change rewrites the whole
+// Markdown (tabledata.go), one undo step each.
 
 import (
 	"fmt"
@@ -1011,9 +1009,9 @@ func (e *Editor) tableEndResize() {
 	e.setTableColumnWidth(i, r.col, design)
 }
 
-// The + Row / + Column controls under a grid with a live cell (Kvit's
-// TableBlock tableAddControls): they show only while a cell is being
-// edited, as in Kvit, and do what the right-click menu's insert does.
+// The + Row / + Column controls under a grid with a live cell: they show
+// only while a cell is being edited, and do what the right-click menu's
+// insert does.
 const (
 	tableAddH   = 22
 	tableAddGap = 6

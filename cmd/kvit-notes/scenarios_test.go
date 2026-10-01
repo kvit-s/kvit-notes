@@ -7,7 +7,7 @@ import (
 	"github.com/kvit-s/kvit-ui/uitest"
 )
 
-// TestScenarios replays Kvit's storyboards headlessly; see scenarios.go.
+// TestScenarios replays the scripted scenarios headlessly; see scenarios.go.
 // `kvit-notes --scenario all --out DIR` runs the same ones and saves their
 // screenshots.
 func TestScenarios(t *testing.T) {

@@ -9,12 +9,12 @@ import (
 	"unicode/utf8"
 )
 
-// foldRune returns the same rune for every member of r's simple case
-// folding class and a different rune for every other class. the
-// case-insensitive string::indexOf compares characters by their simple case
-// folding one character at a time, so a match has the query's length, which
-// is what lets a match in folded text keep its offsets. The rune returned is
-// the smallest member of the class: for ASCII letters that is the capital.
+// foldRune returns the same rune for every member of r's simple case folding
+// class and a different rune for every other class. Case-insensitive matching
+// compares characters by their simple case folding one character at a time,
+// so a match has the query's length, which is what lets a match in folded
+// text keep its offsets. The rune returned is the smallest member of the
+// class: for ASCII letters that is the capital.
 func foldRune(r rune) rune {
 	if r < utf8.RuneSelf {
 		if 'a' <= r && r <= 'z' {
@@ -78,14 +78,13 @@ func foldString(s string) string {
 	return f
 }
 
-// trim is string::trimmed: the Unicode white space removed from both ends.
-// Go's unicode.IsSpace is the same set as QChar::isSpace.
+// trim removes Unicode white space, as unicode.IsSpace has it, from both
+// ends of s.
 func trim(s string) string { return strings.TrimFunc(s, unicode.IsSpace) }
 
-// isWordChar is the find bar's word character (documentsearch.cpp
-// isWordChar): QChar::isLetterOrNumber or the underscore.  asks it of one
-// UTF-16 code unit, and half of a surrogate pair is neither, so a character
-// beyond the Basic Multilingual Plane is never a word character here.
+// isWordChar is the find bar's word character: a letter, a number or the
+// underscore, within the Basic Multilingual Plane. A character beyond it is
+// never a word character here.
 func isWordChar(r rune) bool {
 	return r == '_' || (r <= 0xFFFF && (unicode.IsLetter(r) || unicode.IsNumber(r)))
 }
@@ -98,12 +97,11 @@ var wordScalars = func() (t [utf8.RuneSelf]bool) {
 	return t
 }()
 
-// isWordScalar is the search across notes' word character
-// (searchindexdb.cpp SearchMatching::isWordScalar): a letter, a number, a
-// mark, a modifier symbol, a private-use character or the underscore,
-// classified by the whole character. It is the set SQLite's unicode61
-// tokenizer keeps inside a word, plus marks and modifier symbols, so it
-// includes the ASCII ^ and `.
+// isWordScalar is the search across notes' word character: a letter, a
+// number, a mark, a modifier symbol, a private-use character or the
+// underscore, classified by the whole character. It is the set SQLite's
+// unicode61 tokenizer keeps inside a word, plus marks and modifier symbols,
+// so it includes the ASCII ^ and `.
 func isWordScalar(r rune) bool {
 	if r < utf8.RuneSelf {
 		return wordScalars[r]
@@ -115,9 +113,8 @@ func wordScalarSlow(r rune) bool {
 	return r == '_' || unicode.In(r, unicode.L, unicode.N, unicode.M, unicode.Sk, unicode.Co)
 }
 
-// hasWordChar reports whether s holds a word character
-// (SearchMatching::hasWordChar). A short query without one, such as "::",
-// finds nothing.
+// hasWordChar reports whether s holds a word character. A short query
+// without one, such as "::", finds nothing.
 func hasWordChar(s string) bool {
 	for _, r := range s {
 		if isWordScalar(r) {
@@ -128,13 +125,13 @@ func hasWordChar(s string) bool {
 }
 
 // scalarCount is how many characters a query has for choosing between whole
-// words and substrings (SearchMatching::unicodeScalarCount).  counts the
-// Unicode scalar values of the query after NFC normalisation, so a letter
-// typed with a separate combining accent counts once. The standard library
-// has no normaliser, so this counts a nonspacing mark as part of the
-// character before it and composes Hangul jamo as NFC does. The two counts
-// differ only for a mark that has no precomposed form with its base, such
-// as q with an acute accent, which  counts as two.
+// words and substrings: the Unicode scalar values of the query after NFC
+// normalisation, so a letter typed with a separate combining accent counts
+// once. The standard library has no normaliser, so this counts a nonspacing
+// mark as part of the character before it and composes Hangul jamo as NFC
+// does. The count differs from NFC's only for a mark that has no precomposed
+// form with its base, such as q with an acute accent, which NFC counts as
+// two.
 func scalarCount(s string) int {
 	n := 0
 	prev := rune(-1)

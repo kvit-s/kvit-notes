@@ -1,21 +1,19 @@
 package query
 
 // Reading a front matter value as a query sees it. Note.Fields holds each
-// key's value as written in the file; these helpers are the typed accessors
-// the query code calls on it, from src/content/notefrontmatter.cpp
-// (NoteFrontMatter::Metadata::fieldString and fieldList, with the quote
-// handling they share with the tags parser).
+// key's value as written in the file; these helpers read it as a string or
+// as a list, with the quote handling of a tags list.
 
 import "strings"
 
-// fieldString is Metadata::fieldString: the trimmed value with one matching
-// pair of outer quotes removed.
+// fieldString is the trimmed value with one matching pair of outer quotes
+// removed.
 func fieldString(raw string) string {
 	return stripMatchingQuotes(strings.TrimSpace(raw))
 }
 
-// fieldList is Metadata::fieldList: the items of a value written as a YAML
-// inline list ("[a, "b, c"]"), or of a plain value split at commas ("a, b").
+// fieldList is the items of a value written as a YAML inline list
+// ("[a, "b, c"]"), or of a plain value split at commas ("a, b").
 // Each item is trimmed and unquoted, and empty items are dropped. A value
 // that opens a list without closing it has no items.
 func fieldList(raw string) []string {
@@ -39,11 +37,10 @@ func fieldList(raw string) []string {
 	return out
 }
 
-// parseInlineList is the "[...]" branch of NoteFrontMatter::parseTagsValue.
-// Commas split items except inside a quoted item, and inside double quotes a
-// backslash keeps the character after it in the item, so an escaped quote
-// does not end the quoted run. It fails when the value does not end with
-// "]".
+// parseInlineList reads a "[...]" list, as a tags list is read. Commas split
+// items except inside a quoted item, and inside double quotes a backslash
+// keeps the character after it in the item, so an escaped quote does not end
+// the quoted run. It fails when the value does not end with "]".
 func parseInlineList(value string) ([]string, bool) {
 	if !strings.HasPrefix(value, "[") || !strings.HasSuffix(value, "]") || len(value) < 2 {
 		return nil, false

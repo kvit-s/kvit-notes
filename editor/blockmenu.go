@@ -1,10 +1,9 @@
 package editor
 
-// The block menu (Kvit's BlockMenu, features.md 3.7): the gutter's menu
-// button, Shift+F10, the Menu key or a right-click opens it. Its commands act
-// on the block selection when the block is part of one, otherwise on the
-// block itself. It is kvit-ui's menu; "Turn into" and "Copy as" open
-// submenus beside their lines, as in Kvit.
+// The block menu: the gutter's menu button, Shift+F10, the Menu key or a
+// right-click opens it. Its commands act on the block selection when the
+// block is part of one, otherwise on the block itself. It is kvit-ui's menu;
+// "Turn into" and "Copy as" open submenus beside their lines.
 
 import (
 	"strings"
@@ -291,9 +290,8 @@ func (e *Editor) inSelection(p Pos) bool {
 	return after && before
 }
 
-// openTextMenu opens Kvit's menu for text (qml/EditorContextMenus):
-// cut, copy and paste, the inline formats, the link dialog, and the
-// block's own commands.
+// openTextMenu opens the menu for text: cut, copy and paste, the inline
+// formats, the link dialog, and the block's own commands.
 func (e *Editor) openTextMenu(at geom.Rect) {
 	d := e.Doc
 	e.closeMenu()
@@ -335,9 +333,8 @@ func (e *Editor) openTextMenu(at geom.Rect) {
 	e.ui.ShowMenuAt(e, at, "Text", items)
 }
 
-// openLinkMenu opens Kvit's menu for a link under the pointer
-// (qml/EditorContextMenus's linkContextMenu): open it, edit it, or
-// remove its formatting while keeping its text.
+// openLinkMenu opens the menu for a link under the pointer: open it, edit
+// it, or remove its formatting while keeping its text.
 func (e *Editor) openLinkMenu(at geom.Rect, pos Pos) {
 	if items := e.linkMenuItems(pos); items != nil {
 		e.closeMenu()

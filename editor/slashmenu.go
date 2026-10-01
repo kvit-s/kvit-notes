@@ -1,11 +1,11 @@
 package editor
 
-// The / menu (Kvit's BlockMenu, features.md 4.1–4.3): typing "/" in an
-// empty block, or the gutter's +, opens a list of block kinds under the
-// caret, grouped, with recently used kinds first. What is typed after the
-// "/" filters it, the arrows move the highlight, and Enter or Tab turns the
-// block into the highlighted kind. The editor keeps the keyboard throughout;
-// the menu only shows the list and takes the pointer.
+// The / menu: typing "/" in an empty block, or the gutter's +, opens a list
+// of block kinds under the caret, grouped, with recently used kinds first.
+// What is typed after the "/" filters it, the arrows move the highlight, and
+// Enter or Tab turns the block into the highlighted kind. The editor keeps
+// the keyboard throughout; the menu only shows the list and takes the
+// pointer.
 
 import (
 	"slices"
@@ -47,7 +47,7 @@ var menuItems = []menuItem{
 	{"Advanced", "Code", "Code block with syntax colouring", "<>", Code, "pre fence", nil, 0},
 	{"Advanced", "Divider", "Horizontal rule", "—", Divider, "hr rule line", nil, 0},
 	{"Advanced", "Table", "Grid of rows and columns", "▦", Table, "grid spreadsheet",
-		func(b *Block) {}, 0}, // No seed: the insert flow opens the grid picker ( containerkinds.cpp).
+		func(b *Block) {}, 0}, // No seed: the insert flow opens the grid picker.
 	{"Advanced", "Callout", "Highlighted info/warning/tip box", "!", Callout, "callout admonition note info warning [!",
 		func(b *Block) { b.Lang = "info" }, 0},
 	{"Advanced", "Toggle", "Collapsible section", "▸", Callout, "toggle collapse fold details",
@@ -202,8 +202,7 @@ func (e *Editor) query() (string, bool) {
 }
 
 // syncMenu filters the entries by the query, and closes the menu when the
-// "/" is gone. A query naming a web address offers it first as a Web Embed,
-// as Kvit's Web Embed row is reached by typing its address.
+// "/" is gone. A query naming a web address offers it first as a Web Embed.
 func (e *Editor) syncMenu() {
 	q, ok := e.query()
 	if !ok {
@@ -232,8 +231,7 @@ func (e *Editor) syncMenu() {
 	m := e.menu
 	m.items = items
 	if q != m.query {
-		// A new filter starts the highlight over at the top, as Kvit's
-		// menu does.
+		// A new filter starts the highlight over at the top.
 		m.query, m.sel, m.scroll = q, 0, 0
 	}
 	m.sel = min(m.sel, max(0, len(items)-1))

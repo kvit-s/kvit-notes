@@ -1,11 +1,10 @@
 package app
 
-// The outline pane (features.md 17.1, Kvit's OutlinePanel): the open
-// note's headings at the right of the editor, indented by level. Clicking
-// one scrolls the note to it; the section the caret is in is highlighted; a
-// heading with headings under it folds them away; and the H… menu chooses
-// which of the four levels are listed ("view.outlineLevels", all four until
-// the reader changes it).
+// The outline pane: the open note's headings at the right of the editor,
+// indented by level. Clicking one scrolls the note to it; the section the
+// caret is in is highlighted; a heading with headings under it folds them
+// away; and the H… menu chooses which of the four levels are listed
+// ("view.outlineLevels", all four until the reader changes it).
 
 import (
 	"fmt"
@@ -22,7 +21,7 @@ import (
 	"github.com/richardwilkes/unison/enums/role"
 )
 
-// Outline row sizes in design pixels (OutlinePanel).
+// Outline row sizes in design pixels.
 const (
 	outlineRow    = 26
 	outlineIndent = 14

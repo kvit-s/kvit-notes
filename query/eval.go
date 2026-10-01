@@ -8,33 +8,31 @@ import (
 	"time"
 )
 
-// Note is one note of the collection as a query reads it: the parts of the
-// app's NoteCollection::NoteEntry (src/domain/noteentry.h) that
-// querydata.cpp uses. The caller fills it from its own index of the
-// collection.
+// Note is one note of the collection as a query reads it. The caller fills
+// it from its own index of the collection.
 type Note struct {
 	// Path is the note's path relative to the collection root with "/"
 	// separators, for example "projects/Alpha.md". It is the "path" field.
 	Path string
-	// Title is the file name without its ".md" extension (vaultscan.cpp).
+	// Title is the file name without its ".md" extension.
 	Title string
 	// Folder is the folder part of Path, "" for a note at the root.
 	Folder string
 	// Modified is the file's modification time. A cell shows it as
 	// "2006-01-02 15:04" in the time's own location, so pass local times,
-	// as os.FileInfo.ModTime returns them, to match the app. The zero time
-	// means the field does not exist.
+	// as os.FileInfo.ModTime returns them. The zero time means the field
+	// does not exist.
 	Modified time.Time
 	// Created is the front matter "created:" date when it parses, and the
-	// file's creation time otherwise (vaultscan.cpp entryFromText). A cell
-	// shows it as "2006-01-02". The zero time means the field does not exist.
+	// file's creation time otherwise. A cell shows it as "2006-01-02". The
+	// zero time means the field does not exist.
 	Created time.Time
 	// Words is the number of words in the note's body.
 	Words int
 	// Tags are the note's tags as its front matter parser read them.
 	Tags []string
 	// Fields maps every first-level front matter key to its value as written
-	// after the colon, with no unquoting (NoteFrontMatter::Metadata::fields).
+	// after the colon, with no unquoting.
 	// Known keys such as tags and created are included. A key with nothing
 	// after the colon, as when a block list follows it, maps to "". When a
 	// key appears twice, the last one counts.
@@ -73,21 +71,19 @@ type Result struct {
 // noneGroup names the board column for notes without the group-by field.
 const noneGroup = "(none)"
 
-// SortNotes sorts notes by Path the way the collection lists them
-// (NoteCollection::noteRelPaths, string list::sort): case-sensitively, by
-// UTF-16 code units.
+// SortNotes sorts notes by Path the way the collection lists them:
+// case-sensitively, by UTF-16 code units.
 func SortNotes(notes []Note) {
 	sort.SliceStable(notes, func(i, j int) bool {
 		return compareUTF16(notes[i].Path, notes[j].Path) < 0
 	})
 }
 
-// Evaluate runs a spec over notes (querydata.cpp QueryData::evaluate).
+// Evaluate runs a spec over notes.
 //
-// Notes that tie on every sort key keep the order they have in notes. The
-// app always passes the collection sorted by path, which makes the result
-// the same every time; sort with SortNotes first for the same order. The
-// notes are only read.
+// Notes that tie on every sort key keep the order they have in notes, so
+// sort them with SortNotes first, as Tools does, for the same result every
+// time. The notes are only read.
 func Evaluate(spec Spec, notes []Note) Result {
 	result := Result{Columns: slices.Clone(spec.Columns)}
 	if len(result.Columns) == 0 {
@@ -95,7 +91,7 @@ func Evaluate(spec Spec, notes []Note) Result {
 	}
 
 	// A condition's value reads as the same type for every note, so it is
-	// typed once here rather than once per note as in the C++.
+	// typed once here.
 	values := make([]typedValue, len(spec.Where))
 	for i, cond := range spec.Where {
 		values[i] = typedFromString(cond.Value, true)
@@ -123,8 +119,7 @@ func Evaluate(spec Spec, notes []Note) Result {
 
 	// Stable sorts applied from the last key to the first, so the first key
 	// decides and later keys break its ties. Each note's value for the key is
-	// worked out once before sorting; the C++ works it out in every
-	// comparison, with the same outcome.
+	// worked out once before sorting.
 	for k := len(spec.Sort) - 1; k >= 0; k-- {
 		key := spec.Sort[k]
 		keyed := make([]struct {
@@ -184,7 +179,7 @@ func Evaluate(spec Spec, notes []Note) Result {
 	return result
 }
 
-// fieldValue is one field's value on one note (querydata.cpp fieldValue).
+// fieldValue is one field's value on one note.
 // The built-in properties come first, matched case-sensitively, so a front
 // matter key named "title" is never read; every other name is looked up in
 // the front matter.
@@ -240,8 +235,8 @@ func fieldListValue(note *Note, field string) []string {
 	return fieldList(note.Fields[field])
 }
 
-// conditionHolds is querydata.cpp conditionHolds. value is cond.Value
-// already typed.
+// conditionHolds reports whether a note meets a condition. value is
+// cond.Value already typed.
 func conditionHolds(cond Condition, value typedValue, note *Note) bool {
 	lhs := fieldValue(note, cond.Field)
 	// A note without the field fails every test except !=: it differs from

@@ -5,9 +5,8 @@ import (
 	"strings"
 )
 
-// Which note a link names, from the app's
-// src/repository/wikilinkindex.cpp, and where following a link that names
-// no note creates one, from qml/NoteSession.
+// Which note a link names, and where following a link that names no note
+// creates one.
 
 // NormalizeTarget is the form of a link target that is compared with note
 // paths: spaces around it removed, the "#heading" dropped, one ".md"
@@ -44,7 +43,7 @@ const (
 	// Unique: exactly one note has that name.
 	Unique
 	// Ambiguous: several notes have that name. Following the link opens
-	// none of them and creates nothing; the app says "Ambiguous link"
+	// none of them and creates nothing; Kvit Notes says "Ambiguous link"
 	// and lists the candidates.
 	Ambiguous
 )
@@ -94,14 +93,14 @@ func (ix *Index) add(path string, realm bool) {
 // Add records a note that has appeared at path, created there or renamed
 // or moved there. A redirect from that path is dropped, because a redirect
 // never hides a note that exists; Add reports whether one was, so the
-// caller saves the table (NoteCollection::insertNoteEntry).
+// caller saves the table.
 func (ix *Index) Add(path string) bool {
 	ix.add(path, false)
 	return ix.Redirects != nil && ix.Redirects.DropFrom(path)
 }
 
 // AddRealm records a file an application admitted from a subtree it
-// manages, such as ".reports/monday/report.md" (src/domain/reservedsubtrees.h).
+// manages, such as ".reports/monday/report.md".
 // Such a file answers only a target that names at least one of its folders,
 // so a bare [[report]] still means the user's own note of that name. Kvit
 // Notes itself registers no such subtree.
@@ -134,13 +133,13 @@ func (ix *Index) Resolve(target string) string {
 	return ix.Resolution(target, true).Path
 }
 
-// Resolution resolves a target as the app does. A target matches a note
-// when it is the note's path or the last segments of it, without regard to
-// case and with ".md" implied: [[kvit]], [[Kvit.md]] and [[Projects/Kvit]]
-// all name "Ideas/Projects/Kvit.md". More than one match is Ambiguous and
-// never picks one; writing more of the path chooses. Only when no note
-// matches is the redirect table consulted, and followRedirects false leaves
-// it out, to ask what the files alone say.
+// Resolution resolves a target. A target matches a note when it is the note's
+// path or the last segments of it, without regard to case and with ".md"
+// implied: [[kvit]], [[Kvit.md]] and [[Projects/Kvit]] all name
+// "Ideas/Projects/Kvit.md". More than one match is Ambiguous and never picks
+// one; writing more of the path chooses. Only when no note matches is the
+// redirect table consulted, and followRedirects false leaves it out, to ask
+// what the files alone say.
 func (ix *Index) Resolution(target string, followRedirects bool) Resolution {
 	lowered := NormalizeTarget(target)
 	if lowered == "" {
@@ -174,8 +173,7 @@ func (ix *Index) Resolution(target string, followRedirects bool) Resolution {
 }
 
 // CompletionTarget is what [[ completion inserts for a note: its title when
-// that alone resolves to the note, else its path without ".md"
-// (qml/WikiLinkMenu).
+// that alone resolves to the note, else its path without ".md".
 func (ix *Index) CompletionTarget(path, title string) string {
 	if ix.Resolve(title) == path {
 		return title
@@ -190,20 +188,19 @@ type NewNote struct {
 	// Any folder on the way to it that is missing is created first.
 	Folder string
 	// Title is the note's name. "" makes an untitled note ("Untitled",
-	// "Untitled 2", ...), which is what [[Folder/]] does in the app.
+	// "Untitled 2", ...), which is what [[Folder/]] does.
 	Title string
 	// Path is Folder/Title.md, or "" for an untitled note.
 	Path string
 }
 
-// NewNoteFor says where following target creates its note, from
-// createWikiTarget in qml/NoteSession. target is the link's note part
-// and current the path of the note holding the link. A bare name goes in
-// the current note's folder; a name with a path goes where the path says,
-// its folders created as needed, and a leading "/" means the top of the
-// vault. A trailing ".md" is dropped. It reports false when the app would
-// fail: a folder or note name that starts with a dot, holds a backslash, has
-// spaces around it, or is empty between two slashes.
+// NewNoteFor says where following target creates its note. target is the
+// link's note part and current the path of the note holding the link. A
+// bare name goes in the current note's folder; a name with a path goes where
+// the path says, its folders created as needed, and a leading "/" means the
+// top of the vault. A trailing ".md" is dropped. It reports false when the
+// note cannot be made: a folder or note name that starts with a dot, holds a
+// backslash, has spaces around it, or is empty between two slashes.
 func NewNoteFor(target, current string) (NewNote, bool) {
 	var n NewNote
 	if slash := strings.LastIndexByte(target, '/'); slash >= 0 {
@@ -237,9 +234,8 @@ func NewNoteFor(target, current string) (NewNote, bool) {
 	return n, true
 }
 
-// validName is the app's rule for a note's or folder's name
-// (NoteCollection::validName): not blank, no spaces around it, no slash or
-// backslash, and not starting with a dot.
+// validName is the rule for a note's or folder's name: not blank, no spaces
+// around it, no slash or backslash, and not starting with a dot.
 func validName(name string) bool {
 	return trim(name) != "" && trim(name) == name && !strings.ContainsAny(name, `/\`) && !strings.HasPrefix(name, ".")
 }

@@ -10,9 +10,8 @@ import (
 	"time"
 )
 
-// Where a document's pictures are found, after the core's
-// ImageAssets::resolveSource, and where a pasted one is written, after its
-// AssetStore.
+// Where a document's pictures are found, where a pasted one is written, and
+// when the loader reads a picture again.
 
 func TestAPictureIsFoundBesideTheDocumentThenFromTheRootThenTheSite(t *testing.T) {
 	root := t.TempDir()

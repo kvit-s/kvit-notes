@@ -1,9 +1,7 @@
 package editor
 
-// A selection as Markdown that stands on its own, as the core's
-// DocumentSelection::rangeMarkdown and InlineMarkdown::markdownForRange give
-// it: what "comment", "send to chat" and "ask in" quote, and what a drawn
-// document copies.
+// A selection as Markdown that stands on its own: what "comment", "send to
+// chat" and "ask in" quote, and what a drawn document copies.
 
 import (
 	"slices"
@@ -135,11 +133,10 @@ func (d *Doc) markdownOf(r TextRange) string {
 }
 
 // inlineFragment is the characters of src between Markdown offsets from and
-// to as Markdown of their own (InlineMarkdown::markdownForRange). Marker
-// characters in the range never count: a span whose visible text is wholly
-// inside the range is written as it stands, nested markers and all, and one
-// only partly inside has its markers written around each piece of it, so
-// every piece parses on its own.
+// to as Markdown of their own. Marker characters in the range never count: a
+// span whose visible text is wholly inside the range is written as it stands,
+// nested markers and all, and one only partly inside has its markers written
+// around each piece of it, so every piece parses on its own.
 func inlineFragment(src []rune, from, to int) string {
 	spans := parseInline(src)
 	marker := make([]bool, len(src))

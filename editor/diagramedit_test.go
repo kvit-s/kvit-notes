@@ -1,12 +1,9 @@
 package editor
 
-// Editing a Mermaid diagram on its drawing. These tests are not ports: the
-// app tests its edits at the source level (tests/test_mermaidedits.cpp,
-// ported in package mermaid) and has no test that drives a gesture on the
-// drawing; canvasSelectionAndLinking in tests/test_diagramlayout.cpp calls
-// no gesture either. They drive each gesture of features.md 1.2.17 through
-// the pointer and the keys, and check the source it writes, that it is one
-// undo step, and what the status line says.
+// Editing a Mermaid diagram on its drawing. The tests drive each gesture
+// through the pointer and the keys, and check the source it writes, that it
+// is one undo step, and what the status line says. The edits themselves are
+// tested on the source in package mermaid.
 
 import (
 	"image/png"

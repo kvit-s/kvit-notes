@@ -1,11 +1,10 @@
 package editor
 
-// Tables (features.md 1.2.11, Kvit's TableBlock and tabledata.cpp): a
-// run of lines starting with "|" is a table block, kept as written. It is
-// drawn as a grid, the header row set apart, each cell's inline Markdown
-// drawn and its column's alignment kept; a press in a cell makes it live
-// for editing in place. Column widths the reader drags live in the block's
-// own cols attribute, so they follow the file.
+// Tables: a run of lines starting with "|" is a table block, kept as written.
+// It is drawn as a grid, the header row set apart, each cell's inline
+// Markdown drawn and its column's alignment kept; a press in a cell makes it
+// live for editing in place. Column widths the reader drags live in the
+// block's own cols attribute, so they follow the file.
 
 import (
 	"math"

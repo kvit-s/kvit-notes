@@ -1,10 +1,11 @@
 package textdiagram
 
-// These tests are the app's tests/test_diagramclassifier.cpp, one Go test
-// per test function there and in the same order, with the same inputs and
-// expected outputs. The fixture tests/fixtures/llm-diagram.md is copied into
-// testdata. The two timing tests keep the tests' limit of 250 ms and log
-// the time as the tests print it.
+// These tests check Classify: it accepts the diagram in
+// testdata/llm-diagram.md and a misaligned copy of it, rejects lookalikes
+// (tree listings, console and Markdown tables, source code, shell
+// transcripts, stack traces, prose, a lone box, a decorative rule) and
+// oversized or empty bodies, and stays fast. The two timing tests fail at
+// 250 ms or more and log the time taken.
 
 import (
 	"os"

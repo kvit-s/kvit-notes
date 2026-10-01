@@ -26,8 +26,7 @@
 # Building needs Go and zig (for the math library); joining the two
 # architectures needs llvm-lipo (llvm-lipo-18 on this Linux machine) or the
 # Xcode lipo. Signing, the disk image and notarisation need a Mac with the
-# Xcode command line tools (codesign, hdiutil, xcrun), as the app's
-# script did. No Mac was available when this was written, so the Mac-only
+# Xcode command line tools (codesign, hdiutil, xcrun). No Mac was available when this was written, so the Mac-only
 # part below has not been run.
 #
 # Signing and notarisation are optional for a local build and required when

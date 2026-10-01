@@ -1,9 +1,7 @@
 package editor
 
-// Mermaid diagrams (features.md 1.2.17, Kvit's qml/DiagramBlock and
-// src/content/diagrams/diagramcanvas.cpp): a code block whose language is
-// `mermaid` keeps its source as its text, and is drawn as the diagram the
-// source describes.
+// Mermaid diagrams: a code block whose language is `mermaid` keeps its source
+// as its text, and is drawn as the diagram the source describes.
 //
 // With the caret elsewhere the block shows the diagram in a panel, fitted to
 // the column's width and to 720 pixels of height, so a tall diagram is
@@ -82,7 +80,7 @@ func (m fontMeasurer) Height() float64 {
 }
 
 // diagramOptions are what the editor lays diagrams out with: the note's
-// text face at its body size, as Kvit's diagram block does.
+// text face at its body size.
 func (e *Editor) diagramOptions() diagram.LayoutOptions {
 	ty := e.ui.Typography
 	size := float32(ty.BodySize())
@@ -100,8 +98,8 @@ func (e *Editor) diagramOptions() diagram.LayoutOptions {
 }
 
 // diagramCanvas is one rendered diagram: the source asked for, the last
-// valid scene, and what went wrong with the newest source. It is the
-// app's DiagramCanvas apart from the painting, which diagramdraw.go does.
+// valid scene, and what went wrong with the newest source. The painting is
+// in diagramdraw.go.
 type diagramCanvas struct {
 	e       *Editor
 	source  string
@@ -440,7 +438,7 @@ func (e *Editor) syncDiagram(i int) *diagramView {
 	return v
 }
 
-// The diagram block in design pixels (qml/DiagramBlock).
+// The diagram block in design pixels.
 const (
 	diagramRowTop      = 8   // above the panel
 	diagramRowBottom   = 8   // below the last part

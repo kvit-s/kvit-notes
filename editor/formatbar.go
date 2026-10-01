@@ -1,11 +1,10 @@
 package editor
 
-// The formatting bar (features.md 9.3, Kvit's FormattingBar): a strip
-// of the inline formats above a text selection inside one block, for the
-// pointer. It appears once the selection is made, not while it is being
-// dragged out, and goes when the selection does. It never takes the
-// keyboard: each button acts on the selection and hands the keyboard back
-// to the note.
+// The formatting bar: a strip of the inline formats above a text selection
+// inside one block, for the pointer. It appears once the selection is made,
+// not while it is being dragged out, and goes when the selection does. It
+// never takes the keyboard: each button acts on the selection and hands the
+// keyboard back to the note.
 
 import (
 	kvitui "github.com/kvit-s/kvit-ui"

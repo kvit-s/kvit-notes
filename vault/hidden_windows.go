@@ -6,7 +6,7 @@ import (
 )
 
 // hiddenOnDisk reports whether Windows marks a file or folder hidden, which
-// the scan leaves out as the app's does (directory without directory::Hidden).
+// the scan leaves out.
 func hiddenOnDisk(d fs.DirEntry) bool {
 	info, err := d.Info()
 	if err != nil {

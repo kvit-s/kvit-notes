@@ -1,14 +1,13 @@
 package diagram
 
-// Finding what is under a point and what a source position belongs to, the
-// scene-only part of the app's src/content/diagrams/diagramcanvas.cpp
-// (nodeAt, edgeAt, sourceOffsetAt, highlightSourceOffset and the selection
-// helpers). Points are in the scene's coordinates; the editor divides out
-// its zoom first.
+// Finding what is under a point and what a source position belongs to: the
+// node or edge at a point, the source offset of an element, and the
+// selection helpers. Points are in the scene's coordinates; the editor
+// divides out its zoom first.
 
 // edgeHitWidth is how wide a path is for the pointer: 9 pixels, 4.5 either
-// side of the line. The app strokes the path at this width with square
-// ends; this measures the distance to the line, which rounds the ends.
+// side of the line. A point counts when its distance to the line is at
+// most half of it, so the band has rounded ends.
 const edgeHitWidth = 9.0
 
 // NodeAt is the id of the topmost node whose rectangle holds p, or "".

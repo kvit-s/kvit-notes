@@ -1,8 +1,9 @@
 package diagram
 
-// Not a port: the tests do not check the cache's bound or calls from
-// several threads at once, which Render promises, nor the colour of a
-// sequence diagram's rect block.
+// These tests check what Render promises: the cache keeps the newest
+// results up to its bound, a result is the caller's own to change, and
+// calls from several goroutines at once are safe. The last test checks the
+// colour of a sequence diagram's rect block.
 
 import (
 	"fmt"
@@ -81,8 +82,7 @@ func TestRenderFromManyGoroutines(t *testing.T) {
 	}
 }
 
-// Not a port: the colour of a sequence diagram's rect block, as the
-// app's parseCssColor reads it.
+// The colour of a sequence diagram's rect block, as parseCSSColor reads it.
 func TestRectBlockColour(t *testing.T) {
 	for in, want := range map[string]mermaid.Color{
 		"rgb(200, 150, 255)":   {R: 200, G: 150, B: 255, A: 255, Set: true},

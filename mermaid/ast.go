@@ -1,26 +1,21 @@
 // Package mermaid reads the Mermaid diagram notation Kvit draws itself: the
 // flowchart, sequence, class, state and entity-relationship families, each
 // read by a parser written against the Jison grammar of mermaid@11.16.0, the
-// version Kvit's HTML export loads. It is a port of the app's
-// src/content/diagrams/mermaid*.cpp, and its tests are the app's
-// tests/test_mermaid*.cpp.
+// version Kvit's HTML export loads.
 //
 // The package knows nothing of drawing: Parse turns a fence's text into a
 // syntax tree with diagnostics, and the diagram package lays the tree out.
 // Every position the tree records is a rune offset into the fence's text,
-// which is how the editor counts positions in a block, and equals the
-// app's UTF-16 offsets for text outside the astral planes.
+// which is how the editor counts positions in a block.
 //
-// ast.go is mermaidast.h. lexer.go is mermaidlexer, the flowchart's tokens,
-// which the on-diagram edits read as well. parser.go is mermaidparser: the
-// resource limits, front matter, the choice of family from the header, the
-// flowchart parser and its `%% mermaid-flow:pos` lines. sequence.go,
-// class.go, state.go and er.go are mermaidsequence, mermaidclass,
-// mermaidstate and mermaider. edits.go is mermaidedits, the edits the
-// reader's gestures on a drawn diagram make to its text. color.go reads
-// colours as colour's string constructor does, and text.go has the string
-// behaviour the parsers rely on (trimming, case-insensitive keywords, toInt
-// and toDouble).
+// ast.go is the syntax tree. lexer.go is the flowchart's tokens, which the
+// on-diagram edits read as well. parser.go has the resource limits, front
+// matter, the choice of family from the header, the flowchart parser and
+// its `%% mermaid-flow:pos` lines. sequence.go, class.go, state.go and er.go
+// parse the other families. edits.go has the edits the reader's gestures on
+// a drawn diagram make to its text. color.go reads colours, and text.go has
+// the string handling the parsers rely on (trimming, case-insensitive
+// keywords, reading whole and decimal numbers).
 package mermaid
 
 // DiagramType is the family a fence's header names.
@@ -101,7 +96,7 @@ func (s Span) Contains(offset int) bool {
 }
 
 // Color is a colour written in the source, such as a classDef's fill. The
-// zero Color is a colour not given, as an invalid colour is in the app.
+// zero Color is a colour not given.
 type Color struct {
 	R, G, B, A uint8
 	Set        bool
@@ -564,7 +559,7 @@ func (r *ParseResult) HasErrors() bool {
 }
 
 // FirstError is the first error. When there is none it is an empty error at
-// line 1, column 1, as a default Diagnostic is in the app.
+// line 1, column 1.
 func (r *ParseResult) FirstError() Diagnostic {
 	for _, d := range r.Diagnostics {
 		if d.Severity == SeverityError {

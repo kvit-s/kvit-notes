@@ -2,8 +2,8 @@ package main
 
 // The note window: a strip of formatting buttons, the editor in a scrolling
 // region, and a status line saying what the caret is in and whether the note
-// is saved. It stands in for Kvit's window chrome, which the full app adds
-// later (the plan's step 6).
+// is saved. It shows a note file opened on its own, and the scenarios run in
+// it.
 
 import (
 	"fmt"

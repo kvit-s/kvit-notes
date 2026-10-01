@@ -1,12 +1,11 @@
 package editor
 
-// Completing wiki links (features.md 2.4, Kvit's WikiLinkCompletion and
-// WikiLinkMenu): typing "[[" opens a list under the caret of the notes
-// whose names hold what is typed after it, and after a "#", of that note's
-// headings. The arrows move through the list, Enter or Tab puts the choice
-// in and closes the link with "]]", and Escape closes the list. The editor
-// keeps the keyboard throughout. What the list holds is the application's,
-// through CompleteLink.
+// Completing wiki links: typing "[[" opens a list under the caret of the
+// notes whose names hold what is typed after it, and after a "#", of that
+// note's headings. The arrows move through the list, Enter or Tab puts the
+// choice in and closes the link with "]]", and Escape closes the list. The
+// editor keeps the keyboard throughout. What the list holds is the
+// application's, through CompleteLink.
 
 import (
 	"strings"
@@ -47,8 +46,7 @@ func (e *Editor) wikiQuery() (string, int, bool) {
 	}
 	r := []rune(b.Text)
 	c := min(d.Caret.Off, len(r))
-	// No completion inside inline math (or code): the app's does not
-	// open there either.
+	// No completion inside inline math or code.
 	for _, sp := range parseInline(r) {
 		if (sp.Kind == sMath || sp.Kind == sCode) && c > sp.Start && c <= sp.End {
 			return "", 0, false
@@ -127,7 +125,7 @@ func (e *Editor) wikiKey(key unison.KeyCode) bool {
 	case unison.KeyEscape:
 		e.closeWikiMenu()
 	case unison.KeyUp:
-		// Held at either end, the highlight stays there (WikiLinkMenu).
+		// Held at either end, the highlight stays there.
 		m.sel = max(0, m.sel-1)
 	case unison.KeyDown:
 		m.sel = max(0, min(len(m.items)-1, m.sel+1))

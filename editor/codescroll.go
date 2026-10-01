@@ -1,10 +1,9 @@
 package editor
 
-// Horizontal scrolling for code blocks (features.md 1.2.7, Kvit's
-// EditableBlock codeChrome and CodeBlockChrome): long lines do not
-// wrap, the panel clips them, and the text scrolls under a fixed gutter and
-// a scrollbar at the panel's bottom. The caret follows along a long line,
-// and the wheel and the scrollbar move it.
+// Horizontal scrolling for code blocks: long lines do not wrap, the panel
+// clips them, and the text scrolls under a fixed gutter and a scrollbar at
+// the panel's bottom. The caret follows along a long line, and the wheel and
+// the scrollbar move it.
 //
 // The text layer wraps at MaxWidth and never wraps at 0 (text.Options), so
 // a code block is laid out with no width. Its viewport is textWidth, the
@@ -17,8 +16,8 @@ import (
 	"github.com/richardwilkes/unison/enums/mod"
 )
 
-// The scrollbar in design pixels (CodeBlockChrome hScrollBar, 8 px,
-// across the panel's bottom past the gutter).
+// The scrollbar in design pixels (8 px, across the panel's bottom past the
+// gutter).
 const (
 	codeBarH      = 8
 	codeBarMargin = 2
@@ -119,9 +118,9 @@ func (e *Editor) codeViewportRect(i int) geom.Rect {
 	return geom.NewRect(x, y, e.codeViewport(i), e.layout(i).height())
 }
 
-// ensureCodeCaretVisible scrolls block i's code so the caret shows, as
-// the onCursorRectangleChanged does: past the right edge scrolls it in
-// with room, back past the left edge scrolls it home.
+// ensureCodeCaretVisible scrolls block i's code so the caret shows: past
+// the right edge scrolls it in with room, back past the left edge scrolls
+// it home.
 func (e *Editor) ensureCodeCaretVisible(i int) {
 	d := e.Doc
 	if i < 0 || i >= len(d.Blocks) || !e.codeNoWrap(&d.Blocks[i]) {
@@ -215,9 +214,9 @@ func (e *Editor) codeThumbRect(i int, track geom.Rect) geom.Rect {
 }
 
 // drawCodeScroll draws the scrollbar thumb under block i's code, when its
-// long line runs past the panel: in Kvit's scrollbar colours (the border
-// colour, strong under the pointer or while dragged), with no track of its
-// own since the panel is already its ground.
+// long line runs past the panel: in the border colour, strong under the
+// pointer or while dragged, with no track of its own since the panel is
+// already its ground.
 func (e *Editor) drawCodeScroll(gc *unison.Canvas, i int) {
 	track, ok := e.codeBarRect(i)
 	if !ok {

@@ -1,17 +1,16 @@
 package app
 
-// Finding and replacing in the open note (features.md 7.1–7.2, Kvit's
-// FindBar over src/domain/documentsearch.cpp): Ctrl+F opens a bar at the
-// top right of the note, Ctrl+H opens it with the replace row. Every match is
-// drawn in the note and the current one in its own colour; Enter and
-// Shift+Enter move between them, the count says where the current one is,
-// and the toggles are match case, whole word and regular expression, kept in
-// the settings. A block selection or a cross-block text selection arms the
-// in-selection domain, with an "In selection" toggle shown only then, which
-// is not persisted. Replace changes the current match and moves to the next;
-// All lists every change for a confirmation first. Escape closes the bar and
-// puts the caret at the current match. The search itself is the search
-// package's port of the rules.
+// Finding and replacing in the open note: Ctrl+F opens a bar at the top right
+// of the note, Ctrl+H opens it with the replace row. Every match is drawn in
+// the note and the current one in its own colour; Enter and Shift+Enter move
+// between them, the count says where the current one is, and the toggles are
+// match case, whole word and regular expression, kept in the settings. A
+// block selection or a cross-block text selection arms the in-selection
+// domain, with an "In selection" toggle shown only then, which is not
+// persisted. Replace changes the current match and moves to the next; All
+// lists every change for a confirmation first. Escape closes the bar and puts
+// the caret at the current match. The search itself is done by the search
+// package.
 
 import (
 	"fmt"
@@ -47,13 +46,12 @@ type finder struct {
 	current int
 	invalid bool // the query is a regular expression that does not compile
 
-	// The in-selection domain, armed from the selection present when the
-	// bar opens (the FindBar.open over DocumentSearch::setBlockDomain and
-	// setTextDomain). Block ids keep it valid across moves; text ends are
-	// Markdown offsets, mapped to display on each recompute. Nil block ids
-	// with a nil text range is no domain. inSelOn is the toggle's state:
-	// the matches are kept inside the domain only while it is on. The
-	// toggle is shown only while a domain is armed, and is not persisted.
+	// The in-selection domain, armed from the selection present when the bar
+	// opens. Block ids keep it valid across moves; text ends are Markdown
+	// offsets, mapped to display on each recompute. Nil block ids with a nil
+	// text range is no domain. inSelOn is the toggle's state: the matches are
+	// kept inside the domain only while it is on. The toggle is shown only
+	// while a domain is armed, and is not persisted.
 	domainBlocks []int64
 	domainText   *textDomainEnds
 	inSel        *kvitui.Button
@@ -157,7 +155,7 @@ func (f *finder) setInSel(on bool) {
 
 // syncDomain resolves the armed domain against the current blocks and puts
 // it in the search options while the toggle is on. Ids that vanished prune
-// a block domain and clear a text domain, as the recompute does.
+// a block domain and clear a text domain.
 func (f *finder) syncDomain() {
 	d := f.w.Editor.Doc
 	if !f.inSelOn || !f.hasDomain() {
@@ -454,7 +452,7 @@ func (f *finder) replaceAll() {
 }
 
 // close takes the bar and the matches away and puts the caret at the
-// current match. The armed domain goes with it, as the close clears it.
+// current match, and clears the armed domain.
 func (f *finder) close() {
 	w := f.w
 	if f.hide != nil {

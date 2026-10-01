@@ -6,8 +6,8 @@ import (
 	"testing"
 )
 
-// From TestNoteCollection::testBacklinks: two links on one line are two
-// links and one context line, and a link in a fence is no link.
+// Two links on one line are two links and one context line, and a link in a
+// fence is no link.
 func TestBacklinks(t *testing.T) {
 	bodies := map[string]string{
 		"A.md": "Links to [[B]] twice: [[b#Heading|alias]]\n",
@@ -24,10 +24,9 @@ func TestBacklinks(t *testing.T) {
 	}
 }
 
-// From tst_integration's test_wiki2_backlinksPanelListsAndUpdatesLive,
-// with the rest of the pane's rules: rows sorted by path with capitals
-// first, a note's links to itself left out, each line once, and a line cut
-// to 200 UTF-16 code units without splitting an emoji.
+// The pane's rows: sorted by path with capitals first, a note's links to
+// itself left out, each line once, and a line cut to 200 UTF-16 code units
+// without splitting an emoji.
 func TestBacklinksRows(t *testing.T) {
 	long := strings.Repeat("x", 197) + "🙂🙂 [[Welcome]]"
 	bodies := map[string]string{
@@ -49,9 +48,7 @@ func TestBacklinksRows(t *testing.T) {
 }
 
 // The context of a link at the very start of a note is the note's first
-// line. The app shows the last line instead, or nothing when the body
-// ends with a newline, because string::lastIndexOf with a start of -1
-// searches from the end; that is not reproduced.
+// line.
 func TestBacklinkAtTheStartOfANote(t *testing.T) {
 	bodies := map[string]string{"A.md": "[[B]] first line\nsecond\n", "B.md": ""}
 	got := NewIndex([]string{"A.md", "B.md"}).Backlinks("B.md", bodies)

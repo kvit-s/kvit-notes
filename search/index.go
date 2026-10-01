@@ -1,32 +1,26 @@
 package search
 
-// Searching every note of a vault (features.md 8.4). The rules are the
-// app's: src/search/searchindexdb.cpp (SearchIndexDb::query and the
-// SearchMatching functions), src/search/collectionsearchindex.cpp
-// (parseNote) and src/application/collectionsearch.cpp.
+// Searching every note of a vault.
 //
-// The app keeps its index in an SQLite database under the cache
-// directory, with FTS5 word and trigram indexes that only propose candidate
-// blocks, and checks every candidate against the note's text. This index is
-// in memory and is rebuilt from the notes whenever the app opens a vault, so
-// nothing on disk has to agree with the app's database. What it keeps for
-// each note, when the note is added:
+// The index is in memory and is rebuilt from the notes whenever the app
+// opens a vault, so nothing is kept on disk. What it keeps for each note,
+// when the note is added:
 //
 //   - the text of every block with each character case-folded, joined into
-// one string with a NUL between blocks, so a query is one strings.Index
-// loop over the note;
+//     one string with a NUL between blocks, so a query is one strings.Index
+//     loop over the note;
 //   - each word of at most two characters, with how often it occurs and
-// where its first ten occurrences are, so a one- or two-character
-// query, which must match whole words, is answered without reading the
-// note;
+//     where its first ten occurrences are, so a one- or two-character
+//     query, which must match whole words, is answered without reading the
+//     note;
 //   - a Bloom filter of the byte trigrams in that string, so a longer query
-// skips the notes that cannot hold it without reading them. The filter
-// can say a note may hold a query when it does not, never the reverse,
-// and every note it lets through is scanned, so results stay exact.
+//     skips the notes that cannot hold it without reading them. The filter
+//     can say a note may hold a query when it does not, never the reverse,
+//     and every note it lets through is scanned, so results stay exact.
 //
 // A query goes through the notes in path order, on as many goroutines as
-// there are processors when the vault is large, and builds each result the
-// way the app builds it after its database has proposed the note.
+// there are processors when the vault is large, and builds a result for
+// each note that holds it.
 
 import (
 	"runtime"
@@ -42,11 +36,11 @@ import (
 type Note struct {
 	// Path is vault-relative with forward slashes: "Recipes/Bread.md".
 	Path string
-	// Title is what the results list shows for the note. The app uses the
-	// file name without ".md" (TitleFolder).
+	// Title is what the results list shows for the note: the file name
+	// without ".md", as TitleFolder gives it.
 	Title string
-	// Folder is the folder the note is in, "" at the top of the vault. The
-	// app uses the path up to the last slash (TitleFolder).
+	// Folder is the folder the note is in, "" at the top of the vault: the
+	// path up to the last slash, as TitleFolder gives it.
 	Folder string
 	// Tags are the note's front-matter tags.
 	Tags []string
@@ -58,9 +52,8 @@ type Note struct {
 	Blocks []string
 }
 
-// TitleFolder is the title and folder the app gives a note from its path
-// (CollectionSearchIndex::parseNote): the file name without a ".md" in any
-// case, and everything before the last slash.
+// TitleFolder is the title and folder of a note, from its path: the file
+// name without a ".md" in any case, and everything before the last slash.
 func TitleFolder(path string) (title, folder string) {
 	name := path
 	if i := strings.LastIndexByte(path, '/'); i >= 0 {
@@ -85,7 +78,7 @@ type Index struct {
 // entry is one note in the index.
 type entry struct {
 	note     Note
-	modified int64            // the modification time in milliseconds, as the app stores it
+	modified int64            // the modification time in milliseconds
 	title    string           // the title, folded
 	body     string           // every block's text, folded, with a NUL between blocks
 	starts   []int            // where each block starts in body
@@ -99,8 +92,8 @@ type entry struct {
 
 // Add adds a note, or replaces the note with the same path, and returns the
 // note's revision: 1 when it is new, one more than before when it replaces
-// one (SearchIndexDb::replaceNote). A result carries the revision it was
-// found at, so a click can tell that the note has changed since.
+// one. A result has the revision it was found at, so a click can tell
+// that the note has changed since.
 func (x *Index) Add(n Note) int64 {
 	e := newEntry(n)
 	x.mu.Lock()
@@ -137,8 +130,7 @@ func (x *Index) Remove(path string) bool {
 	return true
 }
 
-// Revision is a note's revision, or 0 when the note is not in the index
-// (SearchIndexDb::revisionOf).
+// Revision is a note's revision, or 0 when the note is not in the index.
 func (x *Index) Revision(path string) int64 {
 	x.mu.RLock()
 	defer x.mu.RUnlock()
@@ -163,10 +155,10 @@ func (x *Index) position(path string) (int, bool) {
 	return i, i < len(x.list) && x.list[i].note.Path == path
 }
 
-// compareUTF16 orders two strings as string's operator< does, by their
-// UTF-16 code units. That is the order of Go's byte comparison except that
-// a character beyond the Basic Multilingual Plane (a surrogate pair to )
-// sorts before the characters from U+E000 to U+FFFF.
+// compareUTF16 orders two strings by their UTF-16 code units. That is the
+// order of Go's byte comparison except that a character beyond the Basic
+// Multilingual Plane (a surrogate pair in UTF-16) sorts before the
+// characters from U+E000 to U+FFFF.
 func compareUTF16(a, b string) int {
 	i := 0
 	for i < len(a) && i < len(b) && a[i] == b[i] {
@@ -281,12 +273,12 @@ type shortWord struct {
 // word is a run of word characters (isWordScalar), the unit a whole-word
 // match is bounded by.
 //
-// For a query made only of word characters, SearchMatching::scanOccurrences
-// finds exactly the words equal to it: an occurrence bounded by non-word
-// characters is a whole word, and the scan's step past an occurrence it
-// refused cannot skip one, since the character before a word is not a word
-// character while every character of the refused occurrence is. So these
-// counts and offsets are the scan's answer.
+// For a query made only of word characters, occurrences finds exactly the
+// words equal to it: an occurrence bounded by non-word characters is a whole
+// word, and the scan's step past an occurrence it refused cannot skip one,
+// since the character before a word is not a word character while every
+// character of the refused occurrence is. So these counts and offsets are the
+// scan's answer.
 func shortWords(body string) (map[string]int32, []shortWord) {
 	words := map[string]int32{}
 	var list []shortWord
@@ -345,8 +337,8 @@ func decode(s string, i int) (rune, int) {
 	return utf8.DecodeRuneInString(s[i:])
 }
 
-// Query finds a query in the notes (SearchIndexDb::query). The results are
-// in path order, as the app lists them; it does not rank notes.
+// Query finds a query in the notes. The results are in path order; it does
+// not rank notes.
 func (x *Index) Query(q Query) Results {
 	p := newPlan(q)
 	if p == nil {

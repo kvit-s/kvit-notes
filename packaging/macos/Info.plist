@@ -5,9 +5,10 @@
   replaces @VERSION@ with the release version's three numbers (2.0.0 for
   2.0.0-rc1: macOS reads these two keys as numbers) and @COPYRIGHT_YEAR@.
 
-  The bundle identifier, name and icon are the Qt app's, so the Go app
-  replaces it in /Applications as the same application and keeps its
-  preferences domain. LSMinimumSystemVersion is macOS 13 Ventura: Go 1.27
+  The bundle identifier, name and icon are those of every Kvit Notes
+  release, including 1.0.0, which was built with Qt, so a new version
+  replaces the old one in /Applications as the same application and keeps
+  its preferences domain. LSMinimumSystemVersion is macOS 13 Ventura: Go 1.27
   writes 13.0 into every executable it links, and the script fails if any
   executable or library in the bundle asks for a later version. The document
   type makes Kvit Notes one of the applications that can open Markdown files

@@ -15,7 +15,7 @@ import (
 // dragState is a press on a block's handle: a click selects the block, and
 // moving the pointer further than dragThreshold drags it. A press on the
 // handle of a selected block drags the whole selection, showing a gap
-// indicator instead of live-moving one row (BlockDragController).
+// indicator instead of live-moving one row.
 type dragState struct {
 	id      int64
 	start   geom.Point
@@ -96,7 +96,7 @@ func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Mo
 				e.Doc.SetCaret(pos.Block, pos.Off)
 				e.changed()
 			}
-			// A press on a link opens the link menu, as in Kvit.
+			// A press on a link opens the link menu.
 			if pos, ok := e.posAtPoint(where); ok {
 				if b := e.Doc.Block(pos.Block); b != nil {
 					if _, _, found := linkAt(b.Text, pos.Off); found {
@@ -189,7 +189,7 @@ func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Mo
 		case partEmbedOpen:
 			// A press on an embed's title opens the page on release (a
 			// single click); a drag, double- or triple-click selects the
-			// card's own text instead (features.md 2.5).
+			// card's own text instead.
 			if e.drawnPress(i, where, clickCount) {
 			}
 		case partPictureLoad:
@@ -275,7 +275,7 @@ func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Mo
 	if i := e.rowAt(where); i >= 0 {
 		// A press on a resolved picture opens it full-size; on a sound
 		// or video it opens externally, as playing inline has no Go
-		// toolkit behind it (features.md 1.2.8).
+		// toolkit behind it.
 		if ref, ok, shows := e.pictureBlock(i); ok && !shows {
 			if _, _, ok := e.embedCard(i); !ok && where.In(e.pictureRect(i)) {
 				if ref.Media {
@@ -655,7 +655,7 @@ func (e *Editor) posAtPoint(p geom.Point) (Pos, bool) {
 	}
 	if e.mathReads(best) {
 		// A press on a typeset equation opens its TeX with the caret at
-		// the end (MathBlock, focusAtEnd).
+		// the end.
 		b := &d.Blocks[best]
 		return Pos{b.ID, len(runes(b.Text))}, true
 	}

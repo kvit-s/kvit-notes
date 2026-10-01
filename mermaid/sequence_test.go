@@ -1,12 +1,9 @@
 package mermaid
 
-// These tests are the parser tests of the app's
-// tests/test_mermaidsequence.cpp, one Go test per test function there and in
-// the same order, with the same inputs and expected outputs. The file's
-// layout tests (every function from layoutProducesLifelinesHeadersAndMessage
-// on, and rendererRendersSequence) lay the diagram out into a scene and
-// belong to the diagram package. Several inputs are from demos/sequence.html
-// of mermaid@11.16.0 (MIT license, (c) Knut Sveidqvist).
+// These tests check the sequence-diagram parser; laying sequence diagrams
+// out is tested in the diagram package. Several inputs are from
+// demos/sequence.html of mermaid@11.16.0 (MIT license, (c) Knut
+// Sveidqvist).
 
 import (
 	"fmt"

@@ -7,9 +7,8 @@ import (
 	"github.com/kvit-s/kvit-notes/editor"
 )
 
-// textCases are Kvit's plain-text exporter tests
-// (tests/test_documentexporter.cpp), one row per input, named after the
-// test.
+// textCases render one Markdown body as plain text, one row per input, each
+// named after what it checks.
 var textCases = []struct {
 	name string
 	md   string
@@ -70,9 +69,8 @@ func TestTextShape(t *testing.T) {
 	}
 }
 
-// With nothing installed, a note's Markdown export is the note as the editor
-// saves it, and exporting leaves the editor's blocks as they were
-// (testNoModuleLeavesEveryExportUnchanged, testExportingDoesNotTouchTheNoteOrItsModel).
+// A note's Markdown export is the note as the editor saves it, and
+// exporting leaves the editor's blocks as they were.
 func TestNoteMarkdownIsTheSavedNote(t *testing.T) {
 	blocks := []editor.Block{editor.NewBlock(editor.Heading1, "Report"), editor.NewBlock(editor.Paragraph, "The note's own text.")}
 	before := append([]editor.Block(nil), blocks...)
@@ -94,7 +92,7 @@ func TestNoteMarkdownIsTheSavedNote(t *testing.T) {
 }
 
 // A selection's Markdown is in note order, list items kept tight, and a
-// numbered item keeps its number in the note (DocumentSerializer::serializeBlocks).
+// numbered item keeps its number in the note.
 func TestSelectionMarkdown(t *testing.T) {
 	blocks := editor.ParseMarkdown("Intro\n\n1. one\n2. two\n3. three\n\nOutro")
 	got := MarkdownFromSelection(blocks, []int{4, 2, 3, 2, 99})

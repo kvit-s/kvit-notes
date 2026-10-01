@@ -21,10 +21,9 @@
 #
 # The AppImage is made by appimagetool with a separately pinned type-2
 # runtime, both downloaded once into packaging/.tools and checked against the
-# digests below, as the app's AppImage script did. appimagetool runs with
-# --appimage-extract-and-run so the build machine needs no FUSE. The
-# script's other tool, linuxdeploy with its  plugin, is not needed: the Go
-# program has no libraries to collect.
+# digests below. appimagetool runs with --appimage-extract-and-run so the
+# build machine needs no FUSE. linuxdeploy is not needed: the program has no
+# libraries to collect.
 #
 # packaging/linux/test-linux.sh runs the results.
 #
@@ -36,8 +35,8 @@ release_version
 
 # ── Pinned tools
 #
-# The digests were recorded for the app's AppImage on 2026-08-02 and
-# match what these URLs served on 2026-09-27. The runtime is pinned apart
+# The digests were recorded on 2026-08-02 and match what these URLs served
+# on 2026-09-27. The runtime is pinned apart
 # from appimagetool so that an older runtime inside the tool cannot bring back
 # the libfuse.so.2 dependency on FUSE 3 systems. Its source is
 # AppImage/type2-runtime at commit 75849dce7cc37e4319b633df1f116ca895c71a12

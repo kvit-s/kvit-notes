@@ -1,9 +1,9 @@
 package main
 
-// Scripted scenarios. Each one replays a storyboard from Kvit's
-// tests/tst_visual with the same note and the same key presses and
-// pointer moves, checks the resulting note, and saves screenshots under the
-// same file names as Kvit's reference images.
+// Scripted scenarios. Each one opens a note, replays a sequence of key
+// presses and pointer moves, checks the resulting note, and saves
+// screenshots of the steps (visual_01_reveal_01_cursor_outside.png and so
+// on).
 // They run on unison's headless screen: the real event loop, drawing and
 // screen-reader tree, with the input injected.
 
@@ -23,12 +23,12 @@ import (
 	"github.com/richardwilkes/unison/enums/mod"
 )
 
-// storyWidth and storyHeight are the window size of Kvit's storyboards.
+// storyWidth and storyHeight are the window size the scenarios run at.
 const (
 	storyWidth  = 1100
 	storyHeight = 720
-	// storyBaseSize and storyLineHeight are the typography of Kvit's
-	// storyboards.
+	// storyBaseSize and storyLineHeight are the typography the scenarios
+	// run at.
 	storyBaseSize   = 15
 	storyLineHeight = 1.0
 )
@@ -54,9 +54,8 @@ func startDriver(md, theme string, width, height float32) (*driver, error) {
 		ui.Theme.SetThemeID(theme)
 	}
 	ui.Theme.SetReducedMotion(true)
-	// The typography Kvit's storyboards were taken at (their settings
-	// page, visual_25_settings_02_typography_page): 15 px at a line height
-	// of 1.0, with 4 px between blocks.
+	// The scenarios' typography: 15 px at a line height of 1.0, with 4 px
+	// between blocks.
 	ui.Typography.SetBaseSize(storyBaseSize)
 	ui.Typography.SetLineHeight(storyLineHeight)
 	doc := editor.NewDoc(editor.ParseMarkdown(md))
@@ -100,7 +99,8 @@ func (dr *driver) expect(ok bool, format string, args ...any) {
 	}
 }
 
-// shot saves the window as drawn now under a Kvit storyboard's file name.
+// shot saves the window as drawn now, as the file name in the output
+// folder when there is one.
 func (dr *driver) shot(name string) {
 	dr.shots = append(dr.shots, name)
 	if dr.out == "" {
@@ -119,8 +119,7 @@ func (dr *driver) shot(name string) {
 	}
 }
 
-// focus puts the caret in block i at a source offset, as Kvit's tests do
-// with ensureFocus and cursorPosition.
+// focus puts the caret in block i at a source offset.
 func (dr *driver) focus(i, off int) { dr.do(func() { dr.ed().FocusBlock(i, off) }) }
 
 // clearFocus takes the caret out of the note and moves the pointer off it.
@@ -277,10 +276,10 @@ var scenarios = []scenario{
 		dr.expect(dr.caret().Off == 0, "Home: caret at %d", dr.caret().Off)
 		dr.shot("visual_01_reveal_02_cursor_at_line_start.png")
 		dr.keys(unison.KeyRight, 14)
-		dr.expect(dr.caret().Off == 16, "14 x Right: caret at %d, Kvit's is after \"brow\" (16)", dr.caret().Off)
+		dr.expect(dr.caret().Off == 16, "14 x Right: caret at %d, want it after \"brow\" (16)", dr.caret().Off)
 		dr.shot("visual_01_reveal_03_cursor_in_bold.png")
 		dr.keys(unison.KeyRight, 17)
-		dr.expect(dr.caret().Off == 34, "17 more x Right: caret at %d, Kvit's is after \"seven\" (34)", dr.caret().Off)
+		dr.expect(dr.caret().Off == 34, "17 more x Right: caret at %d, want it after \"seven\" (34)", dr.caret().Off)
 		dr.shot("visual_01_reveal_04_cursor_in_italic.png")
 		dr.clearFocus()
 		dr.shot("visual_01_reveal_05_cursor_elsewhere.png")
@@ -546,10 +545,10 @@ var scenarios = []scenario{
 		dr.expect(dr.popups() == 0, "Escape should close it")
 	}},
 	{"30_input_method_text", "Before after\n", func(dr *driver) {
-		// Kvit's storyboard 30 draws an input method's composition at the
-		// caret. Composition is not a requirement of the Go apps (the owner's
-		// decision of 2026-09-26), so what is kept is the text an input method
-		// commits, which arrives as whole characters with no key press.
+		// Drawing an input method's composition at the caret is not a
+		// requirement of the Kvit apps (the owner's decision of 2026-09-26),
+		// so this checks the text an input method commits, which arrives as
+		// whole characters with no key press.
 		dr.focus(0, 7)
 		dr.typ("日本語")
 		dr.expect(dr.text(0) == "Before 日本語after", "committed text: %q", dr.text(0))
@@ -598,8 +597,8 @@ var scenarios = []scenario{
 		dr.expect(dr.caret().Block == dr.blockID(5), "the Settings entry should put the caret in its heading, it is in the block of id %d", dr.caret().Block)
 	}},
 	{"25_typography", "# Typography sample\n\nBody text with **bold**, ==highlight==, `inline code`, and a [link](https://kvit.example) to preview the scale\n\n## A section heading\n\n```\nmonospace = code()\n```\n", func(dr *driver) {
-		// Kvit's test_25 after its settings dialog: a larger base size
-		// scales the whole note, and a capped width wraps the paragraph.
+		// A larger base size scales the whole note, and a capped width
+		// wraps the paragraph.
 		dr.clearFocus()
 		dr.do(func() { dr.ui.Typography.SetBaseSize(20) })
 		dr.shot("visual_25_settings_03_base_size_20.png")
@@ -625,7 +624,7 @@ var scenarios = []scenario{
 		dr.expect(dr.popups() == 1, "the language menu should be open")
 		dr.key(unison.KeyEscape, mod.None)
 		// A long line scrolls horizontally (wrap off): the caret follows
-		// to the end of a line wider than the panel ( test_31_code).
+		// to the end of a line wider than the panel.
 		longLine := "result = compute(alpha, beta, gamma, delta, epsilon, zeta, eta, theta)  # a deliberately long single line that exceeds the panel width"
 		dr.do(func() {
 			d := dr.doc()
@@ -642,8 +641,8 @@ var scenarios = []scenario{
 		dr.clearFocus()
 	}},
 	{"36_tables", "# Tables\n\n| Name | Role | Age |\n| :--- | :--- | ---: |\n| Alice | **Lead** | 30 |\n| Bob | Dev | 25 |\n| Carol | Design | 41 |", func(dr *driver) {
-		// Kvit's tests/tst_visual test_36_tables: the grid rendered,
-		// one live cell, sorting by a header, and the grid-size picker.
+		// The grid rendered, one live cell, sorting by a header, and the
+		// grid-size picker.
 		dr.expect(dr.kind(1) == editor.Table, "the second block should be a table: %s", dr.blocks())
 		dr.clearFocus()
 		dr.shot("visual_36_tables_01_rendered.png")

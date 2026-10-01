@@ -23,8 +23,8 @@ import (
 	"github.com/richardwilkes/unison/enums/paintstyle"
 )
 
-// features.md 18.1: File, New from template makes a note named after the
-// template, with its text filled in and its tags.
+// File, New from template makes a note named after the template, with its
+// text filled in and its tags.
 func TestANoteFromATemplate(t *testing.T) {
 	s := openVault(t, demo)
 	s.press("File")
@@ -52,8 +52,7 @@ func TestANoteFromATemplate(t *testing.T) {
 
 const outlined = "# Plan\n\nIntro\n\n## Goals\n\nText\n\n### Detail\n\n## Risks\n\nMore\n"
 
-// features.md 17.1: the outline lists the headings, follows the caret and
-// goes to a heading.
+// The outline lists the headings, follows the caret and goes to a heading.
 func TestTheOutline(t *testing.T) {
 	s := openVault(t, notes{"Plan.md": outlined})
 	s.press("View")
@@ -92,7 +91,7 @@ func TestTheOutline(t *testing.T) {
 	}
 }
 
-// features.md 16.1: focus mode leaves the editor alone, and Escape ends it.
+// Focus mode leaves the editor alone, and Escape ends it.
 func TestFocusMode(t *testing.T) {
 	s := openVault(t, demo)
 	s.screen.KeyPress(unison.KeyF11, mod.None)
@@ -189,8 +188,8 @@ func TestSettingsChangeTheEditor(t *testing.T) {
 	}
 }
 
-// features.md 19: the word count opens the statistics, and the goal
-// dialog writes the note's goal.
+// The word count opens the statistics, and the goal dialog writes the note's
+// goal.
 func TestStatisticsAndTheWritingGoal(t *testing.T) {
 	s := openVault(t, notes{"A.md": "one two three\n"})
 	s.press("3 words")
@@ -219,8 +218,7 @@ func TestStatisticsAndTheWritingGoal(t *testing.T) {
 	}
 }
 
-// features.md 1.2.14: a web page's card reads the page only when Load
-// preview is pressed.
+// A web page's card reads the page only when Load preview is pressed.
 func TestAnEmbedCardLoadsItsPreviewOnRequest(t *testing.T) {
 	hits := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -262,8 +260,8 @@ func TestMenuAccessKeys(t *testing.T) {
 	}
 }
 
-// features.md 12.7: Ctrl+Alt+N opens quick capture, and Ctrl+Enter makes a
-// note of what was typed, named from its first line.
+// Ctrl+Alt+N opens quick capture, and Ctrl+Enter makes a note of what was
+// typed, named from its first line.
 func TestQuickCapture(t *testing.T) {
 	s := openVault(t, demo)
 	s.screen.KeyPress(unison.KeyN, mod.Control|mod.Option)
@@ -286,8 +284,8 @@ func TestQuickCapture(t *testing.T) {
 	}
 }
 
-// features.md 9.3: selecting text in a block shows the formatting bar,
-// whose buttons act on the selection.
+// Selecting text in a block shows the formatting bar, whose buttons act on
+// the selection.
 func TestTheFormattingBar(t *testing.T) {
 	s := openVault(t, notes{"A.md": "Select a few of these words\n"})
 	s.do(func() { s.w.Editor.FocusBlock(0, 7) })
@@ -315,8 +313,8 @@ func TestTheFormattingBar(t *testing.T) {
 	}
 }
 
-// features.md 7.1–7.2: Ctrl+F finds in the note as the reader sees it,
-// Enter moves between matches, Ctrl+H replaces one or all.
+// Ctrl+F finds in the note as the reader sees it, Enter moves between
+// matches, Ctrl+H replaces one or all.
 func TestFindAndReplace(t *testing.T) {
 	s := openVault(t, notes{"A.md": "The **old** fox and the old hound\n\n- old bullet entry\n\nNothing to replace here\n"})
 	s.do(func() { s.w.Editor.FocusBlock(0, 0) })
@@ -362,7 +360,7 @@ func TestFindAndReplace(t *testing.T) {
 	})
 	s.do(func() { s.w.finder.replaceOne() })
 	// Replacing all of a span's text replaces the span, as selecting it
-	// and typing would (the cutRangeResult).
+	// and typing would.
 	if got := s.editorText(); got != "The new fox and the old hound\nold bullet entry\nNothing to replace here" {
 		t.Errorf("replace one: %q", got)
 	}
@@ -374,10 +372,9 @@ func TestFindAndReplace(t *testing.T) {
 	}
 }
 
-// features.md 7.1-7.2: a block selection or a cross-block text selection
-// arms the in-selection domain, with the toggle on; turning it off searches
-// the whole note, and closing clears it (the FindBar.open over
-// DocumentSearch::setBlockDomain and setTextDomain).
+// A block selection or a cross-block text selection arms the in-selection
+// domain, with the toggle on; turning it off searches the whole note, and
+// closing clears it.
 func TestFindInSelection(t *testing.T) {
 	s := openVault(t, notes{"A.md": "fox one fox\n\nfox two fox\n\nfox three fox\n"})
 	count := func() string {
@@ -472,8 +469,8 @@ func TestFindInSelection(t *testing.T) {
 	s.screen.KeyPress(unison.KeyEscape, mod.None)
 }
 
-// features.md 8.4: the search field finds notes by their text and title,
-// lists the lines found, and opens a note at a line.
+// The search field finds notes by their text and title, lists the lines
+// found, and opens a note at a line.
 func TestSearchAcrossNotes(t *testing.T) {
 	s := openVault(t, notes{
 		"Foxes.md":             "The quick brown fox jumps over the lazy dog\n",
@@ -521,8 +518,8 @@ func TestSearchAcrossNotes(t *testing.T) {
 	}
 }
 
-// features.md 2.4 and 8.5: following wiki links and Markdown links, making
-// the note a link names, and the link dialog.
+// Following wiki links and Markdown links, making the note a link names, and
+// the link dialog.
 func TestFollowingLinksAndTheLinkDialog(t *testing.T) {
 	s := openVault(t, notes{
 		"Home.md":           "See [[Plan#Risks|the risks]] and [[New idea]] and [intro](#intro)\n\n## Intro\n\nText\n",
@@ -692,8 +689,7 @@ func TestRenamingUpdatesLinks(t *testing.T) {
 	}
 }
 
-// features.md 12.5–12.6: exporting the notes of a vault and importing a
-// folder of files.
+// Exporting the notes of a vault and importing a folder of files.
 func TestExportAndImport(t *testing.T) {
 	s := openVault(t, notes{"Report.md": "# Quarterly Report\n\nRevenue rose **12%** this quarter.\n", "Existing.md": "x\n"})
 	dest := t.TempDir()
@@ -762,8 +758,7 @@ func TestHTMLOnTheClipboard(t *testing.T) {
 	}
 }
 
-// features.md 1.2.18: a query block lists the notes its spec selects, and a
-// row opens its note.
+// A query block lists the notes its spec selects, and a row opens its note.
 func TestAQueryBlock(t *testing.T) {
 	s := openVault(t, notes{
 		"Dashboard.md":       "# Dashboard\n\n```query\nfrom: projects/\nwhere: status = active\ncolumns: title, status, due\nsort: due asc\n```\n",
@@ -928,7 +923,7 @@ func TestPDFExport(t *testing.T) {
 	}
 }
 
-// features.md 9.6: F6 moves the keyboard between the panes drawn.
+// F6 moves the keyboard between the panes drawn.
 func TestF6CyclesPanes(t *testing.T) {
 	s := openVault(t, notes{"A.md": "text\n"})
 	focused := func() string {
@@ -979,7 +974,7 @@ func TestF6CyclesPanes(t *testing.T) {
 	}
 }
 
-// features.md 9.2: the toolbar's groups hide from its menu and stay hidden.
+// The toolbar's groups hide from its menu and stay hidden.
 func TestToolbarGroupsHide(t *testing.T) {
 	s := openVault(t, notes{"A.md": "text\n"})
 	kind := func() string {
@@ -1020,7 +1015,7 @@ func TestToolbarGroupsHide(t *testing.T) {
 	}
 }
 
-// features.md 8.4: recent searches are kept and run again.
+// Recent searches are kept and run again.
 func TestRecentSearches(t *testing.T) {
 	s := openVault(t, notes{"A.md": "a fox here\n", "B.md": "another fox there\n"})
 	s.waitFor("the index", func() bool {
@@ -1065,17 +1060,17 @@ func TestRecentSearches(t *testing.T) {
 	}
 }
 
-// features.md 9.7: the status line names the caret's line and column.
+// The status line names the caret's line and column.
 func TestStatusFollowsQtOrderWithSavedTimeAndUpdateNotice(t *testing.T) {
 	s := openVault(t, notes{"A.md": "first line\nsecond line\n"})
 	s.do(func() { s.w.Editor.FocusBlock(0, 11) })
-	// order: Block Ln Col, then kind, path, block and char counts.
+	// The order: Block Ln Col, then kind, path, block and char counts.
 	var facts []string
 	s.do(func() { facts = s.w.status.Facts })
 	want := []string{"Block 1 \u00b7 Ln 2, Col 1", "Paragraph", "A.md", "1 blocks"}
 	for i, w := range want {
 		if i >= len(facts) || facts[i] != w {
-			t.Fatalf("facts in reference order: %q, want start %q", facts, want)
+			t.Fatalf("facts: %q, want start %q", facts, want)
 		}
 	}
 	// Saving stamps the last-saved time beside Saved.
@@ -1107,7 +1102,7 @@ func TestStatusShowsLineAndColumn(t *testing.T) {
 	}
 }
 
-// features.md 12.2: the auto-save wait is a setting, in seconds.
+// The auto-save wait is a setting, in seconds.
 func TestSaveIntervalSetting(t *testing.T) {
 	s := openVault(t, notes{"A.md": "text\n"})
 	var d time.Duration
@@ -1131,7 +1126,7 @@ func TestSaveIntervalSetting(t *testing.T) {
 	}
 }
 
-// features.md 12.1: opening a vault that cannot be written says so aloud.
+// Opening a vault that cannot be written says so aloud.
 func TestReadOnlyAnnounced(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root can write anywhere")
@@ -1167,8 +1162,8 @@ func TestReadOnlyAnnounced(t *testing.T) {
 	}
 }
 
-// features.md 5.1: a copy carries the internal type and pastes back as its
-// text, never through the HTML converter.
+// A copy has the internal type and pastes back as its text, never through
+// the HTML converter.
 func TestInternalFormatPastesAsText(t *testing.T) {
 	s := openVault(t, notes{"A.md": "text\n"})
 	const md = "```go\nfunc main() {}\n```\n"
@@ -1186,8 +1181,7 @@ func TestInternalFormatPastesAsText(t *testing.T) {
 	})
 }
 
-// features.md 8.3: F2 renames a note in its row; Enter keeps it, Escape
-// drops it.
+// F2 renames a note in its row; Enter keeps it, Escape drops it.
 func TestRenameInRow(t *testing.T) {
 	s := openVault(t, notes{"Old.md": "text\n"})
 	s.do(func() { s.w.list.choose(0) })
@@ -1215,8 +1209,8 @@ func TestRenameInRow(t *testing.T) {
 	}
 }
 
-// features.md 3.7 and 9.5: the block menu exports through the export dialog,
-// scoped to the blocks; the dialog opens without a scope otherwise.
+// The block menu exports through the export dialog, scoped to the blocks; the
+// dialog opens without a scope otherwise.
 func TestBlockExportOpensScopedDialog(t *testing.T) {
 	s := openVault(t, notes{"A.md": "first\n\nsecond\n"})
 	if s.w.Editor.OnExport == nil {
@@ -1237,7 +1231,7 @@ func TestBlockExportOpensScopedDialog(t *testing.T) {
 	s.screen.KeyPress(unison.KeyEscape, mod.None)
 }
 
-// features.md 10.3: the typography section lists the installed fonts.
+// The typography section lists the installed fonts.
 func TestInstalledFontsListed(t *testing.T) {
 	options := installedFontOptions()
 	if len(options) == 0 || options[0].Value != "" {

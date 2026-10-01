@@ -1,23 +1,24 @@
 package diagram
 
-// The geometry the layouts need from the QPointF, QRectF and QPainterPath,
-// written to give the same answers as the qpointf.h, qrect.cpp,
-// qpainterpath.cpp and qbezier.cpp for the paths layout builds: the fuzzy
-// comparisons, a rectangle that touches another without overlapping it, the
-// point and angle part way along a path, its length and bounds, and whether
-// it meets a rectangle.
+// The geometry the layouts need: the fuzzy comparisons, a rectangle that
+// touches another without overlapping it, the point and angle part way along
+// a path, its length and bounds, and whether it meets a rectangle. For the
+// paths the layouts build, each gives the same answers as the earlier Qt
+// version of Kvit Notes.
 
 import "math"
 
-// fuzzyCompare is qFuzzyCompare for doubles: equal to about 12 digits.
+// fuzzyCompare reports whether a and b are equal to about 12 significant
+// digits.
 func fuzzyCompare(a, b float64) bool {
 	return math.Abs(a-b)*1e12 <= min(math.Abs(a), math.Abs(b))
 }
 
-// fuzzyIsNull is qFuzzyIsNull for doubles.
+// fuzzyIsNull reports whether d is within 1e-12 of zero.
 func fuzzyIsNull(d float64) bool { return math.Abs(d) <= 1e-12 }
 
-// fuzzyEqual compares one coordinate as 6 compares QPointF's.
+// fuzzyEqual compares one coordinate of two points: within 1e-12 when either
+// is zero, otherwise to about 12 significant digits.
 func fuzzyEqual(a, b float64) bool {
 	if a == 0 || b == 0 {
 		return fuzzyIsNull(a - b)
@@ -43,7 +44,7 @@ func (p Point) Neg() Point { return Point{-p.X, -p.Y} }
 // Len is the distance from the origin to p.
 func (p Point) Len() float64 { return math.Hypot(p.X, p.Y) }
 
-// Equal compares two points as QPointF's == does, allowing for rounding.
+// Equal compares two points coordinate by coordinate, allowing for rounding.
 func (p Point) Equal(q Point) bool { return fuzzyEqual(p.X, q.X) && fuzzyEqual(p.Y, q.Y) }
 
 // unit is d scaled to length 1, or d itself when it is too short to have a
@@ -78,8 +79,8 @@ func (r Rect) Center() Point { return Point{r.X + r.W/2, r.Y + r.H/2} }
 // TopLeft is the corner at X, Y.
 func (r Rect) TopLeft() Point { return Point{r.X, r.Y} }
 
-// IsNull reports a rectangle with no width and no height, which is what an
-// unset QRectF is.
+// IsNull reports a rectangle with no width and no height, such as the zero
+// Rect.
 func (r Rect) IsNull() bool { return r.W == 0 && r.H == 0 }
 
 // Normalized is the same rectangle with a positive width and height.
@@ -142,7 +143,7 @@ func (r Rect) United(o Rect) Rect {
 	return Rect{left, top, right - left, bottom - top}
 }
 
-// ---- Outline builders (QPainterPath's) ----
+// ---- Outline builders ----
 
 // last is the point the outline ends at, or the origin for an empty one.
 func (o *Outline) last() Point {
@@ -173,7 +174,7 @@ func segEnd(segs []Segment, i int) Point {
 }
 
 // startSubpath begins a subpath at the current point when the outline is
-// empty or was just closed, as QPainterPath does before a line or a curve.
+// empty or was just closed. Adding a line or a curve calls it first.
 func (o *Outline) startSubpath() {
 	if len(o.Segs) == 0 {
 		o.Segs = append(o.Segs, Segment{Kind: MoveTo})
@@ -283,7 +284,7 @@ func (o *Outline) AddRoundedRect(r Rect, rx, ry float64) {
 }
 
 // ellipsePoint is the point at angle degrees on the ellipse filling r,
-// counting anticlockwise from three o'clock as does.
+// counting anticlockwise from three o'clock as seen on screen.
 func ellipsePoint(r Rect, deg float64) Point {
 	a := deg * math.Pi / 180
 	c := r.Center()
@@ -301,7 +302,7 @@ func (o *Outline) ArcMoveTo(r Rect, deg float64) {
 // ArcTo draws part of the ellipse filling r, from start degrees through sweep
 // degrees (anticlockwise when positive), with a line first from the current
 // point to where the arc starts. Each quarter turn or less is one cubic
-// curve, which gives the same curves as for arcs in whole quarter turns.
+// curve.
 func (o *Outline) ArcTo(r Rect, start, sweep float64) {
 	if r.IsNull() {
 		return
@@ -330,15 +331,15 @@ func (o *Outline) ArcTo(r Rect, start, sweep float64) {
 
 // ---- Outline queries ----
 
-// element is one entry of QPainterPath's element list: a move, a line, or
-// the three points of a cubic curve after the point before it.
+// element is one step of an outline as the queries walk it: a move, a line,
+// or the three points of a cubic curve after the point before it.
 type element struct {
 	kind SegmentKind // MoveTo, LineTo or CubicTo
 	pts  [3]Point
 }
 
-// elements turns the outline into QPainterPath's elements: a quadratic curve
-// becomes the cubic  stores for it, and a Close becomes a line back to the
+// elements turns the outline into elements: a quadratic curve becomes the
+// cubic curve with the same shape, and a Close becomes a line back to the
 // start of its subpath, left out when the pen is already there.
 func (o Outline) elements() []element {
 	var out []element
@@ -425,8 +426,8 @@ func (o Outline) Clone() Outline {
 // bezier is a cubic curve through four points.
 type bezier struct{ p1, p2, p3, p4 Point }
 
-// lineBezier is the straight line from a to b as a cubic, as makes one to
-// walk a line and a curve alike.
+// lineBezier is the straight line from a to b as a cubic, so that a line and
+// a curve are walked alike.
 func lineBezier(a, b Point) bezier {
 	d := b.Sub(a)
 	return bezier{a, a.Add(d.Div(3)), a.Add(d.Mul(2).Div(3)), b}
@@ -454,8 +455,8 @@ func (b bezier) split() (bezier, bezier) {
 	return bezier{b.p1, m12, m123, m}, bezier{m, m234, m34, b.p4}
 }
 
-// length is QBezier::length: the control polygon's length where it is within
-// 0.01 of the chord, splitting the curve in half until it is.
+// length is the curve's length: the control polygon's length where it is
+// within 0.01 of the chord, splitting the curve in half until it is.
 func (b bezier) length() float64 {
 	var total float64
 	var add func(b bezier, depth int)
@@ -491,8 +492,8 @@ func (o Outline) Length() float64 {
 	return total
 }
 
-// bezierAtPercent is the bezierAtT: the line or curve where the fraction t
-// of the outline's length falls, the length before it, and its own length.
+// bezierAtPercent finds the line or curve where the fraction t of the
+// outline's length falls, the length before it, and its own length.
 func (o Outline) bezierAtPercent(t float64) (b bezier, before, own float64, ok bool) {
 	els := o.elements()
 	total := o.Length()
@@ -521,9 +522,8 @@ func (o Outline) bezierAtPercent(t float64) (b bezier, before, own float64, ok b
 }
 
 // PointAtPercent is the point the fraction t of the way along the outline by
-// length, as QPainterPath::pointAtPercent finds it: the line or curve where
-// that length falls, then that curve's point at the matching fraction of its
-// own parameter.
+// length: the line or curve where that length falls, then that curve's point
+// at the matching fraction of its own parameter.
 func (o Outline) PointAtPercent(t float64) Point {
 	if t < 0 || t > 1 {
 		return Point{}
@@ -547,8 +547,7 @@ func (o Outline) PointAtPercent(t float64) Point {
 }
 
 // AngleAtPercent is the direction of the outline at the fraction t of its
-// length, in degrees anticlockwise from three o'clock with y pointing up, as
-// QPainterPath::angleAtPercent gives it.
+// length, in degrees anticlockwise from three o'clock with y pointing up.
 func (o Outline) AngleAtPercent(t float64) float64 {
 	if t < 0 || t > 1 || o.Empty() {
 		return 0
@@ -689,8 +688,8 @@ func (o Outline) Flatten(tolerance float64) [][]Point {
 }
 
 // Contains reports whether p is inside the area the outline encloses, each
-// subpath closed and the odd-even rule deciding, as QPainterPath::contains
-// does with its default fill rule. Curves are followed as fine polylines.
+// subpath closed and the odd-even rule deciding. Curves are followed as fine
+// polylines.
 func (o Outline) Contains(p Point) bool {
 	if o.Empty() || !o.ControlBounds().Contains(p) {
 		return false
@@ -723,8 +722,8 @@ func (o Outline) Contains(p Point) bool {
 	return winding%2 != 0
 }
 
-// lineCrossesRect is the qt_painterpath_isect_line_rect: whether the line
-// from a to b crosses the border of r. A line wholly inside r does not.
+// lineCrossesRect reports whether the line from a to b crosses the border of
+// r. A line wholly inside r does not.
 func lineCrossesRect(a, b Point, r Rect) bool {
 	const (
 		left = 1 << iota
@@ -820,11 +819,10 @@ func onRectEdge(r Rect, p Point) bool {
 	return (p.Y == r.Top() || p.Y == r.Bottom()) && p.X >= r.Left() && p.X <= r.Right()
 }
 
-// Intersects reports whether any part of the outline meets r, as
-// QPainterPath::intersects decides it: a line or curve crosses r's border, a
-// subpath runs from outside r to inside it, r's centre is inside the area the
-// outline encloses (each subpath closed), or r holds a subpath's start. The
-// closing line of an open outline counts, as it does in .
+// Intersects reports whether any part of the outline meets r: a line or
+// curve crosses r's border, a subpath runs from outside r to inside it, r's
+// centre is inside the area the outline encloses (each subpath closed), or r
+// holds a subpath's start. The closing line of an open outline counts.
 func (o Outline) Intersects(r Rect) bool {
 	els := o.elements()
 	if len(els) == 1 && r.Contains(els[0].end()) {
@@ -853,8 +851,9 @@ func (o Outline) Intersects(r Rect) bool {
 	return false
 }
 
-// crossesRect is the qt_painterpath_check_crossing over the outline as
-// polylines.
+// crossesRect reports whether the outline, followed as polylines, crosses
+// r's border or passes from outside r to inside it or back. Points on the
+// border count as neither inside nor outside.
 func (o Outline) crossesRect(r Rect) bool {
 	const (
 		onRect = iota

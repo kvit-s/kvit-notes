@@ -1,9 +1,8 @@
 package editor
 
-// Callouts (features.md 1.2.10): a quote whose first line is an Obsidian
-// callout header, "> [!type] Title", optionally with "-" after the type for a
-// folded one (Kvit's DocumentSerializer::parse and containerkinds.cpp). The
-// type is kept in the block's Lang, the fold in Checked, the title in Title,
+// Callouts: a quote whose first line is an Obsidian callout header,
+// "> [!type] Title", optionally with "-" after the type for a folded one.
+// The type is kept in the block's Lang, the fold in Checked, the title in Title,
 // and the lines after the header are the block's text. It is drawn as a
 // tinted panel with the type's symbol and the title over the body; a folded
 // callout shows its header alone until the caret enters it.
@@ -24,8 +23,8 @@ import (
 
 var reCallout = regexp.MustCompile(`^\[!([A-Za-z][A-Za-z0-9_-]*)\]([+-]?)\s*(.*)$`)
 
-// calloutMarkdown writes a callout as Kvit does: the header, then each body
-// line after "> ", an empty one as ">" so no line ends in a space.
+// calloutMarkdown writes a callout: the header, then each body line after
+// "> ", an empty one as ">" so no line ends in a space.
 func calloutMarkdown(b Block) string {
 	header := "> [!" + b.Lang + "]"
 	if b.Checked {
@@ -54,7 +53,7 @@ type calloutKind struct {
 	color       func(t tokens.Tokens) palette.Color
 }
 
-// calloutKinds are Kvit's callout types (EditableBlock, calloutSpec).
+// calloutKinds are the callout types the editor draws.
 // "toggle" is the foldable type with no chrome of its own.
 var calloutKinds = map[string]calloutKind{
 	"info":    {"i", "Info", func(t tokens.Tokens) palette.Color { return t.Accent }},
@@ -91,7 +90,7 @@ func (e *Editor) calloutColor(b *Block) palette.Color {
 	return calloutKindOf(b.Lang).color(e.tok())
 }
 
-// The callout panel in design pixels (CalloutBlockChrome): the header's
+// The callout panel in design pixels: the header's
 // height, the body text's inset from the panel's left and the space under
 // it, the bar down the left, the header's parts, and the colour dot.
 const (
@@ -177,7 +176,7 @@ func (e *Editor) drawCallout(gc *unison.Canvas, i int) {
 	words, st := b.Title, e.calloutHeaderStyle(b)
 	if words == "" {
 		// An untitled callout shows its type's name, faint, where the title
-		// goes, as the app's empty title field shows it.
+		// goes.
 		words = k.label
 		st.Color = colour(t.TextFaint)
 		st.Color.A = 178

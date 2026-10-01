@@ -1,8 +1,8 @@
 package editor
 
-// Remote pictures need their origin approved (PARITY 10.3): nothing remote
-// loads on sight, the card offers Load from its origin, and a press on it
-// approves the origin and loads the picture.
+// Remote pictures need their origin approved: nothing remote loads on sight,
+// the card offers Load from its origin, and a press on it approves the origin
+// and loads the picture.
 
 import (
 	"strings"

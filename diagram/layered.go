@@ -1,9 +1,8 @@
 package diagram
 
 // The layered core every family but the sequence diagram is placed with, and
-// the helpers the family layouts share: a port of the app's
-// src/content/diagrams/diagramlayout.cpp apart from layoutFlowchart, which is
-// in flowchart.go.
+// the helpers the family layouts share. The flowchart's own layout is in
+// flowchart.go.
 //
 // Layout is deterministic: node index and edge order break every tie, so an
 // edit never reorders unrelated nodes, and it does not depend on the width
@@ -556,8 +555,8 @@ func prepared(opts LayoutOptions) LayoutOptions {
 	return opts
 }
 
-// newShape is a Shape with the app's defaults: the node colours, a
-// 1.5-pixel stroke and no source span.
+// newShape is a Shape with the default node colours, a 1.5-pixel stroke
+// and no source span.
 func newShape(kind ShapeKind, r Rect) Shape {
 	return Shape{
 		Kind: kind, Rect: r,
@@ -566,14 +565,14 @@ func newShape(kind ShapeKind, r Rect) Shape {
 	}
 }
 
-// newPath is a Path with the app's defaults: the edge colour, a 1.5-pixel
-// solid stroke, not selectable and no source span.
+// newPath is a Path with the default edge colour, a 1.5-pixel solid
+// stroke, not selectable and no source span.
 func newPath(o Outline) Path {
 	return Path{Outline: o, StrokeRole: RoleEdgeStroke, StrokeWidth: 1.5, EdgeIndex: -1, Src: mermaid.NoSpan}
 }
 
-// newText is a Text with the app's defaults: the label colour at 14
-// pixels, centred.
+// newText is a Text with the default label colour at 14 pixels,
+// centred.
 func newText(text string, r Rect) Text {
 	return Text{Text: text, Rect: r, Role: RoleLabel, FontSize: 14}
 }

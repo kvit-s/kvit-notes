@@ -1,11 +1,10 @@
 package app
 
 // Ranking notes by how well their names match what is typed, for the quick
-// switcher and [[ completion (Kvit's src/content/fuzzymatch.h and
-// QuickSwitcherModel::itemsFor): a name that starts with it first, then one
-// with a word that starts with it, then one holding its letters in order;
-// within each, the note changed most recently first. The title and the
-// path are both tried.
+// switcher and [[ completion: a name that starts with it first, then one with
+// a word that starts with it, then one holding its letters in order; within
+// each, the note changed most recently first. The title and the path are both
+// tried.
 
 import (
 	"slices"

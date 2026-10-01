@@ -1,11 +1,10 @@
 package app
 
-// The backlinks pane (features.md 8.5, Kvit's BacklinksPanel): the
-// notes whose wiki links name the open note, each with how many links and
-// the lines they are on, at the right of the editor, left of the outline.
-// Ctrl+Shift+B or View shows and hides it. Clicking a note opens it. The
-// links are resolved by the links package, redirects included, as the
-// app's index resolves them.
+// The backlinks pane: the notes whose wiki links name the open note, each
+// with how many links and the lines they are on, at the right of the editor,
+// left of the outline. Ctrl+Shift+B or View shows and hides it. Clicking a
+// note opens it. The links are resolved by the links package, redirects
+// included.
 
 import (
 	"fmt"

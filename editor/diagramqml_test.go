@@ -1,24 +1,14 @@
 package editor
 
-// These tests are the diagram-block functions of the app's
-// tests/tst_integration, in that file's order, with the same notes and
-// expectations: test_zx0h_ctrlEnterLeavesNoGapUnderAFoldingBlock (its
-// diagram case), test_zx0i_pastedFenceBecomesItsBlock,
-// test_zx0m_pastedDiagramLeavesTheRowsBelowInPlace,
-// test_zzy2_diagramFitFitsTallFlowchartAndShowsZoom,
-// test_zzy2b_diagramRightWhitespaceOpensEditor,
-// test_zzy3_mermaidSourceEnterKeepsIndent and
-// test_zzy5_mermaidSourceCtrlEnterLeavesTheBlock. The tests look for
-// objects by name in the view markup tree (diagramReadCanvas, mermaidSourceArea,
-// mermaidExitHint, diagramZoomText); here the same things are the read
-// canvas, the caret in the block, the preview's key hint and the zoom label.
-// Where the tests measure the gaps between the list's delegates, these
-// check that each row starts one block gap below the one before it.
-// test_zx0i's last check, that two lines of plain prose paste as two
-// blocks, is left out: the Go editor pastes them into one block with a
-// line break, which is the paste's behaviour rather than the diagram's. Three
-// of them skip in the app's headless run, for want of a display, and run
-// here.
+// Diagram blocks among the other blocks of a note: Ctrl+Enter leaving no
+// gap under a diagram, a pasted fence becoming a block of its own, a pasted
+// diagram leaving the rows below it in place, Fit fitting a tall flowchart
+// and showing the zoom, a press on the whitespace right of a diagram
+// opening its source, Enter keeping the indent in Mermaid source, and
+// Ctrl+Enter leaving the block. The tests read the canvas, the caret in the
+// block, the preview's key hint and the zoom label. Where a test checks the
+// gaps between rows, it checks that each row starts one block gap below the
+// one before it.
 
 import (
 	"fmt"

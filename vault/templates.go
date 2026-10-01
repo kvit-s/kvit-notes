@@ -1,9 +1,9 @@
 package vault
 
-// Note templates (features.md 18.1): ordinary notes in .kvit/templates, with
-// {{title}}, {{date}}, {{time}}, {{date:FORMAT}} and {{time:FORMAT}}
-// filled in when a note is made from one (src/repository/notetemplates.cpp).
-// Only the body, the tags and the favourite mark carry over to the new note.
+// Note templates: ordinary notes in .kvit/templates, with {{title}},
+// {{date}}, {{time}}, {{date:FORMAT}} and {{time:FORMAT}} filled in when a
+// note is made from one. Only the body, the tags and the favourite mark are
+// copied to the new note.
 
 import (
 	"os"
@@ -21,8 +21,7 @@ func (v *Vault) templatesDir() string { return filepath.Join(v.Root, ".kvit", "t
 const badTemplateName = `/\:*?"<>|`
 
 // templatePath is a template's file, or "" for a name a template cannot
-// have: empty, "." or "..", or holding a character a file name cannot
-// (notetemplates.cpp, isValidTemplateName).
+// have: empty, "." or "..", or holding a character a file name cannot.
 func (v *Vault) templatePath(name string) string {
 	name = strings.TrimSpace(name)
 	if name == "" || name == "." || name == ".." || strings.ContainsAny(name, badTemplateName) {

@@ -1,8 +1,8 @@
 package app
 
-// Image optimisation (PARITY 11.2): large pictures are downscaled to the
-// display width on load, decoded pictures are kept over a byte budget, and
-// loading is lazy (only when drawn).
+// Image optimisation: large pictures are downscaled to the display width on
+// load, decoded pictures are kept over a byte budget, and loading is lazy
+// (only when drawn).
 
 import (
 	"testing"

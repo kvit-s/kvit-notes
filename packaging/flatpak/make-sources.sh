@@ -64,11 +64,11 @@ echo "  dist/$NAME.tar.gz  $sum"
 # The manifest for this version: the tag, the archive's URL and digest, the
 # version the program reports, and the tag's commit when the tag exists here.
 commit=$(git rev-parse -q --verify "refs/tags/v$VERSION^{commit}" || true)
-sed -e "s#^\(tag: \)v.*#\1v$VERSION#" \
+sed -e "s#^\(        tag: \)v.*#\1v$VERSION#" \
     -e "s#releases/download/v[^/]*/Kvit_Notes-[^/]*-flatpak-sources.tar.gz#releases/download/v$VERSION/$NAME.tar.gz#" \
     -e "/flatpak-sources.tar.gz/{n;s#sha256: .*#sha256: $sum#;}" \
-    -e "s#^\(KVIT_VERSION: \).*#\1$VERSION#" \
-    ${commit:+-e "s#^\(commit: \).*#\1$commit#"} \
+    -e "s#^\(        KVIT_VERSION: \).*#\1$VERSION#" \
+    ${commit:+-e "s#^\(        commit: \).*#\1$commit#"} \
     packaging/flatpak/org.kvit.Notes.yaml > "$DIST/flatpak/org.kvit.Notes.yaml"
 echo "  dist/flatpak/org.kvit.Notes.yaml${commit:+ (commit $commit)}"
 [ -n "$commit" ] || echo "  NOTE: no tag v$VERSION here; set the commit in dist/flatpak/org.kvit.Notes.yaml after tagging"

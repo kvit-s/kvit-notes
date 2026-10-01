@@ -9,8 +9,8 @@ import (
 	"github.com/richardwilkes/unison/enums/mod"
 )
 
-// features.md 2.6: Ctrl+Home and Ctrl+End go to the start and the end of
-// the note, and with Shift they select to there.
+// Ctrl+Home and Ctrl+End go to the start and the end of the note, and with
+// Shift they select to there.
 func TestCtrlHomeAndEndReachTheEndsOfTheNote(t *testing.T) {
 	s, e := openEditor(t, accessNote)
 	s.Do(func() { e.FocusBlock(1, 5) })
@@ -82,8 +82,7 @@ func TestCtrlEnterAfterSelectedBlocks(t *testing.T) {
 }
 
 // Ctrl+V of a crooked drawing into a code block straightens it and tags the
-// block `diagram`, and Ctrl+Z takes both back in one step
-// (tst_integration's test_69h4, through the keyboard).
+// block `diagram`, and Ctrl+Z takes both back in one step.
 func TestCtrlVStraightensADiagramPastedIntoCode(t *testing.T) {
 	s, e := openEditor(t, "```\n```\n")
 	s.Do(func() {
@@ -250,7 +249,7 @@ func TestLanguageMenuDeclaresAndOptsOut(t *testing.T) {
 
 // Tab in a code block pads to the next four-column stop, Shift+Tab takes a
 // stop back off, and over several lines they indent or outdent every line
-// touched (the indentCodeLines).
+// touched.
 func TestTabStopsInCode(t *testing.T) {
 	const body = "  ab\ncd\n\n  ef\n"
 	s, e := openEditor(t, "```\n"+body+"```")
@@ -315,7 +314,7 @@ func TestTabStopsInCode(t *testing.T) {
 	}
 }
 
-// The [[ list stays shut inside inline math and code, as Kvit's does.
+// The [[ list stays shut inside inline math and code.
 func TestWikiMenuStaysShutInMath(t *testing.T) {
 	s, e := openEditor(t, "cost $x + [[y]]$ here")
 	s.Do(func() {
@@ -346,8 +345,7 @@ func TestWikiMenuStaysShutInMath(t *testing.T) {
 }
 
 // The code panel names Ctrl+Enter in its footer while the caret is in the
-// block, as Kvit's BlockKeyHint does: the footer's pixels change with the
-// caret.
+// block: the footer's pixels change with the caret.
 func TestCodeFooterHint(t *testing.T) {
 	s, e := openEditor(t, "```\nx = 1\n```")
 	footer := func() geom.Rect {

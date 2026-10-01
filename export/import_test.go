@@ -38,9 +38,8 @@ func TestIsImportable(t *testing.T) {
 	}
 }
 
-// Files are copied as they are, front matter and all, into the folder named
-// (testImportSingleFilePreservesContent, testImportBatch,
-// testObsidianFrontMatterSurvives, testNonImportableSkipped).
+// Files are copied as they are, front matter and all, into the folder named,
+// and a file that is not importable is passed over.
 func TestImportFiles(t *testing.T) {
 	src, vault := t.TempDir(), t.TempDir()
 	obsidian := "---\ntags: [research]\naliases: [foo, bar]\ncssclass: wide\n---\n# Vault Note\n\nContent.\n"
@@ -72,7 +71,7 @@ func TestImportFiles(t *testing.T) {
 }
 
 // A name already in the vault, or already given earlier in the same import,
-// gets " 2", " 3" (testCollisionSuffixing).
+// gets " 2", " 3".
 func TestCollisionSuffixing(t *testing.T) {
 	src, vault := t.TempDir(), t.TempDir()
 	writeSource(t, vault, "Dup.md", "existing")
@@ -118,9 +117,8 @@ func TestImportNames(t *testing.T) {
 	}
 }
 
-// A folder import recreates the folder's tree under the target, .txt notes
-// landing as .md (testImportFolderPreservesTree,
-// testSteppedFolderImportYieldsAndPreservesTheTree).
+// A folder import recreates the folder's tree under the target, .txt files
+// written as .md notes.
 func TestImportFolderPreservesTree(t *testing.T) {
 	src, vault := t.TempDir(), t.TempDir()
 	writeSource(t, src, "top.md", "# top\n")
@@ -153,8 +151,7 @@ func TestImportFolderPreservesTree(t *testing.T) {
 	}
 }
 
-// The dry runs count what the dialog's summary shows (testDryRunFiles,
-// testDryRunFolder).
+// The dry runs count what the dialog's summary shows.
 func TestDryRuns(t *testing.T) {
 	src, vault := t.TempDir(), t.TempDir()
 	writeSource(t, vault, "Exists.md", "")
@@ -173,7 +170,7 @@ func TestDryRuns(t *testing.T) {
 	}
 }
 
-// A target outside the vault is refused (testTraversalAndAbsoluteTargetsAreRejected).
+// A target outside the vault is refused.
 func TestTraversalAndAbsoluteTargetsAreRejected(t *testing.T) {
 	src, vault := t.TempDir(), t.TempDir()
 	p := writeSource(t, src, "Escape.md", "must stay in the vault")
@@ -191,8 +188,7 @@ func TestTraversalAndAbsoluteTargetsAreRejected(t *testing.T) {
 	}
 }
 
-// A file over the cap is skipped and counted (testOversizedSourceIsSkipped,
-// testSkippedCountIsReadableAndAnnouncedFromQml).
+// A file over the cap is skipped and counted.
 func TestOversizedSourceIsSkipped(t *testing.T) {
 	src, vault := t.TempDir(), t.TempDir()
 	small := writeSource(t, src, "Small.md", "# small\n")
@@ -210,8 +206,8 @@ func TestOversizedSourceIsSkipped(t *testing.T) {
 	}
 }
 
-// A source that opens but fails to read is skipped, not imported short
-// (testUnreadableSourceIsNotCountedAsImported).
+// A source that opens but fails to read is skipped, so no note is written
+// from part of it.
 func TestUnreadableSourceIsSkipped(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("no file on this platform that opens and then fails to read")
