@@ -157,3 +157,37 @@ func TestANoteCentresItsPictures(t *testing.T) {
 		}
 	})
 }
+
+// The caret is as tall as the text it stands in, the font's own line height,
+// at the top of its line, whatever the line height: what the line height adds
+// is under the text, and a caret as tall as the line would hang into it.
+func TestTheCaretIsAsTallAsTheText(t *testing.T) {
+	s, e := openEditor(t, accessNote)
+	last := 0
+	s.Do(func() { last = len(e.Doc.Blocks) - 1 })
+	for _, lh := range []float64{1.0, 1.3, 2.0} {
+		s.Do(func() { e.ui.Typography.SetLineHeight(lh) })
+		s.Sync()
+		s.Do(func() {
+			l := e.layout(last)
+			if l.lines() < 2 {
+				t.Fatal("the paragraph does not wrap")
+			}
+			// On the second line, whose top is not a whole pixel at 1.3.
+			e.FocusBlock(last, l.lineStart(1)+1)
+			r, ok := e.CaretRect()
+			if !ok {
+				t.Fatal("no caret")
+			}
+			_, _, top, h := l.text.LineBounds(1)
+			if h != e.pitch(l.style) {
+				t.Fatalf("at %v the line is %v tall, the pitch %v", lh, h, e.pitch(l.style))
+			}
+			top += e.textOrigin(last).Y
+			n := e.natural(l.style)
+			if r.Height != n.height || math.Abs(float64(r.Y-top)) >= 1 {
+				t.Errorf("at %v the caret is %v to %v on a line %v to %v, the text %v tall", lh, r.Y, r.Bottom(), top, top+h, n.height)
+			}
+		})
+	}
+}

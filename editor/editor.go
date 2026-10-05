@@ -739,9 +739,16 @@ func (e *Editor) caretRect() (geom.Rect, bool) {
 		return geom.Rect{}, false
 	}
 	l := e.layout(i)
-	// As tall as the caret's line: the pitch, or more where a formula has
-	// grown the line (mathinline.go).
-	x, top, h := l.text.CaretAt(l.drawn(d.Caret.Off))
+	dr := l.drawn(d.Caret.Off)
+	x, top, h := l.text.CaretAt(dr)
+	// As tall as the text, not the line: the font's own line height, set on
+	// the line's baseline. A line is the pitch tall, or more where a formula
+	// has grown it (mathinline.go), and what the line height adds is all
+	// under the text, where a caret as tall as the line would hang into it.
+	n := e.natural(l.style)
+	bottom := top + h
+	top = max(top, l.text.LineBaseline(l.lineOf(dr))-n.ascent)
+	h = min(n.height, bottom-top)
 	o := e.textOrigin(i)
 	return geom.NewRect(o.X+x, o.Y+top, e.px(caretWidth), h), true
 }

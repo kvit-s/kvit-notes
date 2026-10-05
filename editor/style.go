@@ -170,28 +170,39 @@ type lineKey struct {
 	italic       bool
 }
 
+// naturalBox is a font's own line: its height, and its ascent, which is how
+// far below the top of a line of a fixed pitch the baseline is.
+type naturalBox struct{ height, ascent float32 }
+
 var (
 	naturalMu    sync.Mutex
-	naturalLines = map[lineKey]float32{}
+	naturalLines = map[lineKey]naturalBox{}
 )
 
 // naturalLine is the font's own line height in style st: one line laid out
 // at a line height of 1, which is its ascent and descent rounded up to a
 // pixel. It is measured once per font and size.
-func (e *Editor) naturalLine(st text.Style) float32 {
+func (e *Editor) naturalLine(st text.Style) float32 { return e.natural(st).height }
+
+// natural is the font's own line in style st, measured once per font and
+// size: one line laid out at a line height of 1 for its height, and again at
+// that height as its pitch for its ascent, rounded to a pixel as the lines
+// of a block's text place their baselines.
+func (e *Editor) natural(st text.Style) naturalBox {
 	key := lineKey{e.ui.Fonts, st.Family, st.Size, float32(st.Weight), st.Italic}
 	naturalMu.Lock()
-	h, ok := naturalLines[key]
+	n, ok := naturalLines[key]
 	naturalMu.Unlock()
 	if ok {
-		return h
+		return n
 	}
-	plain := text.Style{Family: st.Family, Size: st.Size, Weight: st.Weight, Italic: st.Italic}
-	_, h = e.ui.Fonts.Layout([]text.Span{{Text: " ", Style: plain}}, text.Options{}).Size()
+	plain := []text.Span{{Text: " ", Style: text.Style{Family: st.Family, Size: st.Size, Weight: st.Weight, Italic: st.Italic}}}
+	_, n.height = e.ui.Fonts.Layout(plain, text.Options{}).Size()
+	n.ascent = e.ui.Fonts.Layout(plain, text.Options{Pitch: n.height}).Baseline()
 	naturalMu.Lock()
-	naturalLines[key] = h
+	naturalLines[key] = n
 	naturalMu.Unlock()
-	return h
+	return n
 }
 
 // chrome is the style of the editor's own labels in one of the interface's
