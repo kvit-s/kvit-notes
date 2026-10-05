@@ -1,6 +1,10 @@
 package editor
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/richardwilkes/toolbox/v2/geom"
+)
 
 // An editor nobody embeds is laid out as a note: the gutter's strip, the
 // page margin above the first row, and a third of the window below the last.
@@ -39,6 +43,41 @@ func TestAnEmbeddingSetsTheMarginsAndIsToldOfEachLayout(t *testing.T) {
 		}
 		if b, off := e.BlockAtY(e.tops[1] - 1); b != 1 || off != 0 {
 			t.Errorf("the space between two rows reads as block %d at %v", b, off)
+		}
+	})
+}
+
+// Tight rows are as tall as their text: the embedding's block spacing is all
+// the space between two blocks and its list spacing all the space between
+// two items of a list, and a seam lies in the middle of each.
+func TestTightRowsAreAsTallAsTheirText(t *testing.T) {
+	s, e := openEditor(t, "One\n\n- first\n- second\n\n> Quoted\n")
+	s.Do(func() {
+		e.Embed(Embedding{NoGutter: true, BlockSpacing: 10, TightRows: true, ListSpacing: 2})
+		e.Refresh()
+		for i := range e.Doc.Blocks {
+			if e.heights[i] != e.layout(i).height() || e.textOrigin(i).Y != e.tops[i] {
+				t.Errorf("row %d is %v tall with text %v tall from %v down", i, e.heights[i], e.layout(i).height(), e.textOrigin(i).Y-e.tops[i])
+			}
+		}
+		for i, want := range []float32{10, 2, 10} {
+			if got := e.tops[i+1] - e.tops[i] - e.heights[i]; got != e.px(want) {
+				t.Errorf("%v between rows %d and %d, want %v", got, i, i+1, e.px(want))
+			}
+			if y := e.tops[i+1] - e.px(want)/2; e.gapLineY(i+1) != y || e.gapAt(geom.NewPoint(e.width()/2, y)) != i+1 {
+				t.Errorf("seam %d at %v, want %v", i+1, e.gapLineY(i+1), y)
+			}
+		}
+	})
+}
+
+// A document passes tight rows and its list spacing on to its editor.
+func TestADocumentPassesTightRowsOn(t *testing.T) {
+	s, d := openDocument(t, DocumentOptions{TightRows: true, ListSpacing: 3}, "- a\n- b\n", 0)
+	s.Do(func() {
+		e := d.Editor
+		if emb, _ := e.Embedded(); !emb.TightRows || emb.ListSpacing != 3 || e.tops[1]-e.tops[0]-e.heights[0] != e.px(3) {
+			t.Errorf("embedding %+v, rows at %v and %v tall", emb, e.tops, e.heights)
 		}
 	})
 }

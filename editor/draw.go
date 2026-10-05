@@ -206,8 +206,11 @@ func (e *Editor) drawRow(gc *unison.Canvas, i int) {
 			return
 		}
 	case Quote:
-		top := e.tops[i] + e.px(quoteBarTop)
-		bar := geom.NewRect(body.X+e.markerLeft(b), top, e.px(quoteBarWidth), e.tops[i]+e.heights[i]-e.px(quoteBarBottom)-top)
+		// The bar reaches a little past the text, as far as its row allows.
+		padTop, padBottom := e.rowPad()
+		top := e.tops[i] + max(0, padTop-e.px(rowPadTop-quoteBarTop))
+		bottom := e.tops[i] + e.heights[i] - max(0, padBottom-e.px(rowPadBottom-quoteBarBottom))
+		bar := geom.NewRect(body.X+e.markerLeft(b), top, e.px(quoteBarWidth), bottom-top)
 		e.fillRound(gc, bar, e.px(quoteBarWidth)/2, t.QuoteBar)
 	case Bullet, Numbered, Todo:
 		e.drawMarker(gc, i)

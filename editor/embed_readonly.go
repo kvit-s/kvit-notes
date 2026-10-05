@@ -33,6 +33,11 @@ type DocumentOptions struct {
 	// BlockSpacing is the space between blocks in design pixels; 0 keeps the
 	// reader's paragraph spacing.
 	BlockSpacing int
+	// TightRows makes each row as tall as its text, without the room the
+	// note keeps for the gutter's buttons; ListSpacing is then the space
+	// between two items of a list, in design pixels (Embedding.TightRows).
+	TightRows   bool
+	ListSpacing int
 	// Pictures are the folders the document's pictures are looked up in.
 	Pictures PictureFolders
 	// OpenPicture, when set, is asked to show a picture a press landed on, in
@@ -73,8 +78,8 @@ func NewDocument(ui *kvitui.UI, o DocumentOptions) *Document {
 	e.Placeholder = ""
 	e.Accessibility.Name = "Document"
 	e.LoadImage = o.Pictures.Loader()
-	e.Embed(Embedding{NoGutter: true, Margin: o.Margin, BlockSpacing: o.BlockSpacing, ReadOnlyLook: true,
-		CopyFragments: true, OpenPicture: o.OpenPicture})
+	e.Embed(Embedding{NoGutter: true, Margin: o.Margin, BlockSpacing: o.BlockSpacing, TightRows: o.TightRows,
+		ListSpacing: o.ListSpacing, ReadOnlyLook: true, CopyFragments: true, OpenPicture: o.OpenPicture})
 	d.Editor = e
 	if o.Scrolls {
 		d.region = kvitui.NewRegion(ui, e)

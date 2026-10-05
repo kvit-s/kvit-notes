@@ -6,6 +6,7 @@ package editor
 // holding it.
 
 import (
+	"math"
 	"slices"
 	"strings"
 
@@ -34,9 +35,9 @@ func (e *Editor) gapLineY(g int) float32 {
 		return 0
 	}
 	if g >= n {
-		return e.tops[n-1] + e.heights[n-1] + e.gap()/2
+		return e.tops[n-1] + e.heights[n-1] + e.gapAfter(n-1)/2
 	}
-	return e.tops[g] - e.gap()/2
+	return e.tops[g] - e.gapAfter(g-1)/2
 }
 
 // gapAt is the seam under a point, or -1: the pointer must be in the seam
@@ -51,17 +52,16 @@ func (e *Editor) gapAt(where geom.Point) int {
 		return -1
 	}
 	n := len(d.Blocks)
-	half := e.gap() / 2
 	// Inside: the seam whose line is within half the spacing.
-	best, bestD := -1, half+e.px(1)
+	best, bestD, half := -1, float32(math.MaxFloat32), float32(0)
 	for g := 0; g <= n; g++ {
-		y := e.gapLineY(g)
-		dd := where.Y - y
+		h := e.gapAfter(g-1) / 2
+		dd := where.Y - e.gapLineY(g)
 		if dd < 0 {
 			dd = -dd
 		}
-		if dd <= half && dd < bestD {
-			best, bestD = g, dd
+		if dd <= h && dd < bestD {
+			best, bestD, half = g, dd, h
 		}
 	}
 	if best < 0 {
@@ -71,7 +71,7 @@ func (e *Editor) gapAt(where geom.Point) int {
 			best = 0
 		} else {
 			last := e.tops[n-1] + e.heights[n-1]
-			if where.Y > last && where.Y-last <= e.gap()/2+e.px(gapReach) {
+			if where.Y > last && where.Y-last <= e.gapAfter(n-1)/2+e.px(gapReach) {
 				best = n
 			} else {
 				return -1

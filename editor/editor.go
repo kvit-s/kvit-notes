@@ -435,6 +435,15 @@ func (e *Editor) gap() float32 {
 	return e.px(float32(e.ui.Typography.ParagraphSpacing()))
 }
 
+// gapAfter is the space between row i and the row after it: gap, or an
+// embedding's space between two items of a list.
+func (e *Editor) gapAfter(i int) float32 {
+	if g, ok := e.embeddedListGap(i); ok {
+		return g
+	}
+	return e.gap()
+}
+
 // textLeft is how far a block's text starts from the body's left edge.
 func (e *Editor) textLeft(b *Block) float32 {
 	if x, ok := e.mathTextLeft(b); ok {
@@ -509,7 +518,8 @@ func (e *Editor) textTop(b *Block) float32 {
 	if b.Kind == Callout {
 		return e.px(codeRowTop + calloutHeader)
 	}
-	return e.px(rowPadTop)
+	top, _ := e.rowPad()
+	return top
 }
 
 // textOrigin is the top-left corner of block i's text: shifted left by a
@@ -595,14 +605,15 @@ func (e *Editor) rowHeight(i int) float32 {
 		}
 		return h
 	}
+	top, bottom := e.rowPad()
 	if _, ok, shows := e.pictureBlock(i); ok {
-		h := e.px(rowPadTop+rowPadBottom) + e.pictureHeight(i, shows)
+		h := top + bottom + e.pictureHeight(i, shows)
 		if shows {
 			h += e.layout(i).height()
 		}
 		return h
 	}
-	return e.px(rowPadTop+rowPadBottom) + e.layout(i).height()
+	return top + bottom + e.layout(i).height()
 }
 
 // measure works out the top and height of every row at the current width.
@@ -616,7 +627,7 @@ func (e *Editor) measure() {
 		h := e.rowHeight(i)
 		e.tops = append(e.tops, y)
 		e.heights = append(e.heights, h)
-		y += h + e.measureDecorations(i) + e.gap()
+		y += h + e.measureDecorations(i) + e.gapAfter(i)
 	}
 	e.pruneDiagrams()
 	// Forget the layouts of blocks that are gone.

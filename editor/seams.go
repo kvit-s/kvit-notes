@@ -32,6 +32,17 @@ type Embedding struct {
 	// BlockSpacing is the space between two rows in design pixels; 0 keeps
 	// the reader's paragraph spacing.
 	BlockSpacing int
+	// TightRows takes away the room each row keeps for the gutter's buttons,
+	// 10 design pixels above its text and 18 below, so that a row is as tall
+	// as its text: BlockSpacing is then all the space between two blocks,
+	// and ListSpacing all the space between two items of a list. It is for a
+	// document read more than edited, such as a transcript.
+	TightRows bool
+	// ListSpacing, with TightRows, is the space between two items of a list
+	// in design pixels, where BlockSpacing separates every other two rows. At
+	// 0 an item's first line is under the last line of the item before it
+	// as the lines of one paragraph are under each other.
+	ListSpacing int
 	// ReadOnlyLook draws no caret, no focus bar and no hover tint. It does
 	// not refuse edits by itself: set Doc.ReadOnly for that.
 	ReadOnlyLook bool
@@ -95,6 +106,8 @@ func (s *seams) framed() bool { return s != nil && s.emb != nil }
 
 func (s *seams) noGutter() bool { return s.framed() && s.emb.NoGutter }
 
+func (s *seams) tightRows() bool { return s.framed() && s.emb.TightRows }
+
 func (s *seams) readOnlyLook() bool { return s.framed() && s.emb.ReadOnlyLook }
 
 func (s *seams) hidesImageLine() bool { return s.framed() && s.emb.HideImageLine }
@@ -124,6 +137,25 @@ func (e *Editor) embeddedGap() (float32, bool) {
 		return 0, false
 	}
 	return e.px(float32(e.seams.emb.BlockSpacing)), true
+}
+
+// rowPad is the space above and below a row's text: room for the gutter's
+// buttons stacked two high, or none in an embedding with tight rows.
+func (e *Editor) rowPad() (top, bottom float32) {
+	if e.seams.tightRows() {
+		return 0, 0
+	}
+	return e.px(rowPadTop), e.px(rowPadBottom)
+}
+
+// embeddedListGap is an embedding's space between row i and the row after
+// it when its rows are tight and both are items of a list.
+func (e *Editor) embeddedListGap(i int) (float32, bool) {
+	bs := e.Doc.Blocks
+	if !e.seams.tightRows() || i < 0 || i+1 >= len(bs) || !bs[i].Kind.IsList() || !bs[i+1].Kind.IsList() {
+		return 0, false
+	}
+	return e.px(float32(e.seams.emb.ListSpacing)), true
 }
 
 // focusBarX is where the bar beside the caret's block is drawn: just past
