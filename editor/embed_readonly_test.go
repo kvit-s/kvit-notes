@@ -78,7 +78,7 @@ func TestADocumentRefusesEveryWrite(t *testing.T) {
 		if e.showsCaret() || e.bodyLeft() != e.px(focusBar) || e.side() != 0 {
 			t.Errorf("caret shown %v, text from %v, side %v", e.showsCaret(), e.bodyLeft(), e.side())
 		}
-		if _, part := e.partAt(e.gutterCellRect(1, partAdd).Center()); part != partNone {
+		if _, part := e.partAt(e.gutterCellRect(1, partMenu).Center()); part != partNone {
 			t.Errorf("a gutter control answered: %v", part)
 		}
 	})

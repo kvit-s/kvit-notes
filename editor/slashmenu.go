@@ -1,11 +1,11 @@
 package editor
 
-// The / menu: typing "/" in an empty block, or the gutter's +, opens a list
-// of block kinds under the caret, grouped, with recently used kinds first.
-// What is typed after the "/" filters it, the arrows move the highlight, and
-// Enter or Tab turns the block into the highlighted kind. The editor keeps
-// the keyboard throughout; the menu only shows the list and takes the
-// pointer.
+// The / menu: typing "/" in an empty block, or the block menu's Insert block
+// below, opens a list of block kinds under the caret, grouped, with recently
+// used kinds first. What is typed after the "/" filters it, the arrows move
+// the highlight, and Enter or Tab turns the block into the highlighted kind.
+// The editor keeps the keyboard throughout; the menu only shows the list and
+// takes the pointer.
 
 import (
 	"slices"
@@ -77,7 +77,8 @@ type slashMenu struct {
 	sel   int
 	items []menuItem
 	// slash is true when a typed "/" opened the menu and starts the query;
-	// the + button opens it on an empty block whose whole text is the query.
+	// Insert block below opens it on an empty block whose whole text is the
+	// query.
 	slash  bool
 	query  string // the filter the entries were last chosen by
 	scroll float32

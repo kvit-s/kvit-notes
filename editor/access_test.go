@@ -182,28 +182,33 @@ func TestScreenReaderActions(t *testing.T) {
 }
 
 // The gutter's controls are buttons while the pointer is on a row, and a
-// screen reader can press them.
+// screen reader can press them: the block menu's button opens the menu, whose
+// Insert block below adds a block and opens the / menu in it.
 func TestGutterControlsAreButtons(t *testing.T) {
 	s, e := openEditor(t, accessNote)
 	var p unison.Paneler = e
 	s.Screen.MouseMove(s.Screen.PanelPoint(p, e.RowRect(1).Center()), 0)
-	add := s.Named("Insert block below")
-	if add == nil || add.Role != role.Button || !add.Actions.Has(accessibility.Press) {
-		t.Fatalf("no Insert block below button: %+v", add)
+	menu := s.Named("Block menu")
+	if menu == nil || menu.Role != role.Button || !menu.Actions.Has(accessibility.Press) {
+		t.Fatalf("no Block menu button: %+v", menu)
 	}
-	for _, name := range []string{"Delete block", "Block menu", "Drag to move, click to select"} {
-		if s.Named(name) == nil {
-			t.Errorf("no %q button", name)
-		}
+	if s.Named("Drag to move, click to select") == nil {
+		t.Error("no handle")
 	}
-	s.Screen.PerformAccessibilityAction(accessibility.ActionRequest{Node: add.ID, Action: accessibility.Press})
+	s.CheckNamed()
+	s.Screen.PerformAccessibilityAction(accessibility.ActionRequest{Node: menu.ID, Action: accessibility.Press})
+	s.Sync()
+	insert := s.Named("Insert block below")
+	if insert == nil || !insert.Actions.Has(accessibility.Press) {
+		t.Fatalf("the block menu has no Insert block below: %+v", insert)
+	}
+	s.Screen.PerformAccessibilityAction(accessibility.ActionRequest{Node: insert.ID, Action: accessibility.Press})
 	s.Sync()
 	var n int
 	s.Do(func() { n = len(e.Doc.Blocks) })
 	if n != 6 || !e.MenuOpen() {
-		t.Errorf("pressing Insert block below should add a block and open the / menu: %d blocks", n)
+		t.Errorf("Insert block below should add a block and open the / menu: %d blocks", n)
 	}
-	s.CheckNamed()
 }
 
 // A typeset inline formula is heard as its TeX, not as the placeholder it

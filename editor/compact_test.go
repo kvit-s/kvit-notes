@@ -464,7 +464,7 @@ func TestTheBoxAnnouncesGrowthWhileTheCaretIsIn(t *testing.T) {
 
 // The box spaces its lines as every editor does, the font's own line height
 // times the line height, so an empty box is one such line and its row's
-// padding tall (50 px at 14 px and 1.3).
+// padding tall (30 px at 14 px and 1.3).
 func TestTheBoxSpacesLinesAsTheTranscriptDoes(t *testing.T) {
 	s, c := openCompact(t, CompactOptions{})
 	s.Sync()

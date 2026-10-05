@@ -13,12 +13,12 @@ import (
 // is scaled with the interface size by px.
 const (
 	pageMargin   = 20 // around the document, and above its first block
-	gutterWidth  = 40 // the + / handle / × / menu strip left of each row
+	gutterWidth  = 40 // the block-menu button and handle left of each row
 	focusBar     = 3  // the bar beside the block holding the caret
 	contentLeft  = 17 // from the end of the focus bar to a paragraph's text
 	contentRight = 16 // from a row's text to its right edge
-	rowPadTop    = 10 // above a row's text
-	rowPadBottom = 18 // below a row's text
+	rowPadTop    = 4  // above a row's text
+	rowPadBottom = 4  // below a row's text
 	blockGap     = 4  // between rows
 	indentStep   = 24 // per list level
 	dividerRow   = 28 // a divider's whole row
@@ -47,22 +47,14 @@ const (
 	codeTextInset   = 2
 	codePanelRadius = 4
 
-	// The quote bar runs from a little below the row's top to a little above
-	// its bottom.
-	quoteBarTop    = 4
-	quoteBarBottom = 8
-
-	// The gutter's four controls: two columns, 7 px below the row's top and
-	// centred in the gutter, 4 px apart. The first holds the add button over
-	// the delete button, 18 px square; the second the handle over the
-	// block-menu button, 14 px wide. Each column's controls are 2 px apart.
+	// The gutter's two controls, side by side, 4 px apart and centred in the
+	// gutter: the block-menu button, 18 px square, and the handle, 14 px
+	// wide. They are centred on the first line of a row that starts with
+	// text, and 7 px below the top of any other row.
 	gutterTop       = 7
 	gutterColumnGap = 4
-	gutterRowGap    = 2
 	gutterButton    = 18
 	gutterNarrow    = 14
-	gutterAddGlyph  = 14
-	gutterDelGlyph  = 16
 	gutterRadius    = 4
 	handleDot       = 3 // the handle's four dots, 2 px apart
 	handleDotGap    = 2

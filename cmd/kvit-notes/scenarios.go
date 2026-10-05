@@ -412,17 +412,18 @@ var scenarios = []scenario{
 		dr.key(unison.KeyEscape, mod.None)
 		dr.expect(dr.popups() == 0, "Escape should close the menu")
 	}},
-	{"12_plus", "An existing block of text\n", func(dr *driver) {
+	{"12_insert", "An existing block of text\n", func(dr *driver) {
 		dr.clearFocus()
 		dr.hoverRow(0)
-		dr.shot("visual_12_plus_01_hover_shows_button.png")
-		dr.click(dr.partCentre(0, "add"), mod.None)
-		dr.expect(dr.count() == 2 && dr.popups() == 1, "+ should add a block and open the menu: %s", dr.blocks())
-		dr.shot("visual_12_plus_02_menu_for_new_block.png")
+		dr.shot("visual_12_insert_01_hover_shows_gutter.png")
+		dr.click(dr.partCentre(0, "menu"), mod.None)
+		dr.key(unison.KeyB, mod.None)
+		dr.expect(dr.count() == 2 && dr.popups() == 1, "Insert block below should add a block and open the / menu: %s", dr.blocks())
+		dr.shot("visual_12_insert_02_menu_for_new_block.png")
 		dr.typ("tod")
 		dr.key(unison.KeyReturn, mod.None)
 		dr.expect(dr.count() == 2 && dr.kind(1) == editor.Todo, "the new block should be a to-do: %s", dr.blocks())
-		dr.shot("visual_12_plus_03_new_todo_created.png")
+		dr.shot("visual_12_insert_03_new_todo_created.png")
 	}},
 	{"13_select", "# Project notes\n\nFirst paragraph with **bold** text\n\n- bullet one\n- bullet two\n\n---\n\nClosing paragraph\n", func(dr *driver) {
 		dr.clearFocus()

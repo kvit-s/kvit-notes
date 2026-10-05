@@ -335,10 +335,6 @@ func (e *Editor) PerformAccessibilityAction(req accessibility.ActionRequest) boo
 			return true
 		}
 		switch pk.part {
-		case partAdd:
-			e.insertBelow(pk.block)
-		case partDelete:
-			d.DeleteBlocks([]int64{pk.block})
 		case partMenu:
 			e.openBlockMenu(pk.block, e.gutterCellRect(i, partMenu))
 		case partHandle:

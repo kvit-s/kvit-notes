@@ -145,11 +145,6 @@ func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Mo
 	if i, part := e.partAt(where); part != partNone && !(d.ReadOnly && part != partHandle && part != partMenu && part != partCopy && part != partTocEntry && part != partEmbedOpen && part != partQueryRow && part != partCodeBar) {
 		b := &d.Blocks[i]
 		switch part {
-		case partAdd:
-			e.insertBelow(b.ID)
-		case partDelete:
-			d.DeleteBlocks([]int64{b.ID})
-			e.clearBlockSel()
 		case partMenu:
 			e.openBlockMenu(b.ID, e.gutterCellRect(i, partMenu))
 		case partHandle:
@@ -720,10 +715,13 @@ func (e *Editor) dragStep(y float32) {
 }
 
 // insertBelow adds an empty paragraph under a block and opens the / menu in
-// it, as the gutter's + does.
+// it, as the block menu's "Insert block below" does.
 func (e *Editor) insertBelow(id int64) {
 	d := e.Doc
 	i := d.Index(id)
+	if d.ReadOnly || i < 0 {
+		return
+	}
 	d.Edit("insert block", func() {
 		nb := NewBlock(Paragraph, "")
 		d.Blocks = slices.Insert(d.Blocks, i+1, nb)

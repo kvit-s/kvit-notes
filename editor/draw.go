@@ -13,7 +13,6 @@ import (
 	"github.com/kvit-s/kvit-ui/icons"
 	"github.com/kvit-s/kvit-ui/palette"
 	"github.com/kvit-s/kvit-ui/text"
-	"github.com/kvit-s/kvit-ui/tokens"
 	"github.com/richardwilkes/toolbox/v2/geom"
 	"github.com/richardwilkes/unison"
 	"github.com/richardwilkes/unison/enums/paintstyle"
@@ -206,11 +205,7 @@ func (e *Editor) drawRow(gc *unison.Canvas, i int) {
 			return
 		}
 	case Quote:
-		// The bar reaches a little past the text, as far as its row allows.
-		padTop, padBottom := e.rowPad()
-		top := e.tops[i] + max(0, padTop-e.px(rowPadTop-quoteBarTop))
-		bottom := e.tops[i] + e.heights[i] - max(0, padBottom-e.px(rowPadBottom-quoteBarBottom))
-		bar := geom.NewRect(body.X+e.markerLeft(b), top, e.px(quoteBarWidth), bottom-top)
+		bar := geom.NewRect(body.X+e.markerLeft(b), e.tops[i], e.px(quoteBarWidth), e.heights[i])
 		e.fillRound(gc, bar, e.px(quoteBarWidth)/2, t.QuoteBar)
 	case Bullet, Numbered, Todo:
 		e.drawMarker(gc, i)
@@ -513,9 +508,7 @@ type gutterPart int
 
 const (
 	partNone gutterPart = iota
-	partAdd
 	partHandle
-	partDelete
 	partMenu
 	partCheck
 	partCopy
@@ -540,20 +533,27 @@ const (
 	partQueryRow    // a query block's row or card
 )
 
-// gutterCellRect is one of the gutter's four controls for row i: the
-// first column holds add over delete, the second the handle over the menu
-// button.
+// gutterCellRect is one of the gutter's two controls for row i: the
+// block-menu button, then the handle nearer the text.
 func (e *Editor) gutterCellRect(i int, p gutterPart) geom.Rect {
 	left := e.side() + (e.px(gutterWidth)-e.px(gutterButton+gutterColumnGap+gutterNarrow))/2
 	x, w := left, e.px(gutterButton)
-	if p == partHandle || p == partMenu {
+	if p == partHandle {
 		x, w = left+e.px(gutterButton+gutterColumnGap), e.px(gutterNarrow)
 	}
-	y := e.tops[i] + e.px(gutterTop)
-	if p == partDelete || p == partMenu {
-		y += e.px(gutterButton + gutterRowGap)
+	return geom.NewRect(x, e.tops[i]+e.gutterY(i), w, e.px(gutterButton))
+}
+
+// gutterY is how far below row i's top the gutter's controls are: centred
+// on the text's first line where the row starts with text, and gutterTop
+// down a row that starts with a panel, a picture or a rule.
+func (e *Editor) gutterY(i int) float32 {
+	b := &e.Doc.Blocks[i]
+	top, _ := e.rowPad()
+	if !e.rowDrawsText(i) || e.textTop(b) != top {
+		return e.px(gutterTop)
 	}
-	return geom.NewRect(x, y, w, e.px(gutterButton))
+	return top + (e.natural(e.blockStyle(b)).height-e.px(gutterButton))/2
 }
 
 // gutterControls are the gutter's controls with what a screen reader calls
@@ -562,35 +562,13 @@ var gutterControls = []struct {
 	part gutterPart
 	name string
 }{
-	{partAdd, "Insert block below"},
-	{partHandle, "Drag to move, click to select"},
-	{partDelete, "Delete block"},
 	{partMenu, "Block menu"},
+	{partHandle, "Drag to move, click to select"},
 }
 
 func (e *Editor) drawGutter(gc *unison.Canvas, i int) {
 	t := e.tok()
 	radius := e.px(gutterRadius)
-	for _, g := range []struct {
-		part  gutterPart
-		glyph string
-		size  float32
-	}{{partAdd, "+", gutterAddGlyph}, {partDelete, "×", gutterDelGlyph}} {
-		r := e.gutterCellRect(i, g.part)
-		c := t.TextMuted
-		if e.part == g.part {
-			ground := t.HoverTint
-			c = t.TextPrimary
-			if g.part == partDelete {
-				ground, c = t.Danger, tokens.LabelOn(t.Danger)
-			}
-			e.fillRound(gc, r, radius, ground)
-		}
-		st := e.ui.Chrome(int(e.px(g.size)), text.Bold, c)
-		l := e.label(g.glyph, st)
-		w, h := l.Size()
-		l.Draw(gc, r.X+(r.Width-w)/2, r.Y+(r.Height-h)/2)
-	}
 	// The handle: four dots.
 	r := e.gutterCellRect(i, partHandle)
 	if e.part == partHandle {

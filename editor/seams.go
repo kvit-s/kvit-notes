@@ -19,9 +19,9 @@ import (
 // out and what it does with the few keys and presses a host takes over. Pass
 // it to Editor.Embed before the editor is first shown.
 type Embedding struct {
-	// NoGutter takes away the strip left of each row with the add button,
-	// the drag handle and the block menu, and its width with it, so the text
-	// starts near the editor's left edge.
+	// NoGutter takes away the strip left of each row with the block menu's
+	// button and the drag handle, and its width with it, so the text starts
+	// near the editor's left edge.
 	NoGutter bool
 	// Margin is the space between the editor's edges and its rows, in design
 	// pixels, in place of the note's page margin of 20: above the first row,
@@ -32,11 +32,11 @@ type Embedding struct {
 	// BlockSpacing is the space between two rows in design pixels; 0 keeps
 	// the reader's paragraph spacing.
 	BlockSpacing int
-	// TightRows takes away the room each row keeps for the gutter's buttons,
-	// 10 design pixels above its text and 18 below, so that a row is as tall
-	// as its text: BlockSpacing is then all the space between two blocks,
-	// and ListSpacing all the space between two items of a list. It is for a
-	// document read more than edited, such as a transcript.
+	// TightRows takes away the 4 design pixels each row keeps above and
+	// below its text, inside its hover tint and selection, so that a row is
+	// as tall as its text: BlockSpacing is then all the space between two
+	// blocks, and ListSpacing all the space between two items of a list. It
+	// is for a document read more than edited, such as a transcript.
 	TightRows bool
 	// ListSpacing, with TightRows, is the space between two items of a list
 	// in design pixels, where BlockSpacing separates every other two rows. At
@@ -139,8 +139,8 @@ func (e *Editor) embeddedGap() (float32, bool) {
 	return e.px(float32(e.seams.emb.BlockSpacing)), true
 }
 
-// rowPad is the space above and below a row's text: room for the gutter's
-// buttons stacked two high, or none in an embedding with tight rows.
+// rowPad is the space above and below a row's text, inside its hover tint
+// and selection, or none in an embedding with tight rows.
 func (e *Editor) rowPad() (top, bottom float32) {
 	if e.seams.tightRows() {
 		return 0, 0

@@ -537,7 +537,7 @@ func TestPicturesAreDrawn(t *testing.T) {
 		t.Fatalf("kinds: %v", kinds)
 	}
 	// 150 wide keeps the picture's shape: 75 high, plus the caption.
-	if rows[1] < 75+28 || rows[1] > 75+28+30 {
+	if rows[1] < 75+8 || rows[1] > 75+8+30 {
 		t.Errorf("the picture's row is %v high", rows[1])
 	}
 	s.shot("vault_08_pictures.png")
