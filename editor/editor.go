@@ -229,10 +229,7 @@ func New(ui *kvitui.UI, doc *Doc) *Editor {
 	e.Accessibility.Name = "Note"
 	e.useMath()
 	e.enableExternalDrops()
-	ui.OnChanged(func() {
-		e.generation++
-		e.changed()
-	})
+	e.followUIChanges(ui)
 	return e
 }
 
