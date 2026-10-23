@@ -17,7 +17,7 @@ notices`; edit the manifest, not this file.
 ## Kvit UI (kvit-ui)
 
 - **Go module:** github.com/kvit-s/kvit-ui
-- **Version:** local replacement (../kvit-ui)
+- **Version:** v0.0.0-20261009034750-5968be9cb11e
 - **License:** MPL-2.0
 - **Origin:** https://github.com/kvit-s/kvit-ui (the Kvit component library, the same project as Kvit Notes)
 - **Files:** compiled into the kvit-notes executable
@@ -114,7 +114,7 @@ notices`; edit the manifest, not this file.
 ## go-text typesetting (Kvit's patched copy)
 
 - **Go module:** github.com/go-text/typesetting
-- **Version:** local replacement (../kvit-ui/third_party/typesetting)
+- **Version:** github.com/kvit-s/kvit-ui/third_party/typesetting v0.0.0-20261009034750-5968be9cb11e
 - **License:** Unlicense OR BSD-3-Clause
 - **Origin:** https://github.com/go-text/typesetting v0.3.5, with Kvit's patch kvit-ui/third_party/typesetting-fontscan-face-loader.patch
 - **Files:** compiled into the kvit-notes executable

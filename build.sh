@@ -15,6 +15,9 @@
 #   ./build.sh --bench       time opening, scrolling and typing in 1,237 blocks of Kvit
 #                            Notes' documentation, read from the folder KVIT_BENCH_VAULT names
 #   ./build.sh --run         start kvit-notes here (needs a display)
+#   ./build.sh --update-gh   first move go.mod to the latest commit of kvit-ui on GitHub,
+#                            then do the rest; it names commits in ../kvit-ui that are
+#                            not on GitHub, which no build can have until they are pushed
 #
 # LaTeX math is drawn by MicroTeX, a C++ engine built as a shared library the
 # program loads at run time (tools/build-mathlib.sh). Building it needs zig on
@@ -35,7 +38,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 export CGO_ENABLED=0
-test=0 cross=0 win=0 check=0 run=0 shots=0 bench=0
+test=0 cross=0 win=0 check=0 run=0 shots=0 bench=0 updategh=0
 for a in "$@"; do
     case $a in
         --test) test=1 ;;
@@ -45,7 +48,8 @@ for a in "$@"; do
         --shots) shots=1 ;;
         --bench) bench=1 ;;
         --run) run=1 ;;
-        -h|--help) sed -n '2,34p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        --update-gh) updategh=1 ;;
+        -h|--help) sed -n '2,37p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "unknown option: $a" >&2; exit 2 ;;
     esac
 done
@@ -54,6 +58,59 @@ if [ $bench = 1 ] && [ -z "${KVIT_BENCH_VAULT:-}" ]; then
         "documentation (features.md, block-arch.md, selection.md, devel.md, accessibility.md" \
         "from the tag v1.0.0)" >&2
     exit 1
+fi
+
+# go.mod names kvit-ui at one exact commit on GitHub, as Go names every
+# module, and builds keep using that commit until go get asks for a newer one.
+# A track's copy is committed where no ../kvit-ui is beside it, so go.mod never
+# names that folder. --update-gh asks: it is never done by a plain build, so a
+# push to kvit-ui does not change what a build of this commit makes.
+if [ $updategh = 1 ]; then
+    module=github.com/kvit-s/kvit-ui
+    before=$(go list -m -f '{{.Version}}' $module)
+    go get $module@main
+    # go get leaves the replace line for kvit-ui's patched go-text alone. It
+    # moves only when the patched copy's content changed (its go.sum hash),
+    # since its version changes with every kvit-ui commit.
+    typesetting=$module/third_party/typesetting
+    pinned=$(go list -m -f '{{.Replace.Version}}' github.com/go-text/typesetting)
+    latest=$(go mod download -json "$typesetting@main" | sed -n 's/^[[:space:]]*"Version": "\(.*\)",$/\1/p')
+    sum() { go mod download -json "$typesetting@$1" | sed -n 's/^[[:space:]]*"Sum": "\(.*\)",$/\1/p'; }
+    if [ "$(sum "$pinned")" != "$(sum "$latest")" ]; then
+        go mod edit -replace "github.com/go-text/typesetting=$typesetting@$latest"
+        echo "go-text (kvit-ui's patched copy): ${pinned##*-} -> ${latest##*-}"
+    fi
+    go mod tidy
+    count() { if [ "$1" = 1 ]; then echo "1 $2"; else echo "$1 ${2}s"; fi; }
+    # A pseudo-version ends in the commit's first twelve characters.
+    after=$(go list -m -f '{{.Version}}' $module)
+    if [ "$before" = "$after" ]; then
+        echo "kvit-ui: ${after##*-}, already the latest on GitHub"
+    else
+        echo "kvit-ui: ${before##*-} -> ${after##*-}"
+    fi
+    # The packages' list of their parts names both at the versions go.mod
+    # takes, since packaging checks it against each program
+    # (packaging/sbom.py check), and the notices are written from it.
+    replaced=$(go list -m -f '{{.Replace.Path}} {{.Replace.Version}}' github.com/go-text/typesetting)
+    sed -e "/^    go_module: github.com\/kvit-s\/kvit-ui$/{n;s|^    version: .*|    version: $after|;}" \
+        -e "/^    go_module: github.com\/go-text\/typesetting$/{n;s|^    version: .*|    version: $replaced|;}" \
+        packaging/sbom.yaml > packaging/sbom.yaml.new
+    mv packaging/sbom.yaml.new packaging/sbom.yaml
+    if python3 -c 'import yaml' 2>/dev/null; then
+        python3 packaging/sbom.py notices
+    else
+        echo "  packaging/sbom.yaml moved; run packaging/sbom.py notices where Python has PyYAML" >&2
+    fi
+    # The folder beside this one, where it exists (a track's copy has none):
+    # what it has that GitHub, and so the build, does not.
+    dir=../kvit-ui
+    if git -C "$dir" rev-parse --git-dir >/dev/null 2>&1 &&
+        commits=$(git -C "$dir" rev-list --count "${after##*-}..HEAD" 2>/dev/null); then
+        changed=$(git -C "$dir" status --porcelain --untracked-files=no | wc -l)
+        [ "$commits" = 0 ] || echo "  $dir has $(count "$commits" commit) not on GitHub; push for a build to have them" >&2
+        [ "$changed" = 0 ] || echo "  $dir has uncommitted changes in $(count "$changed" file), which no build has" >&2
+    fi
 fi
 
 # mathres copies the math library's resources into a folder beside a program.

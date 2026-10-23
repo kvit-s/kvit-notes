@@ -77,6 +77,7 @@ rewritten for unison).
 ./build.sh --win         # kvit-notes for Windows onto D:, started on the Windows desktop
 ./build.sh --win-check   # the same, driven through a scripted check, read through UI Automation
 ./build.sh --run         # start kvit-notes here (needs a display)
+./build.sh --update-gh   # first move go.mod to the latest kvit-ui on GitHub
 packaging/build-all.sh   # the downloads for every platform into dist/ (--test tries them)
 ~/kvit-ui/tools/check-all.sh   # ./build.sh --test in every Kvit Go repository
 ```
@@ -101,8 +102,22 @@ not run the tests, so run `./build.sh --test` before committing work
 ## Conventions
 
 - **Module path.** `github.com/kvit-s/kvit-notes`. kvit-ui comes from
-  `../kvit-ui` through a `replace` line, and so does kvit-ui's patched
-  go-text; keep both lines.
+  GitHub at the commit `go.mod` names, as any Go module does: Go records one
+  exact commit, and every build uses that commit until `go.mod` is moved. So
+  a change in kvit-ui reaches this repository only after it is pushed and
+  `go.mod` is moved to it, which `./build.sh --update-gh` does (with any
+  other option, before it); a plain build never moves it. The option runs
+  `go get github.com/kvit-s/kvit-ui@main`, moves the `replace` line for
+  kvit-ui's patched go-text when that copy's content changed (`go get`
+  leaves the line alone, and Go reads it only from this repository's
+  `go.mod`, so keep it), and runs `go mod tidy`. It writes both versions
+  into `packaging/sbom.yaml`, which packaging checks against each program,
+  and rewrites `packaging/THIRD-PARTY-NOTICES.md` from it. It then names
+  commits in `../kvit-ui` that are not on GitHub, and uncommitted changes
+  there, since no build can have them.
+
+  Never point `go.mod` at a folder such as `../kvit-ui`: a track's copy is
+  committed where no such folder is beside it, and the commit then fails.
 - **unison stays unmodified.** Anything missing goes in this repository or in kvit-ui, never into unison.
 - **Go only, with one exception.** The math engine, MicroTeX, is C++ in `third_party/microtex`, built as a shared library with a C interface
   (`mathtex/native`) and loaded at run time, so the Go build keeps cgo off.

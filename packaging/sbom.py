@@ -8,7 +8,8 @@
     packaging/sbom.py check <os>/<arch>=<executable>...
         Check executables against sbom.yaml: the Go toolchain and every Go
         module compiled in (as `go version -m` reports them) must have an entry
-        with the same version, and every file embedded with //go:embed in the
+        with the same version (for a module a replace line takes from another
+        module, that module's path and version), and every file embedded with //go:embed in the
         packages the program is built from (as `go list -deps` reports them
         for that os/arch) must match an entry's `embedded` pattern. Anything
         missing fails, so a new dependency cannot ship without its notice.
@@ -116,7 +117,10 @@ def go(*args, env=None):
 
 
 def build_info(exe):
-    """The Go version and the modules compiled into exe: {path: (version, replaced)}."""
+    """The Go version and the modules compiled into exe: {path: (version,
+    replacement)}, where replacement is None for a module not replaced, ""
+    for one replaced by a local directory, and "<path> <version>" for one
+    replaced by another module."""
     text = go("version", "-m", str(exe))
     lines = text.splitlines()
     go_version = lines[0].rsplit(" ", 1)[-1]
@@ -128,9 +132,12 @@ def build_info(exe):
             continue
         if f[1] == "dep":
             last = f[2]
-            modules[last] = (f[3] if len(f) > 3 else "", False)
+            modules[last] = (f[3] if len(f) > 3 else "", None)
         elif f[1] == "=>" and last:
-            modules[last] = (modules[last][0], True)
+            # A local directory has no version, which go version -m prints
+            # as (devel).
+            local = len(f) < 4 or f[3] in ("", "(devel)")
+            modules[last] = (modules[last][0], "" if local else f"{f[2]} {f[3]}")
     return go_version, modules
 
 
@@ -156,14 +163,18 @@ def cmd_check(args):
         if toolchain is None or toolchain["version"] != go_version:
             problems.append(f"{exe}: built with {go_version}, but sbom.yaml's Go entry says "
                             f"{toolchain and toolchain['version']}")
-        for path, (version, replaced) in sorted(modules.items()):
+        for path, (version, replacement) in sorted(modules.items()):
             c = by_module.get(path)
             if c is None:
                 problems.append(f"{exe}: Go module {path} {version} has no entry in sbom.yaml")
-            elif replaced:
+            elif replacement == "":
                 if not str(c["version"]).startswith("local replacement"):
                     problems.append(f"{exe}: {path} is replaced by a local directory, "
                                     f"but sbom.yaml gives version {c['version']}")
+            elif replacement is not None:
+                if str(c["version"]) != replacement:
+                    problems.append(f"{exe}: {path} is replaced by {replacement}, "
+                                    f"but sbom.yaml says {c['version']}")
             elif str(c["version"]) != version:
                 problems.append(f"{exe}: {path} is {version}, but sbom.yaml says {c['version']}")
         for f in embedded_files(goos, goarch):

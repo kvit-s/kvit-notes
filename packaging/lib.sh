@@ -199,13 +199,16 @@ math_probe() {
     rm -rf "$dir"
     mkdir -p "$dir"
     # The checkout's module requirements and replacements, with the
-    # replacement paths made absolute, and the checkout itself as the module
-    # the probe imports.
+    # checkout itself as the module the probe imports. Go reads replace lines
+    # only from the main module, here the probe, so each is copied: one
+    # naming another module as it is, one naming a folder with its path made
+    # absolute.
     {
         echo "module kvit-notes-mathprobe"
         sed -n -e '/^go /p' -e '/^toolchain /p' go.mod
         echo "require github.com/kvit-s/kvit-notes v0.0.0"
         echo "replace github.com/kvit-s/kvit-notes => $REPO"
+        sed -n '/^replace .* => [^.]/p' go.mod
         sed -n 's#^replace \(.*\) => \(\.\./.*\)$#\1 \2#p' go.mod | while read -r mod path; do
             echo "replace $mod => $(cd "$REPO/$path" && pwd)"
         done

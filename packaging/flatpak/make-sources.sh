@@ -4,7 +4,7 @@
 #   dist/Kvit_Notes-<version>-flatpak-sources.tar.gz, one top folder holding
 #     vendor/     every Go module the program is built from, as `go mod vendor`
 #                 writes it, including kvit-ui and the patched typesetting that
-#                 go.mod takes from ../kvit-ui
+#                 go.mod takes from kvit-ui's repository on GitHub
 #     licenses/   the licence folder of the Linux packages
 #   dist/flatpak/org.kvit.Notes.yaml, the manifest with this version and the
 #     archive's digest filled in (the git commit is set when the tag exists)
@@ -34,10 +34,10 @@ git ls-files -z --cached --others --exclude-standard |
     tar --null --ignore-failed-read -T - -cf - 2> /dev/null | tar -xf - -C "$SRC"
 
 echo "== go mod vendor"
-# go.mod's replacements by relative path (../kvit-ui and a folder inside
-# it) must resolve from the copy while vendoring. The first folder of each
-# gets one link beside the copy, to the real folder beside the checkout, and
-# the links are removed afterwards.
+# A replace line naming a folder by relative path must resolve from the copy
+# while vendoring, so the first folder of each gets one link beside the copy,
+# to the real folder beside the checkout, and the links are removed
+# afterwards. go.mod has no such line now: it takes kvit-ui from GitHub.
 links=()
 for top in $(sed -n 's#^replace .* => \.\./\([^/ ]*\).*$#\1#p' go.mod | sort -u); do
     ln -s "$(cd "$REPO/../$top" && pwd)" "$FP/src/$top"

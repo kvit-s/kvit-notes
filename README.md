@@ -17,9 +17,9 @@ and file associations, and packages for Windows, macOS and Linux
 
 It builds with cgo off and cross-compiles to Windows, macOS and Linux.
 Building needs Go 1.27; with an older Go installed, the `toolchain` line in
-`go.mod` makes Go fetch 1.27 by itself. It needs the kvit-ui repository
-checked out beside it (`../kvit-ui`, which the `replace` lines in `go.mod`
-name), and zig (https://ziglang.org/download/) on the PATH: math is typeset
+`go.mod` makes Go fetch 1.27 by itself. Go fetches the kvit-ui repository
+from GitHub at the commit `go.mod` names, as it fetches every module. It
+needs zig (https://ziglang.org/download/) on the PATH: math is typeset
 by MicroTeX, a C++ engine that zig builds as a shared library the program
 loads at run time.
 
