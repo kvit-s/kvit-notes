@@ -187,6 +187,11 @@ type Editor struct {
 	// none.
 	tocHover int
 	recent   []string // the / menu's recently used entries, newest first
+	// copied is the copy control that says "Copied", just after it put
+	// text on the clipboard, or nothing; copiedGen counts the copies, so the
+	// timer of a copy made again since does nothing (copyFrom).
+	copied    partKey
+	copiedGen int
 
 	blinkOff  bool      // the caret is in the off half of its blink
 	blinkFrom time.Time // when the caret last moved, which restarts the blink

@@ -725,10 +725,18 @@ func (e *Editor) diagramChips(i int) ([]diagramChip, geom.Point) {
 	y := panel.Y + e.px(diagramChipTop)
 	for k := len(chips) - 1; k >= 0; k-- {
 		w, _ := e.label(chips[k].label, st).Size()
+		if chips[k].part == partDiagramCopy || chips[k].part == partDiagramText {
+			// A copy control says "Copied" for a moment after a copy,
+			// and has room for it all the time, so the controls left of
+			// it stay where they are.
+			cw, _ := e.label("Copied", st).Size()
+			w = max(w, cw)
+		}
 		w += 2 * e.px(diagramChipPad)
 		x -= w
 		chips[k].rect = geom.NewRect(x, y, w, e.px(diagramChipH))
 		x -= e.px(diagramChipGap)
+		chips[k].label = e.copyWord(b.ID, chips[k].part, chips[k].label)
 	}
 	lw, _ := e.label("Mermaid", st).Size()
 	return chips, geom.NewPoint(x-lw, y)
@@ -778,10 +786,11 @@ func (e *Editor) diagramAct(i int, part gutterPart) bool {
 	case partDiagramIn:
 		v.zoomed, v.zoom = true, min(diagramZoomMax, scale*diagramZoomStep)
 	case partDiagramCopy:
-		unison.ClipboardSetText(b.Text)
+		e.copyFrom(b.ID, part, b.Text)
+		unison.AnnounceForAccessibility("Copied")
 	case partDiagramText:
 		if s := c.textDiagram(); s != "" {
-			unison.ClipboardSetText(s)
+			e.copyFrom(b.ID, part, s)
 			e.status("Copied the diagram as text")
 		}
 	case partDiagramPNG:

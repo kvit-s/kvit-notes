@@ -340,7 +340,7 @@ func (e *Editor) PerformAccessibilityAction(req accessibility.ActionRequest) boo
 		case partHandle:
 			e.clickHandle(pk.block, 0)
 		case partCopy:
-			unison.ClipboardSetText(d.Blocks[i].Text)
+			e.copyCode(i)
 		case partTableAddRow:
 			if !d.ReadOnly {
 				if t := ParseTable(d.Blocks[i].Text); t.Valid {

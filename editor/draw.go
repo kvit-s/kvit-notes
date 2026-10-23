@@ -8,6 +8,7 @@ import (
 	"github.com/kvit-s/kvit-notes/highlight"
 	"strconv"
 	"strings"
+	"time"
 
 	kvitui "github.com/kvit-s/kvit-ui"
 	"github.com/kvit-s/kvit-ui/icons"
@@ -363,10 +364,13 @@ func (e *Editor) codePanel(i int) geom.Rect {
 		e.px(codeHeader+2*codeTextPad+codeFooter)+e.layout(i).height())
 }
 
-// copyButton is the code panel's Copy button, in its header.
+// copyButton is the code panel's Copy button, in its header. It is as wide
+// as "Copied", which it says for a moment after a copy, and its word is
+// drawn against its right edge, so neither word moves that edge and a press
+// anywhere on either copies.
 func (e *Editor) copyButton(i int) geom.Rect {
 	p := e.codePanel(i)
-	l := e.label("Copy", e.chrome(kvitui.RoleCaption, text.Regular, e.tok().TextSecondary))
+	l := e.label("Copied", e.chrome(kvitui.RoleCaption, text.Regular, e.tok().TextSecondary))
 	w, h := l.Size()
 	pad := e.px(codeCopyPad)
 	return geom.NewRect(p.Right()-e.px(codePadSide)-w-2*pad, p.Y+(e.px(codeHeader)-h)/2-pad, w+2*pad, h+2*pad)
@@ -374,6 +378,45 @@ func (e *Editor) copyButton(i int) geom.Rect {
 
 // codeCopyPad is the room around the Copy button's word that a press hits.
 const codeCopyPad = 2
+
+// copiedFor is how long a copy control says "Copied" after it copied.
+const copiedFor = 1500 * time.Millisecond
+
+// copyCode puts code block i's text on the clipboard, for a press on its
+// Copy button and a screen reader's Press alike.
+func (e *Editor) copyCode(i int) {
+	b := &e.Doc.Blocks[i]
+	e.copyFrom(b.ID, partCopy, b.Text)
+	unison.AnnounceForAccessibility("Copied")
+}
+
+// copyFrom puts s on the clipboard from control part of block id, which
+// then says "Copied" for copiedFor. Another copy before then starts the
+// time again, and moves the word to its own control. It tells neither the
+// application nor a screen reader: the caller says what was copied.
+func (e *Editor) copyFrom(id int64, part gutterPart, s string) {
+	unison.ClipboardSetText(s)
+	e.copied = partKey{id, part}
+	e.copiedGen++
+	gen := e.copiedGen
+	unison.InvokeTaskAfter(func() {
+		if e.copiedGen != gen {
+			return
+		}
+		e.copied = partKey{}
+		e.MarkForRedraw()
+	}, copiedFor)
+	e.MarkForRedraw()
+}
+
+// copyWord is what control part of block id says: word, or "Copied" for a
+// moment after it copied.
+func (e *Editor) copyWord(id int64, part gutterPart, word string) string {
+	if e.copied == (partKey{id, part}) {
+		return "Copied"
+	}
+	return word
+}
 
 // lineNumberWidth is the room a code block's line numbers take before its
 // text, 0 without them: two digits or as many as the last number has, and
@@ -479,8 +522,9 @@ func (e *Editor) drawCodePanel(gc *unison.Canvas, i int) {
 			c = t.TextPrimary
 		}
 		btn := e.copyButton(i)
-		cp := e.label("Copy", e.chrome(kvitui.RoleCaption, text.Regular, c))
-		cp.Draw(gc, btn.X+e.px(codeCopyPad), y)
+		cp := e.label(e.copyWord(b.ID, partCopy, "Copy"), e.chrome(kvitui.RoleCaption, text.Regular, c))
+		w, _ := cp.Size()
+		cp.Draw(gc, btn.Right()-e.px(codeCopyPad)-w, y)
 	}
 }
 

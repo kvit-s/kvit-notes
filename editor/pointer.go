@@ -164,7 +164,7 @@ func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Mo
 		case partCheck:
 			d.ToggleTodo(b.ID)
 		case partCopy:
-			unison.ClipboardSetText(b.Text)
+			e.copyCode(i)
 		case partFold:
 			d.Edit("fold", func() { b.Checked = !b.Checked })
 		case partCalloutType:
