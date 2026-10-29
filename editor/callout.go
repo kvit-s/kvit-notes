@@ -137,7 +137,17 @@ func (e *Editor) calloutParts(i int) (chevron, icon, title, dot geom.Rect) {
 	icon = geom.NewRect(p.X+e.px(calloutIconX-4), p.Y, iconW+e.px(12), h)
 	x := p.X + e.px(calloutIconX) + iconW + e.px(calloutTitleGap)
 	dot = geom.NewRect(p.Right()-e.px(calloutDotRight+calloutDot), p.Y+(h-e.px(calloutDot))/2, e.px(calloutDot), e.px(calloutDot))
-	title = geom.NewRect(x, p.Y, max(1, dot.X-e.px(6)-x), h)
+	right := dot.X - e.px(6)
+	if e.Printing {
+		// Paper has no type menu or colour dot to press, so a toggle's
+		// title starts where a type's glyph would, and any title runs on
+		// to where the dot would be.
+		if iconW == 0 {
+			x = p.X + e.px(calloutIconX)
+		}
+		right = dot.Right()
+	}
+	title = geom.NewRect(x, p.Y, max(1, right-x), h)
 	return
 }
 
@@ -160,13 +170,16 @@ func (e *Editor) drawCallout(gc *unison.Canvas, i int) {
 	e.fillRound(gc, geom.NewRect(p.X, p.Y, e.px(calloutBar), p.Height), e.px(2), c)
 	chevron, icon, title, dot := e.calloutParts(i)
 	h := e.px(calloutHeader)
-	arrow := "▾"
-	if b.Checked {
-		arrow = "▸"
+	if !e.Printing {
+		// The fold arrow, which paper has no use for.
+		arrow := "▾"
+		if b.Checked {
+			arrow = "▸"
+		}
+		a := e.label(arrow, e.chrome(kvitui.RoleBody, text.Regular, c))
+		_, ah := a.Size()
+		a.Draw(gc, chevron.X+e.px(4), p.Y+(h-ah)/2)
 	}
-	a := e.label(arrow, e.chrome(kvitui.RoleBody, text.Regular, c))
-	_, ah := a.Size()
-	a.Draw(gc, chevron.X+e.px(4), p.Y+(h-ah)/2)
 	k := calloutKindOf(b.Lang)
 	if k.icon != "" {
 		l := e.label(k.icon, e.calloutHeaderStyle(b))
@@ -185,6 +198,10 @@ func (e *Editor) drawCallout(gc *unison.Canvas, i int) {
 		l := e.ui.Fonts.Layout([]text.Span{{Text: words, Style: st}}, text.Options{MaxWidth: title.Width, Elide: true})
 		_, lh := l.Size()
 		l.Draw(gc, title.X, p.Y+(h-lh)/2)
+	}
+	if e.Printing {
+		// The colour dot opens a menu, which paper has no use for either.
+		return
 	}
 	alpha := float32(0.35)
 	if e.hover == b.ID {

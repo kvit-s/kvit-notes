@@ -360,8 +360,26 @@ func (e *Editor) checkBox(i int) geom.Rect {
 func (e *Editor) codePanel(i int) geom.Rect {
 	body := e.bodyRect(i)
 	top := e.tops[i] + e.px(codeRowTop)
-	return geom.NewRect(body.X+e.px(codeInset), top, body.Width-e.px(codeInset+contentRight),
-		e.px(codeHeader+2*codeTextPad+codeFooter)+e.layout(i).height())
+	return geom.NewRect(body.X+e.px(codeInset), top, body.Width-e.px(codeInset+contentRight), e.codePanelHeight(i))
+}
+
+// codeStrips are the heights of a code panel's header, which holds the
+// language and Copy, and of its footer, which holds the hint and the
+// scrollbar. A printed panel has none of them, so both are only the room
+// that keeps the code as far from the panel's top and bottom as from its
+// side.
+func (e *Editor) codeStrips() (header, footer float32) {
+	if e.Printing {
+		return codePadSide - codeTextPad, codePadSide - codeTextPad
+	}
+	return codeHeader, codeFooter
+}
+
+// codePanelHeight is the height of block i's code panel: the header, the
+// code with its padding, and the footer.
+func (e *Editor) codePanelHeight(i int) float32 {
+	header, footer := e.codeStrips()
+	return e.px(header+2*codeTextPad+footer) + e.layout(i).height()
 }
 
 // copyButton is the code panel's Copy button, in its header. It is as wide
@@ -501,6 +519,8 @@ func (e *Editor) languageItems(id int64) []kvitui.MenuItem {
 	return items
 }
 
+// drawCodePanel draws a code block's panel, and its header's controls
+// except on paper, where nobody can press them.
 func (e *Editor) drawCodePanel(gc *unison.Canvas, i int) {
 	b := &e.Doc.Blocks[i]
 	t := e.tok()
@@ -508,6 +528,9 @@ func (e *Editor) drawCodePanel(gc *unison.Canvas, i int) {
 	r := e.px(codePanelRadius)
 	e.fillRound(gc, p, r, t.CodePanelBackground)
 	e.stroke(gc, p, r, e.px(1), t.Border)
+	if e.Printing {
+		return
+	}
 	hc := t.TextSecondary
 	if e.hover == b.ID && e.part == partLanguage {
 		hc = t.TextPrimary

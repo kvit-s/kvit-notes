@@ -2,15 +2,19 @@ package app
 
 import (
 	"bytes"
+	"compress/zlib"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf16"
 
 	"github.com/kvit-s/kvit-notes/editor"
 	"github.com/kvit-s/kvit-notes/export"
@@ -921,6 +925,153 @@ func TestPDFExport(t *testing.T) {
 			}
 		})
 	}
+}
+
+// An exported PDF draws none of the controls a reader presses on screen,
+// and its streams are compressed. The note is written in small letters
+// only, so any capital letter on its pages is a control's word: Copy, a
+// board's Filter, + Add card or + Column, a web page card's Load preview.
+// The arrows are the language menu's and the folds'. Without the math
+// library the equation is drawn as its source, in the code panel.
+func TestPDFExportDrawsNoControls(t *testing.T) {
+	note := "zebra crossing.\n\n```go\nq := 7\n```\n\n$$\nx^2\n$$\n\n" +
+		"> [!info] an open callout\n> its body.\n\n> [!toggle]- a folded toggle\n> hidden.\n\n" +
+		"```kanban\n## todo\n- [ ] write it #work\n- [x] read it\n## done\n```\n\n" +
+		"![vivid page](https://example.org/a)\n"
+	s := openVault(t, notes{"Report.md": note})
+	target := filepath.Join(t.TempDir(), "Report.pdf")
+	if dir := os.Getenv("KVIT_SHOTS"); dir != "" {
+		target = filepath.Join(dir, "features_15_export_controls.pdf")
+	}
+	var err error
+	s.do(func() { err = s.w.writePDF(s.w.Editor.Doc.Blocks, "Report", target) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(target)
+	if !bytes.Contains(data, []byte("/Filter /FlateDecode")) {
+		t.Error("no stream in the PDF is compressed")
+	}
+	chars := pdfChars(t, data)
+	for _, r := range "zq7v" {
+		if !chars[r] {
+			t.Fatalf("the note's text should be on the page, %q is not: %q", r, keys(chars))
+		}
+	}
+	for r := range chars {
+		if r >= 'A' && r <= 'Z' || strings.ContainsRune("▾▸‹›×+·", r) {
+			t.Errorf("the page draws %q, which only a control says: %q", r, keys(chars))
+		}
+	}
+}
+
+// A PDF's web page cards show the previews read on screen, their pictures
+// included, while a page that could not be read prints as a card that was
+// never loaded: its title and site, without the error. The words are in
+// small letters, so a capital is the error's.
+func TestPDFExportKeepsLoadedPreviews(t *testing.T) {
+	s := openVault(t, notes{"Pages.md": "![one](https://example.org/a)\n\n![two](https://example.org/b)\n"})
+	var err error
+	s.do(func() {
+		img, ierr := unison.NewImageFromDrawing(8, 8, 72, func(gc *unison.Canvas) {
+			gc.DrawRect(geom.NewRect(0, 0, 8, 8), unison.Red.Paint(gc, geom.Rect{}, paintstyle.Fill))
+		})
+		if ierr != nil {
+			t.Fatal(ierr)
+		}
+		s.w.Editor.SetPreview("https://example.org/a", editor.Preview{Title: "jumbo", Description: "fuzzy", Image: img})
+		s.w.Editor.SetPreview("https://example.org/b", editor.Preview{Failed: "Could not load the preview: 404 Not Found"})
+	})
+	target := filepath.Join(t.TempDir(), "Pages.pdf")
+	if dir := os.Getenv("KVIT_SHOTS"); dir != "" {
+		target = filepath.Join(dir, "features_15_export_previews.pdf")
+	}
+	s.do(func() { err = s.w.writePDF(s.w.Editor.Doc.Blocks, "Pages", target) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(target)
+	chars := pdfChars(t, data)
+	for _, r := range "jzw" {
+		if !chars[r] {
+			t.Errorf("the cards should show the preview's title and description and the other card's title, %q is not drawn: %q", r, keys(chars))
+		}
+	}
+	for r := range chars {
+		if r >= 'A' && r <= 'Z' {
+			t.Errorf("the page draws %q, from the failed page's error: %q", r, keys(chars))
+		}
+	}
+	if !bytes.Contains(data, []byte("/Subtype /Image")) {
+		t.Error("the preview's picture is not in the PDF")
+	}
+}
+
+// pdfChars is every character a PDF's pages draw, read from the map from
+// glyphs to text each of its fonts has, which lists only the glyphs used.
+func pdfChars(t *testing.T, data []byte) map[rune]bool {
+	t.Helper()
+	chars := map[rune]bool{}
+	hex := func(s string) []uint16 {
+		var u []uint16
+		for k := 0; k+4 <= len(s); k += 4 {
+			var v uint16
+			fmt.Sscanf(s[k:k+4], "%04x", &v)
+			u = append(u, v)
+		}
+		return u
+	}
+	pair := regexp.MustCompile(`<([0-9A-Fa-f]+)>[ \t]*<([0-9A-Fa-f]+)>(?:[ \t]*<([0-9A-Fa-f]+)>)?`)
+	section := regexp.MustCompile(`(?s)begin(bfchar|bfrange)(.*?)end(?:bfchar|bfrange)`)
+	dict := regexp.MustCompile(`<<([^<>]*)>> stream\n`)
+	for _, m := range dict.FindAllSubmatchIndex(data, -1) {
+		d := string(data[m[2]:m[3]])
+		var n int
+		if k := strings.Index(d, "/Length "); k < 0 {
+			continue
+		} else {
+			fmt.Sscanf(d[k+len("/Length "):], "%d", &n)
+		}
+		body := data[m[1]:min(len(data), m[1]+n)]
+		if strings.Contains(d, "/FlateDecode") {
+			zr, err := zlib.NewReader(bytes.NewReader(body))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if body, err = io.ReadAll(zr); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if !bytes.Contains(body, []byte("begincmap")) {
+			continue
+		}
+		for _, sec := range section.FindAllStringSubmatch(string(body), -1) {
+			for _, p := range pair.FindAllStringSubmatch(sec[2], -1) {
+				if sec[1] == "bfchar" {
+					for _, r := range utf16.Decode(hex(p[2])) {
+						chars[r] = true
+					}
+					continue
+				}
+				from, to := hex(p[1]), hex(p[2])
+				first := []rune(string(utf16.Decode(hex(p[3]))))[0]
+				for k := range rune(to[0]-from[0]) + 1 {
+					chars[first+k] = true
+				}
+			}
+		}
+	}
+	return chars
+}
+
+// keys is a set's members, sorted.
+func keys(set map[rune]bool) string {
+	var rs []rune
+	for r := range set {
+		rs = append(rs, r)
+	}
+	slices.Sort(rs)
+	return string(rs)
 }
 
 // F6 moves the keyboard between the panes drawn.

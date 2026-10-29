@@ -70,7 +70,8 @@ type Editor struct {
 	duePick       *duePickState // a card's date picker, open or nil
 	// marks are the find bar's matches by block, drawn behind the text.
 	marks map[int64][]Mark
-	// Printing lays the note out for pages: no gutter and no side margins.
+	// Printing lays the note out for pages: no gutter, no side margins, and
+	// none of the controls a reader presses on screen.
 	Printing bool
 	// LineNumbers numbers the lines of code blocks (View, Code line numbers).
 	LineNumbers bool
@@ -515,7 +516,8 @@ func (e *Editor) textTop(b *Block) float32 {
 		return y
 	}
 	if b.Kind.isSource() {
-		return e.px(codeRowTop + codeHeader + codeTextPad)
+		header, _ := e.codeStrips()
+		return e.px(codeRowTop + header + codeTextPad)
 	}
 	if b.Kind == Callout {
 		return e.px(codeRowTop + calloutHeader)
@@ -598,7 +600,7 @@ func (e *Editor) rowHeight(i int) float32 {
 		return h
 	}
 	if b.Kind.isSource() {
-		return e.px(codeRowTop+codeHeader+2*codeTextPad+codeFooter+codeRowBottom) + e.layout(i).height()
+		return e.px(codeRowTop+codeRowBottom) + e.codePanelHeight(i)
 	}
 	if b.Kind == Callout {
 		h := e.px(codeRowTop + calloutHeader + codeRowBottom)

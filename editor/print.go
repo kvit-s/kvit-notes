@@ -2,9 +2,11 @@ package editor
 
 // Printing a note to pages, for PDF export: the note laid out at the width
 // of a page's text, cut into pages between rows, each page drawn as the
-// editor draws the note, without the caret, the gutter or the page's side
-// margins. A row taller than a page is cut where the page ends and goes on
-// on the next.
+// editor draws the note, without the caret, the gutter, the page's side
+// margins or the controls a reader presses on screen (a code panel's
+// language menu and Copy, a callout's fold arrow and colour dot, a task
+// board's buttons, a web page card's Load preview). A row taller than a
+// page is cut where the page ends and goes on on the next.
 
 import (
 	"github.com/richardwilkes/toolbox/v2/geom"

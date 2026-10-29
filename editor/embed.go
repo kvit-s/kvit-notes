@@ -152,6 +152,16 @@ func (e *Editor) SetPreview(address string, p Preview) {
 	e.changed()
 }
 
+// Previews are the pages read so far for their cards, by address, for
+// another editor drawing the same note, such as the one a PDF is drawn by.
+func (e *Editor) Previews() map[string]Preview {
+	m := make(map[string]Preview, len(e.previews))
+	for address, p := range e.previews {
+		m[address] = *p
+	}
+	return m
+}
+
 // escapeImageField escapes a field of an image line, as written.
 func escapeImageField(s string) string {
 	s = strings.ReplaceAll(s, "\\", "\\\\")
@@ -346,6 +356,10 @@ func (e *Editor) drawEmbed(gc *unison.Canvas, ref ImageRef, card geom.Rect) {
 	small := e.chrome(kvitui.RoleSmall, text.Regular, t.TextFaint)
 	y := load.Y
 	switch {
+	case (p == nil || p.Failed != "") && e.Printing:
+		// Paper has no Load preview to press, and a page that could not be
+		// read is no news to a reader of paper, so the card keeps its title
+		// and its site.
 	case p == nil:
 		e.fillRound(gc, load, e.px(3), t.ChipBackground)
 		e.stroke(gc, load, e.px(3), e.px(1), t.Border)

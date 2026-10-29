@@ -493,7 +493,7 @@ func (e *Editor) diagramInnerWidth(int) float32 {
 // as codePanel places it.
 func (e *Editor) sourcePanel(i int, top float32) geom.Rect {
 	return geom.NewRect(e.bodyLeft()+e.px(codeInset), top+e.px(codeRowTop), e.bodyRight()-e.bodyLeft()-e.px(codeInset+contentRight),
-		e.px(codeHeader+2*codeTextPad+codeFooter)+e.layout(i).height())
+		e.codePanelHeight(i))
 }
 
 // readScale is the scale the read canvas draws at: in fit mode as large as

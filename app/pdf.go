@@ -56,11 +56,20 @@ func (w *Window) writePDF(blocks []editor.Block, title, path string) error {
 		ed.LoadImage = w.imageLoader(w.open.Path)
 	}
 	ed.RunQuery = w.runQuery
+	// The pages read for their cards on screen, so a printed card shows
+	// what the reader saw. Nothing is fetched for the PDF.
+	for address, p := range w.Editor.Previews() {
+		ed.SetPreview(address, p)
+	}
 	pages := ed.Paginate(pdfPageW-2*pdfMargin, pdfPageH-2*pdfMargin)
 	s, ok := stream.NewFileWStream(path)
 	if !ok {
 		return errors.New("the file cannot be written")
 	}
 	defer s.Close()
-	return unison.CreatePDF(s, &pdf.Metadata{Title: title, Creator: "Kvit Notes"}, &pdfPages{ed, pages})
+	// DefaultMetadata compresses the file's streams; a bare Metadata leaves
+	// every one of them uncompressed, about twice the size.
+	md := pdf.DefaultMetadata()
+	md.Title, md.Creator = title, "Kvit Notes"
+	return unison.CreatePDF(s, md, &pdfPages{ed, pages})
 }

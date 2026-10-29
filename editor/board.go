@@ -150,7 +150,9 @@ func (e *Editor) layBoard(b *Block, width float32) *boardLayout {
 	t := e.tok()
 	small := e.chrome(kvitui.RoleSmall, text.Regular, t.TextSecondary)
 	y := e.px(boardPad)
-	// The filter chips: every label on the board, and Hide done.
+	// The filter chips: every label on the board, and Hide done. Paper has
+	// none of the board's controls: no chips, no column header's buttons,
+	// no + Add card and no + Column.
 	var labels []string
 	anyDone := false
 	for _, c := range bl.board.Columns {
@@ -163,7 +165,7 @@ func (e *Editor) layBoard(b *Block, width float32) *boardLayout {
 			anyDone = anyDone || card.Done
 		}
 	}
-	if len(labels) > 0 || anyDone {
+	if (len(labels) > 0 || anyDone) && !e.Printing {
 		x := e.px(boardPad)
 		fl := e.label("Filter", small)
 		fw, _ := fl.Size()
@@ -180,7 +182,11 @@ func (e *Editor) layBoard(b *Block, width float32) *boardLayout {
 		y += e.px(boardFilterH + 4)
 	}
 	n := len(bl.board.Columns)
-	avail := width - 2*e.px(boardPad) - e.px(boardAddColW) - float32(n)*e.px(boardColGap)
+	addColW := e.px(boardAddColW)
+	if e.Printing {
+		addColW = 0
+	}
+	avail := width - 2*e.px(boardPad) - addColW - float32(n)*e.px(boardColGap)
 	colW := e.px(boardColW)
 	if n > 0 {
 		colW = max(e.px(boardColMin), min(colW, avail/float32(n)))
@@ -193,12 +199,19 @@ func (e *Editor) layBoard(b *Block, width float32) *boardLayout {
 		cy := top + e.px(boardHeaderH)
 		ctl := e.px(boardCtl)
 		right := x + colW - e.px(4)
+		nameX := x + e.px(22)
+		if e.Printing {
+			// Without the buttons the name starts in line with the cards'
+			// boxes, and the count ends in line with the cards.
+			ctl = 0
+			nameX = x + e.px(boardPad+boardCardPad)
+		}
 		cb.close = geom.NewRect(right-ctl, top, ctl, e.px(boardHeaderH))
 		cb.add = geom.NewRect(right-2*ctl, top, ctl, e.px(boardHeaderH))
 		cb.right = geom.NewRect(right-3*ctl, top, ctl, e.px(boardHeaderH))
 		cb.left = geom.NewRect(right-4*ctl, top, ctl, e.px(boardHeaderH))
-		cb.fold = geom.NewRect(x, top, e.px(22), e.px(boardHeaderH))
-		cb.name = geom.NewRect(x+e.px(22), top, max(1, cb.left.X-e.px(30)-(x+e.px(22))), e.px(boardHeaderH))
+		cb.fold = geom.NewRect(x, top, nameX-x, e.px(boardHeaderH))
+		cb.name = geom.NewRect(nameX, top, max(1, cb.left.X-e.px(30)-nameX), e.px(boardHeaderH))
 		if !v.folded[c.Name] {
 			for k, card := range c.Cards {
 				if (v.label != "" && !slices.Contains(card.Labels, v.label)) || (v.hideDone && card.Done) {
@@ -287,8 +300,11 @@ func (e *Editor) layBoard(b *Block, width float32) *boardLayout {
 				bl.cards = append(bl.cards, box)
 				cy += h + e.px(boardCardGap)
 			}
-			cb.addCard = geom.NewRect(x+e.px(boardPad), cy, colW-2*e.px(boardPad), e.px(boardAddCardH))
-			cy += e.px(boardAddCardH) + e.px(boardPad)
+			if !e.Printing {
+				cb.addCard = geom.NewRect(x+e.px(boardPad), cy, colW-2*e.px(boardPad), e.px(boardAddCardH))
+				cy += e.px(boardAddCardH)
+			}
+			cy += e.px(boardPad)
 		} else {
 			cy += e.px(4)
 		}
@@ -297,8 +313,10 @@ func (e *Editor) layBoard(b *Block, width float32) *boardLayout {
 		bl.cols = append(bl.cols, cb)
 		x += colW + e.px(boardColGap)
 	}
-	bl.addCol = geom.NewRect(x, top, e.px(boardAddColW), e.px(40))
-	tallest = max(tallest, bl.addCol.Height)
+	if !e.Printing {
+		bl.addCol = geom.NewRect(x, top, e.px(boardAddColW), e.px(40))
+		tallest = max(tallest, bl.addCol.Height)
+	}
 	bl.height = top + tallest + e.px(boardPad)
 	return bl
 }
@@ -308,8 +326,8 @@ func (e *Editor) board(i int) *boardLayout {
 	b := &e.Doc.Blocks[i]
 	width := e.bodyRight() - e.bodyLeft()
 	v := e.viewOf(b.ID)
-	key := fmt.Sprintf("%s|%v|%d|%v|%s|%v|%v|%d|%d", b.Text, width, e.generation, v.hideDone, v.label, v.folded,
-		e.boardHoverID == b.ID, e.boardHoverCol, e.boardHoverIdx)
+	key := fmt.Sprintf("%s|%v|%d|%v|%s|%v|%v|%d|%d|%v", b.Text, width, e.generation, v.hideDone, v.label, v.folded,
+		e.boardHoverID == b.ID, e.boardHoverCol, e.boardHoverIdx, e.Printing)
 	if c, ok := e.boards[b.ID]; ok && c.key == key {
 		return c.layout
 	}
@@ -374,16 +392,11 @@ func (e *Editor) drawBoard(gc *unison.Canvas, i int) {
 		r := e.px(boardRadius)
 		gc.DrawRoundedRect(cb.r, geom.NewSize(r, r), kvitui.Color(t.PanelBackground).Paint(gc, cb.r, paintstyle.Fill))
 		e.stroke(gc, cb.r, r, e.px(1), t.Border)
-		arrow := "▾"
-		if v.folded[col.Name] {
-			arrow = "▸"
-		}
 		center := func(s string, st text.Style, in geom.Rect) {
 			l := e.label(s, st)
 			w, h := l.Size()
 			l.Draw(gc, in.X+(in.Width-w)/2, in.Y+(in.Height-h)/2)
 		}
-		center(arrow, small, cb.fold)
 		nl := e.ui.Fonts.Layout([]text.Span{{Text: col.Name, Style: e.chrome(kvitui.RoleStrong, text.Bold, t.TextPrimary)}},
 			text.Options{MaxWidth: cb.name.Width, Elide: true})
 		_, nh := nl.Size()
@@ -395,6 +408,15 @@ func (e *Editor) drawBoard(gc *unison.Canvas, i int) {
 		cl := e.label(count, faint)
 		cw, ch := cl.Size()
 		cl.Draw(gc, cb.left.X-e.px(4)-cw, cb.left.Y+(cb.left.Height-ch)/2)
+		if e.Printing {
+			// The header's buttons are drawn only on screen.
+			continue
+		}
+		arrow := "▾"
+		if v.folded[col.Name] {
+			arrow = "▸"
+		}
+		center(arrow, small, cb.fold)
 		leftInk, rightInk := small, small
 		if ci == 0 {
 			leftInk = faint
@@ -481,6 +503,9 @@ func (e *Editor) drawBoard(gc *unison.Canvas, i int) {
 		e.drawCardDrop(gc, bl)
 	}
 	e.drawColumnGap(gc, bl)
+	if e.Printing {
+		return
+	}
 	e.fillRound(gc, bl.addCol, e.px(boardRadius), t.PanelBackground)
 	e.stroke(gc, bl.addCol, e.px(boardRadius), e.px(1), t.Border)
 	l := e.label("+ Column", small)
