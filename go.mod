@@ -12,7 +12,7 @@ require (
 	github.com/kvit-s/kvit-ui v0.0.0-20261009034750-5968be9cb11e
 	github.com/richardwilkes/canvas v0.3.1
 	github.com/richardwilkes/toolbox/v2 v2.20.0
-	github.com/richardwilkes/unison v0.108.0
+	github.com/richardwilkes/unison v0.108.1
 	golang.org/x/image v0.46.0
 	golang.org/x/sys v0.48.0
 )
