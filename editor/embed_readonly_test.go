@@ -155,6 +155,47 @@ func TestASweepSelectsAcrossBlocksAndCopiesMarkdown(t *testing.T) {
 	})
 }
 
+func TestASweepOverACodeBlockCopiesTheCodeAlone(t *testing.T) {
+	const code = "report.cmd --from logs kvit-works"
+	s, d := openDocument(t, DocumentOptions{}, "Run this:\n\n```bat\n"+code+"\n```\n\nand wait.\n", 0)
+	var from, to geom.Point
+	s.Do(func() {
+		from = d.Editor.TextPoint(1, 0)
+		to = d.Editor.TextPoint(1, len(code))
+	})
+	s.Screen.Drag(s.Screen.PanelPoint(d.Editor, from), s.Screen.PanelPoint(d.Editor, to), 6)
+	s.Do(func() {
+		if r := d.SelectedRange(); r != (TextRange{1, 0, 1, len(code)}) {
+			t.Fatalf("the sweep selected %+v", r)
+		}
+		// Asking about it or commenting on it quotes the block, fence and
+		// all, while copying it gives the characters on the screen.
+		if got, want := d.SelectedMarkdown(), "```bat\n"+code+"\n```"; got != want {
+			t.Errorf("the selection quotes %q", got)
+		}
+		// The code goes on the clipboard as plain text, with no HTML made
+		// from it, which would read a "*" in it as emphasis.
+		d.Editor.CopyRich = func(md string) { t.Errorf("copied %q as Markdown", md) }
+		if !d.CopySelection() || unison.ClipboardGetText() != code {
+			t.Errorf("copied %q", unison.ClipboardGetText())
+		}
+		unison.ClipboardSetText("")
+	})
+	s.Screen.KeyPress(unison.KeyC, mod.Control)
+	s.Do(func() {
+		if got := unison.ClipboardGetText(); got != code {
+			t.Errorf("Ctrl+C copied %q", got)
+		}
+		// A sweep on into the next block copies Markdown, fence and all.
+		var rich string
+		d.Editor.CopyRich = func(md string) { rich = md }
+		d.Editor.Doc.Caret = Pos{d.Editor.Doc.Blocks[2].ID, 3}
+		if !d.CopySelection() || rich != "```bat\n"+code+"\n```\n\nand" {
+			t.Errorf("across blocks copied %q", rich)
+		}
+	})
+}
+
 func TestSelectAllTakesTheWholeDocument(t *testing.T) {
 	s, d := openDocument(t, DocumentOptions{}, accessNote, 0)
 	s.Do(func() {

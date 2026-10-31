@@ -1,7 +1,8 @@
 package editor
 
 // A selection as Markdown that stands on its own: what "comment", "send to
-// chat" and "ask in" quote, and what a drawn document copies.
+// chat" and "ask in" quote, and what a drawn document copies from more than
+// one block.
 
 import (
 	"slices"
@@ -63,6 +64,16 @@ func (e *Editor) SelectionMarkdown() string {
 	return e.Doc.markdownOf(r)
 }
 
+// CopiedText is what copying the editor's selection puts on the clipboard,
+// and whether that is Markdown: blocks selected whole as SelectionMarkdown
+// writes them, and a text selection as Doc.CopiedText gives it.
+func (e *Editor) CopiedText() (text string, markdown bool) {
+	if len(e.blockSel) > 0 {
+		return e.SelectionMarkdown(), true
+	}
+	return e.Doc.CopiedText()
+}
+
 // ClearSelection drops the text selection and the block selection, and
 // leaves the caret where it is.
 func (e *Editor) ClearSelection() {
@@ -88,6 +99,45 @@ func (d *Doc) RangeMarkdown() string {
 	return d.markdownOf(r)
 }
 
+// CopiedText is what copying the text selection puts on the clipboard, and
+// whether that is Markdown. Across blocks it is Markdown, as RangeMarkdown
+// writes it. Inside one block it is plain text: the characters drawn between
+// the selection's ends, without the block's fence, prefix or number and
+// without the markers of its inline spans, since none of them was on the
+// screen to select. Selected code comes back as it stands, a link as its
+// words, and an inline formula, which is drawn as a picture, as its TeX
+// between $ signs. It is "" when nothing is selected.
+func (d *Doc) CopiedText() (text string, markdown bool) {
+	r := d.SelectionRange()
+	if r.StartIndex < 0 {
+		return "", false
+	}
+	if r.StartIndex != r.EndIndex {
+		return d.markdownOf(r), true
+	}
+	blk := d.Blocks[r.StartIndex]
+	src := runes(blk.Text)
+	from, to := min(max(0, r.StartPos), len(src)), min(max(0, r.EndPos), len(src))
+	if from >= to {
+		return "", false
+	}
+	if verbatim(blk.Kind) {
+		return string(src[from:to]), false
+	}
+	p := project(src, parseInline(src), func(sp span) bool { return sp.Kind == sMath })
+	return string(p.Disp[p.S2D[from]:p.S2D[to]]), false
+}
+
+// fragmentOf is the characters of block b's text src between Markdown
+// offsets from and to: as they stand in a block with no inline Markdown,
+// and with the markers of the spans they touch balanced in any other.
+func fragmentOf(b Block, src []rune, from, to int) string {
+	if verbatim(b.Kind) {
+		return string(src[from:to])
+	}
+	return inlineFragment(src, from, to)
+}
+
 // markdownOf writes a range of the document as RangeMarkdown does.
 func (d *Doc) markdownOf(r TextRange) string {
 	if r.StartIndex == r.EndIndex && r.StartPos == r.EndPos {
@@ -109,14 +159,9 @@ func (d *Doc) markdownOf(r TextRange) string {
 			continue
 		}
 		whole := from == 0 && to == len(src)
-		var text string
-		switch {
-		case whole:
-			text = BlockMarkdown(blk, ListNumber(d.Blocks, i))
-		case verbatim(blk.Kind):
-			text = string(src[from:to])
-		default:
-			text = inlineFragment(src, from, to)
+		text := BlockMarkdown(blk, ListNumber(d.Blocks, i))
+		if !whole {
+			text = fragmentOf(blk, src, from, to)
 		}
 		list := whole && blk.Kind.IsList()
 		if have {

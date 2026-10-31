@@ -114,3 +114,49 @@ func TestPartialCodeBlockCopyAcrossBlocks(t *testing.T) {
 		t.Errorf("got %q, want %q", got, want)
 	}
 }
+
+func TestCopyInsideOneBlockIsTheCharactersDrawn(t *testing.T) {
+	cmd := `D:\projects\kvit-works\report.cmd --from "%LOCALAPPDATA%\Kvit\Kvit Works\logs" kvit-works`
+	d := NewDoc([]Block{
+		{ID: NewBlock(Code, "").ID, Kind: Code, Lang: "bat", Text: cmd},
+		NewBlock(Heading2, "A **bold** title"),
+		NewBlock(Paragraph, "Run `report.cmd` from [the logs](logs/), with $x^2$ *set*."),
+	})
+	fenced := "```bat\n" + cmd + "\n```"
+	copied := func(want string) {
+		t.Helper()
+		if got, markdown := d.CopiedText(); got != want || markdown {
+			t.Errorf("copied %q (Markdown %v), want %q", got, markdown, want)
+		}
+	}
+	// All of the code's text, as a sweep over the drawn block selects it:
+	// the copy is the code, and a quote of it keeps the fence.
+	selectDoc(d, 0, 0, 0, len([]rune(cmd)))
+	copied(cmd)
+	if got := d.RangeMarkdown(); got != fenced {
+		t.Errorf("quoted %q", got)
+	}
+	selectDoc(d, 0, 3, 0, 23)
+	copied(`projects\kvit-works\`)
+	// A heading's whole text comes without its "#" and its markers.
+	selectDoc(d, 1, 16, 1, 0)
+	copied("A bold title")
+	// Inline code, a link and emphasis as their words; a formula, drawn as
+	// a picture, as its TeX.
+	selectDoc(d, 2, 4, 2, 16)
+	copied("report.cmd")
+	selectDoc(d, 2, 0, 2, len([]rune(d.Blocks[2].Text)))
+	copied("Run report.cmd from the logs, with $x^2$ set.")
+	// Across blocks the copy is Markdown with each block's structure.
+	selectDoc(d, 0, 0, 1, 16)
+	if got, markdown := d.CopiedText(); got != fenced+"\n\n## A **bold** title" || !markdown {
+		t.Errorf("across blocks copied %q (Markdown %v)", got, markdown)
+	}
+	d.Anchor = d.Caret
+	copied("")
+	// A block selected whole, by its handle, is copied with its fence.
+	e := &Editor{Doc: d, blockSel: map[int64]bool{d.Blocks[0].ID: true}}
+	if got, markdown := e.CopiedText(); got != fenced || !markdown {
+		t.Errorf("selected block copied %q (Markdown %v)", got, markdown)
+	}
+}

@@ -154,7 +154,7 @@ func (e *Editor) handleKey(key unison.KeyCode, ctrl, shift, alt bool) bool {
 		return true
 	case ctrl && (key == unison.KeyC || key == unison.KeyX):
 		if d.HasSelection() {
-			e.copyMarkdown(e.copiedSelection())
+			e.copyText(e.copiedSelection())
 			if key == unison.KeyX {
 				d.DeleteSelection()
 				e.afterStructural()
@@ -814,6 +814,17 @@ func (e *Editor) copyMarkdown(md string) {
 		return
 	}
 	unison.ClipboardSetText(md)
+}
+
+// copyText puts text on the clipboard: Markdown as copyMarkdown puts it, or
+// plain text alone, with no HTML made from it, since HTML read from plain
+// text would take a "*" in copied code for emphasis.
+func (e *Editor) copyText(text string, markdown bool) {
+	if markdown {
+		e.copyMarkdown(text)
+		return
+	}
+	unison.ClipboardSetText(text)
 }
 
 // pasteClipboard pastes what the clipboard holds: HTML turned into

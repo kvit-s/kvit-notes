@@ -309,10 +309,10 @@ func (e *Editor) openTextMenu(at geom.Rect) {
 	}
 	items := []kvitui.MenuItem{
 		{Text: "Cut", Disabled: !has || d.ReadOnly, OnSelect: act(func() {
-			e.copyMarkdown(d.SelectedMarkdown())
+			e.copyText(e.copiedSelection())
 			d.DeleteSelection()
 		})},
-		{Text: "Copy", Disabled: !has, OnSelect: func() { e.copyMarkdown(d.SelectedMarkdown()) }},
+		{Text: "Copy", Disabled: !has, OnSelect: func() { e.copyText(e.copiedSelection()) }},
 		{Text: "Paste", Disabled: d.ReadOnly || !unison.ClipboardHasText(), OnSelect: act(e.pasteClipboard)},
 		{Text: "Paste as plain text", Disabled: d.ReadOnly || !unison.ClipboardHasText(), OnSelect: act(func() {
 			d.Paste(strings.ReplaceAll(unison.ClipboardGetText(), "\r\n", "\n"), true)

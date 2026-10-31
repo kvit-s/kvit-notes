@@ -63,8 +63,9 @@ type Embedding struct {
 	// in place of the editor's own full-size view drawn inside its panel.
 	OpenPicture func(path, alt string)
 	// CopyFragments makes Ctrl+C and Ctrl+X put the selection on the
-	// clipboard as RangeMarkdown gives it: a partly selected block as a
-	// fragment whose inline markers are balanced.
+	// clipboard as Doc.CopiedText gives it: across blocks as Markdown, with
+	// a partly selected block as a fragment whose inline markers are
+	// balanced, and inside one block as the characters drawn, in plain text.
 	CopyFragments bool
 	// Laid, when set, runs each time the rows have been measured again,
 	// for a host that places things over them. It may ask where things are,
@@ -360,13 +361,14 @@ func (e *Editor) pictureKey(key unison.KeyCode, ctrl, shift bool, i int) bool {
 	return true
 }
 
-// copiedSelection is what Ctrl+C puts on the clipboard: the note's source
-// slices, or balanced fragments for an embedding that asks for them.
-func (e *Editor) copiedSelection() string {
+// copiedSelection is what Ctrl+C and Copy put on the clipboard, and whether
+// that is Markdown: the note's source slices, or for an embedding that asks
+// for fragments, what Doc.CopiedText gives.
+func (e *Editor) copiedSelection() (text string, markdown bool) {
 	if e.seams.copyFragments() {
-		return e.Doc.RangeMarkdown()
+		return e.Doc.CopiedText()
 	}
-	return e.Doc.SelectedMarkdown()
+	return e.Doc.SelectedMarkdown(), true
 }
 
 // openPictureElsewhere hands a picture to the host that shows it, and

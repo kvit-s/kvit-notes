@@ -165,15 +165,21 @@ func (d *Document) SelectAll() bool {
 // ClearSelection drops the selection.
 func (d *Document) ClearSelection() { d.Editor.ClearSelection() }
 
-// CopySelection puts the selection on the clipboard as Markdown, with HTML
-// beside it when the editor's CopyRich is set, and reports false when
-// nothing was selected.
+// CopiedText is what CopySelection puts on the clipboard, and whether that
+// is Markdown: across blocks the selection as SelectedMarkdown gives it, and
+// inside one block the characters drawn, in plain text, as Doc.CopiedText
+// describes. "" when nothing is selected.
+func (d *Document) CopiedText() (text string, markdown bool) { return d.Editor.CopiedText() }
+
+// CopySelection puts the selection on the clipboard as CopiedText gives it:
+// Markdown with HTML beside it when the editor's CopyRich is set, or plain
+// text alone. It reports false when nothing was selected.
 func (d *Document) CopySelection() bool {
-	md := d.SelectedMarkdown()
-	if md == "" {
+	text, markdown := d.CopiedText()
+	if text == "" {
 		return false
 	}
-	d.Editor.copyMarkdown(md)
+	d.Editor.copyText(text, markdown)
 	return true
 }
 

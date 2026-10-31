@@ -17,7 +17,8 @@ func TestANoteIsLaidOutAsANote(t *testing.T) {
 		if e.bodyLeft() != e.side()+e.px(gutterWidth+focusBar) || e.tops[0] != e.px(pageMargin) || e.tail() <= e.px(pageMargin) {
 			t.Errorf("text from %v, first row at %v, %v below the last", e.bodyLeft(), e.tops[0], e.tail())
 		}
-		if e.focusBarX() != e.side()+e.px(gutterWidth) || !e.showsCaret() || e.copiedSelection() != e.Doc.SelectedMarkdown() {
+		copied, markdown := e.copiedSelection()
+		if e.focusBarX() != e.side()+e.px(gutterWidth) || !e.showsCaret() || copied != e.Doc.SelectedMarkdown() || !markdown {
 			t.Error("a note draws or copies as an embedded editor")
 		}
 	})
