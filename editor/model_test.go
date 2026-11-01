@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -272,6 +273,62 @@ func TestListNumbers(t *testing.T) {
 		if got[i] != want[i] {
 			t.Fatalf("numbers %v, want %v", got, want)
 		}
+	}
+}
+
+// numbers is the number each numbered block shows, in order.
+func numbers(bs []Block) []int {
+	var got []int
+	for i, b := range bs {
+		if b.Kind == Numbered {
+			got = append(got, ListNumber(bs, i))
+		}
+	}
+	return got
+}
+
+// A list that something else interrupts goes on at the number written on
+// its next item, as Markdown numbers it: a model's reply nests a table under
+// item 1, which the editor reads as a block between the items, and item 2
+// must not show as a second "1.". A saved note keeps the numbers written.
+func TestAnInterruptedListGoesOnAtItsWrittenNumber(t *testing.T) {
+	src := "1. a\n\n| t |\n|---|\n| x |\n\n2. b\n3. c\n\npara\n\n4. d"
+	bs := ParseMarkdown(src)
+	if got := fmt.Sprint(numbers(bs)); got != "[1 2 3 4]" {
+		t.Fatalf("numbers %s, want [1 2 3 4]", got)
+	}
+	if got := Serialize(bs); got != src+"\n" {
+		t.Fatalf("saved as %q", got)
+	}
+	// A list may begin anywhere, and a nested one keeps its own start.
+	if got := fmt.Sprint(numbers(ParseMarkdown("3. a\n   5. x\n   6. y\n4. b"))); got != "[3 5 6 4]" {
+		t.Fatalf("numbers %s, want [3 5 6 4]", got)
+	}
+	// "0." and a number longer than nine digits begin at 1.
+	if got := fmt.Sprint(numbers(ParseMarkdown("0. a\n\npara\n\n1234567890. b"))); got != "[1 1]" {
+		t.Fatalf("numbers %s, want [1 1]", got)
+	}
+}
+
+// Only the number on a list's first item is read, so a list whose first
+// item stops being one renumbers from 1 rather than showing the number the
+// second item was written with.
+func TestOnlyAListsFirstNumberIsRead(t *testing.T) {
+	bs := ParseMarkdown("1. a\n2. b\n3. c")
+	bs[0].Kind = Paragraph
+	if got := fmt.Sprint(numbers(bs)); got != "[1 2]" {
+		t.Fatalf("numbers %s, want [1 2]", got)
+	}
+}
+
+// Enter at the start of a list's first item opens an empty item above it,
+// and the list still begins where it did.
+func TestEnterAboveAListsFirstItemKeepsItsStart(t *testing.T) {
+	d := newTestDoc("5. a\n6. b")
+	d.SetCaret(d.Blocks[0].ID, 0)
+	d.Enter()
+	if got := fmt.Sprint(numbers(d.Blocks)); got != "[5 6 7]" {
+		t.Fatalf("numbers %s, want [5 6 7]: %s", got, texts(d))
 	}
 }
 

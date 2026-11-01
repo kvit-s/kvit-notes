@@ -58,6 +58,7 @@ type block struct {
 	title   string // a callout's title
 	attrs   string // the <!--kvit …--> payload
 	origin  int    // the index of the editor block this came from
+	start   int    // a numbered item's first number when it begins a list
 }
 
 // headingLevel is a heading's level, 1 to 4, or 0 for any other block.
@@ -159,7 +160,7 @@ func convert(b editor.Block) []block {
 	case editor.Bullet:
 		return []block{{kind: kBullet, indent: b.Indent, text: b.Text, attrs: b.Attrs}}
 	case editor.Numbered:
-		return []block{{kind: kNumbered, indent: b.Indent, text: b.Text, attrs: b.Attrs}}
+		return []block{{kind: kNumbered, indent: b.Indent, text: b.Text, attrs: b.Attrs, start: b.Start}}
 	case editor.Todo:
 		return []block{{kind: kTodo, indent: b.Indent, text: b.Text, checked: b.Checked, attrs: b.Attrs}}
 	case editor.Quote:

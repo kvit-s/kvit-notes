@@ -260,8 +260,13 @@ func (r *renderer) body(blocks []block, slugs []string) string {
 				target := max(0, item.indent) + 1
 				if depth == 0 || target > depth {
 					for depth < target {
-						sb.WriteString(openTag)
 						depth++
+						// The list the item opens begins at its number.
+						if ordered && depth == target && item.start > 1 {
+							sb.WriteString(`<ol start="` + strconv.Itoa(item.start) + `">`)
+						} else {
+							sb.WriteString(openTag)
+						}
 					}
 				} else {
 					sb.WriteString("</li>")

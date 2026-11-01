@@ -106,6 +106,12 @@ type Block struct {
 	// end of the block's Markdown, space-separated key=value tokens and bare
 	// flags in key order. The editor keeps it so a note saves unchanged.
 	Attrs string
+	// Start is the number written on a numbered item that begins a list,
+	// so a list that does not begin at 1 shows the numbers written: one
+	// that a table or a paragraph interrupts goes on at 2, as Markdown
+	// numbers it. Only the first item of a run of numbered siblings uses
+	// it, and 0 is 1.
+	Start int
 }
 
 var lastBlockID atomic.Int64
@@ -121,7 +127,7 @@ var (
 	reHeading  = regexp.MustCompile(`^(#{1,6}) (.*)$`)
 	reTodo     = regexp.MustCompile(`^([ \t]*)[-*+] \[( |x|X)\] ?(.*)$`)
 	reBullet   = regexp.MustCompile(`^([ \t]*)[-*+] (.*)$`)
-	reNumbered = regexp.MustCompile(`^([ \t]*)\d+[.)] (.*)$`)
+	reNumbered = regexp.MustCompile(`^([ \t]*)(\d+)[.)] (.*)$`)
 	reQuote    = regexp.MustCompile(`^> ?(.*)$`)
 	reDivider  = regexp.MustCompile(`^(\*{3,}|-{3,}|_{3,})\s*$`)
 )
@@ -363,9 +369,15 @@ func ParseMarkdown(src string) []Block {
 			continue
 		}
 		if m := reNumbered.FindStringSubmatch(line); m != nil {
-			b := NewBlock(Numbered, m[2])
+			b := NewBlock(Numbered, m[3])
 			b.Indent = indentOf(m[1])
 			one(b)
+			// Markdown takes a list's first number and counts on from it,
+			// up to nine digits; the numbers on the items after it are not
+			// read.
+			if last := len(out) - 1; listRunFirst(out, last) == last && len(m[2]) <= 9 {
+				out[last].Start, _ = strconv.Atoi(m[2])
+			}
 			afterList = true
 			continue
 		}
@@ -427,23 +439,37 @@ func ParseMarkdown(src string) []Block {
 	return out
 }
 
-// ListNumber is the number a numbered block shows: one more than the
-// numbered siblings directly above it at the same depth. Deeper items in
-// between do not break the run, so a nested list restarts at 1.
+// ListNumber is the number a numbered block shows: the first number of its
+// run (the Start of the run's first item, 1 when it has none), counted on
+// over the numbered siblings directly above it at the same depth. Deeper
+// items in between do not break the run, so a nested list restarts.
 func ListNumber(blocks []Block, i int) int {
-	n := 1
+	first := listRunFirst(blocks, i)
+	n := 0
+	for j := first; j < i; j++ {
+		if blocks[j].Kind == Numbered && blocks[j].Indent == blocks[i].Indent {
+			n++
+		}
+	}
+	return max(blocks[first].Start, 1) + n
+}
+
+// listRunFirst is the index of the first item of the run of numbered
+// siblings block i ends: i itself when nothing directly above continues it.
+func listRunFirst(blocks []Block, i int) int {
+	first := i
 	for j := i - 1; j >= 0; j-- {
 		b := blocks[j]
 		if b.Kind.IsList() && b.Indent > blocks[i].Indent {
 			continue
 		}
 		if b.Kind == Numbered && b.Indent == blocks[i].Indent {
-			n++
+			first = j
 			continue
 		}
 		break
 	}
-	return n
+	return first
 }
 
 // BlockMarkdown writes one block as Markdown. number is the list number for

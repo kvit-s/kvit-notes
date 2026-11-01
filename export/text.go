@@ -18,7 +18,8 @@ func (r *renderer) plainText(blocks []block) string {
 	var lines []string
 	// One numbering counter per indent level: a block at level L resets the
 	// deeper levels, a block at L that is not numbered resets L, and anything
-	// outside the list family resets them all.
+	// outside the list family resets them all. A list counts on from its
+	// first item's number, as the editor numbers it.
 	var counters [maxIndent + 1]int
 	for _, b := range blocks {
 		ordinal := 1
@@ -30,6 +31,9 @@ func (r *renderer) plainText(blocks []block) string {
 				counters[deeper] = 0
 			}
 			if b.kind == kNumbered {
+				if counters[level] == 0 {
+					counters[level] = max(b.start, 1) - 1
+				}
 				counters[level]++
 				ordinal = counters[level]
 			} else {

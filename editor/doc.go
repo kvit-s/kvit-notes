@@ -730,8 +730,10 @@ func (d *Doc) Enter() {
 		}
 		if off == 0 && len(r) > 0 {
 			// Enter at the start of a non-empty block opens an empty block
-			// above and keeps the caret with the text
+			// above and keeps the caret with the text. The new item may now
+			// begin the list, so it takes the list's first number.
 			nb.Text = ""
+			nb.Start = b.Start
 			d.Blocks = slices.Insert(d.Blocks, i, nb)
 			d.SetCaret(b.ID, 0)
 			return
