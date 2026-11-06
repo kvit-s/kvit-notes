@@ -43,8 +43,9 @@ type Embedding struct {
 	// 0 an item's first line is under the last line of the item before it
 	// as the lines of one paragraph are under each other.
 	ListSpacing int
-	// ReadOnlyLook draws no caret, no focus bar and no hover tint. It does
-	// not refuse edits by itself: set Doc.ReadOnly for that.
+	// ReadOnlyLook draws no caret, no focus bar, no hover tint and no inline
+	// markers around the caret. It does not refuse edits by itself: set
+	// Doc.ReadOnly for that.
 	ReadOnlyLook bool
 	// HideImageLine never shows an image block's Markdown line, even with the
 	// caret in it: the picture keeps the keyboard as a whole, Backspace or

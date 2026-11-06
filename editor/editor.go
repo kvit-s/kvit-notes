@@ -551,7 +551,10 @@ func (e *Editor) layout(i int) *blockLayout {
 	b := &d.Blocks[i]
 	key := layoutKey{text: b.Text, attrs: b.Attrs, lang: b.Lang, kind: b.Kind, checked: b.Checked, width: e.textWidth(b), caret: -1,
 		generation: e.generation, marks: marksKey(e.marks[b.ID])}
-	if d.Focused && d.Caret.Block == b.ID {
+	// The markers around a caret are there to be edited. A document drawn
+	// read-only keeps them hidden: the first press of a sweep would otherwise
+	// show them and move the words along the line under the pointer.
+	if d.Focused && d.Caret.Block == b.ID && !e.seams.readOnlyLook() {
 		key.caret = min(d.Caret.Off, len([]rune(b.Text)))
 	}
 	if from, to, ok := d.SelectionIn(i); ok {

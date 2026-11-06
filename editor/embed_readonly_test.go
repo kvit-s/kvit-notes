@@ -155,6 +155,36 @@ func TestASweepSelectsAcrossBlocksAndCopiesMarkdown(t *testing.T) {
 	})
 }
 
+// Pressing in a bold phrase and sweeping across it neither shows its markers
+// nor moves its words, and the sweep ends on the letter it was let go over.
+func TestASweepInABoldPhraseLeavesItsMarkersHidden(t *testing.T) {
+	s, d := openDocument(t, DocumentOptions{}, "Before **bold words here** after.", 0)
+	var from, to geom.Point
+	s.Do(func() {
+		from = d.Editor.TextPoint(0, 9) // the "b" of "bold"
+		to = d.Editor.TextPoint(0, 14)  // after "bold "
+	})
+	press, end := s.Screen.PanelPoint(d.Editor, from), s.Screen.PanelPoint(d.Editor, to)
+	s.Screen.Drag(press, end, 6)
+	s.Do(func() {
+		if got := d.SelectedMarkdown(); got != "**bold **" {
+			t.Errorf("the sweep selected %q", got)
+		}
+		if got := string(d.Editor.layout(0).proj.Disp); got != "Before bold words here after." {
+			t.Errorf("the line is drawn as %q", got)
+		}
+		if moved := d.Editor.TextPoint(0, 14); moved != to {
+			t.Errorf("the end of the sweep moved from %v to %v", to, moved)
+		}
+	})
+	s.Screen.Click(press)
+	s.Do(func() {
+		if got := string(d.Editor.layout(0).proj.Disp); got != "Before bold words here after." {
+			t.Errorf("after a press the line is drawn as %q", got)
+		}
+	})
+}
+
 func TestASweepOverACodeBlockCopiesTheCodeAlone(t *testing.T) {
 	const code = "report.cmd --from logs kvit-works"
 	s, d := openDocument(t, DocumentOptions{}, "Run this:\n\n```bat\n"+code+"\n```\n\nand wait.\n", 0)
