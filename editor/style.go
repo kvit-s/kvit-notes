@@ -148,10 +148,11 @@ func (e *Editor) monoFamily() string {
 }
 
 // pitch is how far apart the lines of a block's text are: the document's line
-// height times the font's own line height, its ascent and descent rounded up
-// to a pixel: 22.1 px at 14 px and 1.3, 18 px at 15 px and 1.0.
+// height (or an embedding's own) times the font's own line height, its ascent
+// and descent rounded up to a pixel: 22.1 px at 14 px and 1.3, 18 px at 15 px
+// and 1.0.
 func (e *Editor) pitch(st text.Style) float32 {
-	return e.naturalLine(st) * float32(e.ui.Typography.LineHeight())
+	return e.naturalLine(st) * float32(e.lineHeight())
 }
 
 // lineKey is what a font's own line height depends on.

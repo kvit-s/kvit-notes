@@ -43,6 +43,11 @@ type Embedding struct {
 	// 0 an item's first line is under the last line of the item before it
 	// as the lines of one paragraph are under each other.
 	ListSpacing int
+	// LineHeight is how far apart the lines of a block are, as a multiple of
+	// the font's own line height, in place of the reader's line height; 0
+	// keeps the reader's. It is for a box short of room, such as a message
+	// being typed, whose lines the host wants closer than a document's.
+	LineHeight float64
 	// ReadOnlyLook draws no caret, no focus bar, no hover tint and no inline
 	// markers around the caret. It does not refuse edits by itself: set
 	// Doc.ReadOnly for that.
@@ -115,6 +120,15 @@ func (s *seams) readOnlyLook() bool { return s.framed() && s.emb.ReadOnlyLook }
 func (s *seams) hidesImageLine() bool { return s.framed() && s.emb.HideImageLine }
 
 func (s *seams) copyFragments() bool { return s.framed() && s.emb.CopyFragments }
+
+// lineHeight is the multiple of the font's own line height that lines are set
+// at: the embedding's, or the reader's.
+func (e *Editor) lineHeight() float64 {
+	if e.seams.framed() && e.seams.emb.LineHeight > 0 {
+		return e.seams.emb.LineHeight
+	}
+	return e.ui.Typography.LineHeight()
+}
 
 // margin is the space around the rows: the page margin, or the embedding's.
 func (e *Editor) margin() float32 {

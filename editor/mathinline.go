@@ -140,7 +140,7 @@ func (e *Editor) mathBox(f *mathtex.Formula, st text.Style) text.Box {
 	// size's ascent, and never less than the formula's own depth: with a
 	// face whose ascent takes most of the line, such as Segoe UI, the
 	// spacing alone left a fraction hanging into the line below.
-	lead := float32(e.ui.Typography.LineHeight())
+	lead := float32(e.lineHeight())
 	return text.Box{Width: float32(f.Width), Ascent: asc * p, Descent: max(p*lead-asc*p, descent)}
 }
 
