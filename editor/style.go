@@ -119,6 +119,11 @@ func (e *Editor) blockStyle(b *Block) text.Style {
 		Weight: text.Regular,
 		Color:  colour(t.TextPrimary),
 	}
+	if ink := e.seams.ink(); ink != nil && !b.Kind.IsHeading() {
+		// Before the kinds below, so a quote and a checked to-do keep
+		// their own colours.
+		st.Color = colour(ink.Of(e.ui))
+	}
 	switch b.Kind {
 	case Heading1:
 		st.Weight = text.Bold

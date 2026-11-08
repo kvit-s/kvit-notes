@@ -11,6 +11,7 @@ package editor
 import (
 	"slices"
 
+	kvitui "github.com/kvit-s/kvit-ui"
 	"github.com/richardwilkes/toolbox/v2/geom"
 	"github.com/richardwilkes/unison"
 )
@@ -48,6 +49,17 @@ type Embedding struct {
 	// keeps the reader's. It is for a box short of room, such as a message
 	// being typed, whose lines the host wants closer than a document's.
 	LineHeight float64
+	// Ink, when set, is the colour of the ordinary text of every block but
+	// the four headings, in place of the theme's TextPrimary: paragraphs,
+	// list items, to-do items, table cells, callouts, inline formulas, and
+	// a code block's text where it has no syntax colour. Headings keep
+	// TextPrimary, and quotes, checked to-dos, links, syntax colours, list
+	// markers and display equations keep their own colours. The ink is read
+	// through the theme each time a block is laid out, so it follows a
+	// change of theme. It is for a document drawn among interface text that
+	// uses a softer colour for what is read, such as a conversation beside
+	// a page.
+	Ink kvitui.Ink
 	// ReadOnlyLook draws no caret, no focus bar, no hover tint and no inline
 	// markers around the caret. It does not refuse edits by itself: set
 	// Doc.ReadOnly for that.
@@ -97,6 +109,7 @@ func (e *Editor) Embed(emb Embedding) {
 	e.seams.emb = &emb
 	e.laidWidth = 0
 	clear(e.layouts)
+	clear(e.grids)
 	e.relayout()
 }
 
@@ -120,6 +133,15 @@ func (s *seams) readOnlyLook() bool { return s.framed() && s.emb.ReadOnlyLook }
 func (s *seams) hidesImageLine() bool { return s.framed() && s.emb.HideImageLine }
 
 func (s *seams) copyFragments() bool { return s.framed() && s.emb.CopyFragments }
+
+// ink is the colour an embedding draws ordinary text in, or nil for the
+// theme's TextPrimary.
+func (s *seams) ink() kvitui.Ink {
+	if !s.framed() {
+		return nil
+	}
+	return s.emb.Ink
+}
 
 // lineHeight is the multiple of the font's own line height that lines are set
 // at: the embedding's, or the reader's.
