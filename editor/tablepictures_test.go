@@ -21,7 +21,7 @@ import (
 // tablePictureNote is the document the pictures show: a reply with the six
 // tables, each under a line saying what it is, and a code block with a long
 // line.
-var tablePictureNote = "The five tables an agent's reply often holds, each under a line naming it. " +
+var tablePictureNote = "Six tables an agent's reply often holds, each under a line naming it. " +
 	"This paragraph is long enough to show where the text wraps: at the reading column, " +
 	"while a table or a code block may reach past it to the right.\n\n" +
 	"**1. A short report**\n\n" + fitReport + "\n\n" +
