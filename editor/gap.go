@@ -48,7 +48,7 @@ func (e *Editor) gapAt(where geom.Point) int {
 	if d.ReadOnly || e.gapSuspended() || len(d.Blocks) == 0 {
 		return -1
 	}
-	if where.X < e.side()+e.px(gapLeftInset) || where.X > e.width()-e.side()-e.px(gapRightInset) {
+	if where.X < e.side()+e.px(gapLeftInset) || where.X > e.bodyRight()-e.px(gapRightInset) {
 		return -1
 	}
 	n := len(d.Blocks)

@@ -38,6 +38,13 @@ type DocumentOptions struct {
 	// between two items of a list, in design pixels (Embedding.TightRows).
 	TightRows   bool
 	ListSpacing int
+	// FitTables, TextWidth and ScrollTables are the embedding's options of
+	// the same names: columns sized as a browser sizes them, text kept to a
+	// width in design pixels while tables and code blocks use the document's
+	// whole width, and a table too wide for its room scrolled sideways.
+	FitTables    bool
+	TextWidth    float32
+	ScrollTables bool
 	// Pictures are the folders the document's pictures are looked up in.
 	Pictures PictureFolders
 	// OpenPicture, when set, is asked to show a picture a press landed on, in
@@ -79,7 +86,8 @@ func NewDocument(ui *kvitui.UI, o DocumentOptions) *Document {
 	e.Accessibility.Name = "Document"
 	e.LoadImage = o.Pictures.Loader()
 	e.Embed(Embedding{NoGutter: true, Margin: o.Margin, BlockSpacing: o.BlockSpacing, TightRows: o.TightRows,
-		ListSpacing: o.ListSpacing, ReadOnlyLook: true, CopyFragments: true, OpenPicture: o.OpenPicture})
+		ListSpacing: o.ListSpacing, ReadOnlyLook: true, CopyFragments: true, OpenPicture: o.OpenPicture,
+		FitTables: o.FitTables, TextWidth: o.TextWidth, ScrollTables: o.ScrollTables})
 	d.Editor = e
 	if o.Scrolls {
 		d.region = kvitui.NewRegion(ui, e)

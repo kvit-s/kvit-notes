@@ -87,3 +87,7 @@ func (e *Editor) wideExtra(i int) float32 {
 	}
 	return max(0, w-e.textWidth(b))
 }
+
+// rowRight is the right edge of block i's row: the text's right edge, or
+// further for a table or a code panel that reaches past it.
+func (e *Editor) rowRight(i int) float32 { return e.bodyRight() + e.wideExtra(i) }

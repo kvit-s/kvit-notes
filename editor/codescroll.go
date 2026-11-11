@@ -114,6 +114,11 @@ func (e *Editor) setCodeScroll(id int64, scroll float32) {
 	if scroll == e.codeScrollOf(id) && e.codeScroll[id] == scroll {
 		return
 	}
+	if e.tableField != nil && e.tableCellIn(id) {
+		// The field over a live cell does not move with the grid, so
+		// scrolling a table ends the edit and keeps what was typed.
+		e.commitTableField()
+	}
 	if e.codeScroll == nil {
 		e.codeScroll = map[int64]float32{}
 	}

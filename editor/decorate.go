@@ -479,7 +479,7 @@ func (d *Decorations) panelAt(where geom.Point) *unison.Panel {
 
 // containerWidth is how wide a container is: the rows' width, the gutter
 // included.
-func (e *Editor) containerWidth() float32 { return max(0, e.width()-2*e.side()) }
+func (e *Editor) containerWidth() float32 { return max(0, e.bodyRight()-e.side()) }
 
 // measureDecorations measures the containers after block i at the rows'
 // width, as the rows are measured, and answers the height they take.

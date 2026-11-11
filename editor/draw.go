@@ -119,7 +119,7 @@ func (e *Editor) gapRect(g int, h float32) (geom.Rect, bool) {
 	}
 	y := e.gapLineY(g) - e.px(h)/2
 	x := e.side() + e.px(gapLeftInset)
-	w := e.width() - 2*e.side() - e.px(gapLeftInset+gapRightInset)
+	w := e.bodyRight() - e.side() - e.px(gapLeftInset+gapRightInset)
 	if w <= 0 {
 		return geom.Rect{}, false
 	}

@@ -536,16 +536,16 @@ func (e *Editor) textOrigin(i int) geom.Point {
 	return geom.NewPoint(e.bodyLeft()+e.textLeft(b)-e.codeScrollDX(i), e.tops[i]+e.textTop(b))
 }
 
-// rowRect is block i's whole row, the gutter included, as far right as a
-// table or a code panel may reach.
+// rowRect is block i's whole row, the gutter included: as far right as the
+// text reaches, or as its own table or code panel does past that.
 func (e *Editor) rowRect(i int) geom.Rect {
-	return geom.NewRect(e.side(), e.tops[i], max(e.width()-e.side(), e.wideRight())-e.side(), e.heights[i])
+	return geom.NewRect(e.side(), e.tops[i], e.rowRight(i)-e.side(), e.heights[i])
 }
 
 // bodyRect is block i's row after the gutter and the focus bar, reaching
 // past the text's right edge as far as a wide table or code panel does.
 func (e *Editor) bodyRect(i int) geom.Rect {
-	return geom.NewRect(e.bodyLeft(), e.tops[i], e.bodyRight()-e.bodyLeft()+e.wideExtra(i), e.heights[i])
+	return geom.NewRect(e.bodyLeft(), e.tops[i], e.rowRight(i)-e.bodyLeft(), e.heights[i])
 }
 
 // layout is block i's text laid out for the current caret and selection,
