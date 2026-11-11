@@ -14,6 +14,7 @@ import (
 	"github.com/kvit-s/kvit-ui/text"
 	"github.com/richardwilkes/toolbox/v2/geom"
 	"github.com/richardwilkes/unison"
+	"github.com/richardwilkes/unison/enums/pathop"
 )
 
 // The grid in design pixels: the padding in each cell and the narrowest a
@@ -36,6 +37,15 @@ type grid struct {
 	height float32
 }
 
+// width is the grid's width: its columns side by side.
+func (g *grid) width() float32 {
+	var w float32
+	for _, c := range g.cols {
+		w += c
+	}
+	return w
+}
+
 // cellLayout lays a cell's inline Markdown out, markers hidden, "<br>" as a
 // line break.
 func (e *Editor) cellLayout(src string, header bool, width float32) *text.Layout {
@@ -56,11 +66,13 @@ func (e *Editor) cellText(src string, header bool, width float32) (*text.Layout,
 	return e.ui.Fonts.Layout(e.runs(proj, proj.flags, base), text.Options{MaxWidth: width, Pitch: e.pitch(base)}), proj
 }
 
-// gridFor lays a table block out at its width, from a cache.
+// gridFor lays a table block out at its width, from a cache. Its room is
+// the text's width, or more under an embedding's TextWidth (wideblocks.go);
+// an unsized table that is narrower spans the text's width.
 func (e *Editor) gridFor(i int) (*grid, bool) {
 	b := &e.Doc.Blocks[i]
-	width := e.textWidth(b)
-	key := layoutKey{text: b.Text, attrs: b.Attrs, kind: b.Kind, width: width, caret: -2, generation: e.generation}
+	width, fill := e.wideWidth(b), e.textWidth(b)
+	key := layoutKey{text: b.Text, attrs: b.Attrs, kind: b.Kind, width: width, fill: fill, caret: -2, generation: e.generation}
 	if e.tableResize != nil && e.tableResize.blockID == b.ID {
 		// A drag follows the pointer before anything is written, so the
 		// preview width joins the key.
@@ -72,7 +84,7 @@ func (e *Editor) gridFor(i int) (*grid, bool) {
 	t := ParseTable(b.Text)
 	var g *grid
 	if t.Valid && len(t.Headers) > 0 {
-		g = e.layOutGrid(t, width, storedTableWidths(b), e.resizeOverride(b.ID))
+		g = e.layOutGrid(t, width, fill, storedTableWidths(b), e.resizeOverride(b.ID))
 	}
 	e.grids[b.ID] = cachedGrid{key, g}
 	return g, g != nil
@@ -83,17 +95,28 @@ type cachedGrid struct {
 	grid *grid
 }
 
-func (e *Editor) layOutGrid(t PipeTable, width float32, stored []int, override map[int]float32) *grid {
+// layOutGrid lays a table out in width. An unsized table narrower than fill
+// is widened to span it, unless its columns are fitted to their content
+// (tablefit.go).
+func (e *Editor) layOutGrid(t PipeTable, width, fill float32, stored []int, override map[int]float32) *grid {
 	n := len(t.Headers)
 	all := append([][]string{t.Headers}, t.Rows...)
 	pad := 2 * e.px(cellPadX)
 	natural := make([]float32, n)
+	var least []float32
+	if e.measuresLeast() {
+		least = make([]float32, n)
+	}
 	for r, row := range all {
 		for c, cell := range row {
-			w, _ := e.cellLayout(cell, r == 0, 0).Size()
+			l := e.cellLayout(cell, r == 0, 0)
+			w, _ := l.Size()
 			// The text layer wraps at a whole pixel, so a cell is given a
 			// pixel more than its text needs.
 			natural[c] = max(natural[c], float32(math.Ceil(float64(w)))+1+pad, e.px(minColumn))
+			if least != nil {
+				least[c] = max(least[c], float32(math.Ceil(float64(longestPiece(l))))+1+pad, e.px(minColumn))
+			}
 		}
 	}
 
@@ -101,25 +124,27 @@ func (e *Editor) layOutGrid(t PipeTable, width float32, stored []int, override m
 	// themselves from content. Only the dragged column is pinned: the rest
 	// stay automatic.
 	cols := make([]float32, n)
+	pinned := make([]bool, n)
 	anyStored := false
 	for c := range cols {
 		if w, ok := override[c]; ok {
 			cols[c] = max(e.px(minColumn), w)
-			anyStored = true
+			anyStored, pinned[c] = true, true
 			continue
 		}
 		if c < len(stored) && stored[c] > 0 {
 			cols[c] = e.px(float32(stored[c]))
-			anyStored = true
+			anyStored, pinned[c] = true, true
 			continue
 		}
 		cols[c] = natural[c]
 	}
+	fitted := least != nil && e.fitColumns(cols, pinned, natural, least, width)
 	var sum float32
 	for _, w := range cols {
 		sum += w
 	}
-	if sum > width && sum > 0 {
+	if !fitted && sum > width && sum > 0 {
 		// Widths sized in a wide window would run off a narrow one, so the
 		// row scales down together to fit. It never scales up: a table
 		// deliberately made narrow stays narrow.
@@ -132,10 +157,10 @@ func (e *Editor) layOutGrid(t PipeTable, width float32, stored []int, override m
 			sum += w
 		}
 	}
-	if !anyStored && n > 0 && sum < width {
+	if !fitted && !anyStored && n > 0 && sum < fill {
 		// Unsized tables finish flush with the blocks around them: the
 		// last column takes the rounding difference.
-		cols[n-1] += width - sum
+		cols[n-1] += fill - sum
 	}
 	g := &grid{cols: cols, align: t.Alignments}
 	for r, row := range all {
@@ -183,9 +208,17 @@ func (e *Editor) tableCellIn(id int64) bool {
 	return e.tableActive != nil && e.tableActive.blockID == id
 }
 
-// gridOrigin is where a table block's grid starts: the code panel's text
-// origin, as drawGrid draws it.
+// gridOrigin is where a table block's grid starts, as drawGrid draws it:
+// its home, shifted left by how far a grid wider than its room is scrolled.
 func (e *Editor) gridOrigin(i int) geom.Point {
+	o := e.gridHome(i)
+	o.X -= e.tableScrollDX(i)
+	return o
+}
+
+// gridHome is where a table block's grid starts unscrolled: the code panel's
+// text origin. A scrolling grid's view starts here.
+func (e *Editor) gridHome(i int) geom.Point {
 	return geom.NewPoint(e.bodyLeft()+e.px(codeInset), e.tops[i]+e.px(codeRowTop))
 }
 
@@ -215,6 +248,9 @@ func (e *Editor) cellRect(i int, g *grid, row, col int) geom.Rect {
 // tableCellAt is the cell of block i's grid under where, in the editor's
 // coordinates: row -1 for the header, 0.. for data rows, and its column.
 func (e *Editor) tableCellAt(i int, g *grid, where geom.Point) (row, col int, ok bool) {
+	if !e.inTableView(i, where) {
+		return 0, 0, false
+	}
 	o := e.gridOrigin(i)
 	rel := where.Sub(o)
 	if rel.X < 0 || rel.Y < 0 {
@@ -298,10 +334,15 @@ func (e *Editor) resizeOverride(id int64) map[int]float32 {
 
 func (e *Editor) drawGrid(gc *unison.Canvas, i int, g *grid) {
 	t := e.tok()
-	o := geom.NewPoint(e.bodyLeft()+e.px(codeInset), e.tops[i]+e.px(codeRowTop))
-	var total float32
-	for _, w := range g.cols {
-		total += w
+	o := e.gridOrigin(i)
+	total := g.width()
+	if view, ok := e.tableClip(i); ok {
+		// A grid wider than its room is drawn through its view, with the
+		// scrollbar under it.
+		gc.Save()
+		defer e.drawCodeScroll(gc, i)
+		defer gc.Restore()
+		gc.ClipRect(view, pathop.Intersect, true)
 	}
 	e.fill(gc, geom.NewRect(o.X, o.Y, total, g.rowsH[0]), t.ChipBackground)
 	id := e.Doc.Blocks[i].ID

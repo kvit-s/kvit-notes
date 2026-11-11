@@ -7,8 +7,13 @@ package editor
 //
 // The text layer wraps at MaxWidth and never wraps at 0 (text.Options), so
 // a code block is laid out with no width. Its viewport is textWidth, the
-// width other blocks wrap at; its content is the layout's width; its scroll
-// offset is per block id, clamped to the content past the viewport.
+// width other blocks wrap at, or under an embedding's TextWidth as wide as
+// its longest line up to the editor's right margin (wideblocks.go); its
+// content is the layout's width; its scroll offset is per block id, clamped
+// to the content past the viewport.
+//
+// A table wider than its room scrolls through the same offset, scrollbar and
+// wheel (tablescroll.go): its viewport is its room and its content the grid.
 
 import (
 	"github.com/richardwilkes/toolbox/v2/geom"
@@ -43,21 +48,40 @@ func (e *Editor) codeNoWrap(b *Block) bool {
 	return b.Kind == Code || b.Kind == Raw
 }
 
-// codeViewport is the visible width of block i's code text: what other
-// blocks wrap at.
+// codeViewport is the visible width of block i's code text, or of a
+// scrolling table's grid.
 func (e *Editor) codeViewport(i int) float32 {
-	return e.textWidth(&e.Doc.Blocks[i])
+	if _, ok := e.tableScrolls(i); ok {
+		return e.tableRoom(i)
+	}
+	return e.wideCodeViewport(i)
 }
 
-// codeContent is the width of block i's unwrapped text.
+// codeContent is the width of block i's unwrapped text, or of a scrolling
+// table's grid.
 func (e *Editor) codeContent(i int) float32 {
+	if g, ok := e.tableScrolls(i); ok {
+		return g.width()
+	}
 	w, _ := e.layout(i).text.Size()
 	return w
 }
 
+// scrollsAcross reports whether block i can scroll sideways: code, or a
+// table wider than its room.
+func (e *Editor) scrollsAcross(i int) bool {
+	if i < 0 || i >= len(e.Doc.Blocks) {
+		return false
+	}
+	if _, ok := e.tableScrolls(i); ok {
+		return true
+	}
+	return e.codeNoWrap(&e.Doc.Blocks[i])
+}
+
 // codeMaxScroll is how far block i's code can scroll past its viewport.
 func (e *Editor) codeMaxScroll(i int) float32 {
-	if i < 0 || i >= len(e.Doc.Blocks) || !e.codeNoWrap(&e.Doc.Blocks[i]) {
+	if !e.scrollsAcross(i) {
 		return 0
 	}
 	return max(0, e.codeContent(i)-e.codeViewport(i))
@@ -181,9 +205,12 @@ func (e *Editor) ensureCodePointVisible(i int, x float32) {
 	e.setCodeScroll(b.ID, scroll)
 }
 
-// codeBarRect is the scrollbar track under block i's code, or false when
-// there is nothing to scroll.
+// codeBarRect is the scrollbar track under block i's code or grid, or false
+// when there is nothing to scroll.
 func (e *Editor) codeBarRect(i int) (geom.Rect, bool) {
+	if i >= 0 && i < len(e.Doc.Blocks) && e.Doc.Blocks[i].Kind == Table {
+		return e.tableBarRect(i)
+	}
 	if i < 0 || i >= len(e.Doc.Blocks) || !e.codeNoWrap(&e.Doc.Blocks[i]) || e.Printing {
 		return geom.Rect{}, false
 	}
@@ -235,11 +262,12 @@ func (e *Editor) drawCodeScroll(gc *unison.Canvas, i int) {
 	e.fillRound(gc, thumb, e.px(codeBarRadius), ink)
 }
 
-// codeWheel scrolls block i's code from a wheel turn: a horizontal turn, or
-// a vertical one with Shift held, as a horizontal one. It reports whether
-// the turn moved the code, keeping it from the region the editor is in.
+// codeWheel scrolls block i's code or grid from a wheel turn: a horizontal
+// turn, or a vertical one with Shift held, as a horizontal one. It reports
+// whether the turn moved the block, keeping it from the region the editor is
+// in.
 func (e *Editor) codeWheel(i int, delta geom.Point, mods mod.Modifiers) bool {
-	if i < 0 || i >= len(e.Doc.Blocks) || !e.codeNoWrap(&e.Doc.Blocks[i]) {
+	if !e.scrollsAcross(i) {
 		return false
 	}
 	if e.codeMaxScroll(i) <= 0 {
@@ -253,14 +281,19 @@ func (e *Editor) codeWheel(i int, delta geom.Point, mods mod.Modifiers) bool {
 		return false
 	}
 	id := e.Doc.Blocks[i].ID
+	if e.tableCellIn(id) {
+		// The live cell's field stays where it opened, so a grid moving
+		// under it writes the cell and ends the edit first.
+		e.commitTableField()
+	}
 	before := e.codeScrollOf(id)
 	e.setCodeScroll(id, before-dx*unison.MouseWheelMultiplier)
 	return e.codeScrollOf(id) != before
 }
 
-// wheel scrolls what is under the pointer: a code block's long line
-// across, a zoomed diagram in its window, and everything else in the
-// region the editor is in.
+// wheel scrolls what is under the pointer: a code block's long line or a
+// wide table across, a zoomed diagram in its window, and everything else in
+// the region the editor is in.
 func (e *Editor) wheel(where, delta geom.Point, mods mod.Modifiers) bool {
 	if i := e.rowAt(where); i >= 0 {
 		if e.codeWheel(i, delta, mods) {

@@ -38,6 +38,10 @@ type layoutKey struct {
 	selA, selB int    // the selection inside the block, in source offsets
 	generation int    // bumped when the theme or typography changes
 	marks      string // the find bar's matches in the block (marksKey)
+
+	// fill is the width a table's grid spans when its room is wider
+	// (wideblocks.go).
+	fill float32
 }
 
 // styleFor is the style of a drawn character with the given inline flags.

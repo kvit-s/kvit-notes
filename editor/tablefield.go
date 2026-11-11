@@ -31,6 +31,9 @@ func (e *Editor) openTableField(i, row, col int, atStart bool) {
 		e.tableField = nil
 		hidePrev()
 	}
+	// A grid wider than its room brings the cell round before the field
+	// opens over it.
+	e.revealTableCell(i, col)
 	text := TableCellValue(e.Doc.Blocks[i].Text, row, col)
 
 	area := kvitui.NewTextArea(e.ui)
@@ -179,9 +182,7 @@ func (e *Editor) openTableField(i, row, col int, atStart bool) {
 		return used
 	}
 
-	at := e.cellRect(i, g, row, col)
-	o := e.gridOrigin(i)
-	_ = o
+	at := e.clipToTableView(i, e.cellRect(i, g, row, col))
 	root := e.RectToRoot(at)
 	hide = w.Show(&kvitui.Popup{Panel: field, Anchor: e,
 		OnEscape: func() {

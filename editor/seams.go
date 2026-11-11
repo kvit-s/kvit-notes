@@ -85,6 +85,32 @@ type Embedding struct {
 	// a partly selected block as a fragment whose inline markers are
 	// balanced, and inside one block as the characters drawn, in plain text.
 	CopyFragments bool
+	// FitTables sizes the columns of a table the reader has not dragged as a
+	// browser's automatic table layout does (tablefit.go). When every column
+	// fits on one line, each is as wide as its widest cell and the table is
+	// as wide as its content, with no last column widened to fill the room.
+	// When they do not, each column gets its longest word, path or link, and
+	// the room left is shared out by how much more each column wants, the
+	// small wants met in full first, so short columns such as names, numbers
+	// and "95 ms" stay on one line while a column of sentences wraps. A
+	// column the reader dragged keeps its width.
+	FitTables bool
+	// TextWidth is the width, in design pixels, the editor lays its text out
+	// in, as if the editor were that wide, margins included: paragraphs,
+	// lists, quotes, headings and every block but tables and code wrap there,
+	// from the rows' usual left edge. Tables and code blocks start at the same
+	// edge and may use the editor's whole width past it (wideblocks.go): a
+	// table as wide as its columns, a code block as wide as its longest line
+	// and scrolling past the editor's right margin. 0 lays every block out in
+	// the editor's whole width.
+	TextWidth float32
+	// ScrollTables lets a table whose columns cannot be made narrow enough for
+	// its room, each at least its longest word, keep those widths and scroll
+	// sideways inside its block as a code block's long lines do: clipped, with
+	// a scrollbar under it, moved by the horizontal wheel, Shift with the
+	// wheel and the scrollbar, and brought round to a cell made live
+	// (tablescroll.go). Without it such a table is squeezed into its room.
+	ScrollTables bool
 	// Laid, when set, runs each time the rows have been measured again,
 	// for a host that places things over them. It may ask where things are,
 	// and must not change the editor.
@@ -133,6 +159,19 @@ func (s *seams) readOnlyLook() bool { return s.framed() && s.emb.ReadOnlyLook }
 func (s *seams) hidesImageLine() bool { return s.framed() && s.emb.HideImageLine }
 
 func (s *seams) copyFragments() bool { return s.framed() && s.emb.CopyFragments }
+
+func (s *seams) fitTables() bool { return s.framed() && s.emb.FitTables }
+
+func (s *seams) scrollTables() bool { return s.framed() && s.emb.ScrollTables }
+
+// textWidth is an embedding's TextWidth in design pixels, 0 when the text
+// takes the editor's whole width.
+func (s *seams) textWidth() float32 {
+	if !s.framed() {
+		return 0
+	}
+	return max(0, s.emb.TextWidth)
+}
 
 // ink is the colour an embedding draws ordinary text in, or nil for the
 // theme's TextPrimary.

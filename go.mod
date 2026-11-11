@@ -9,6 +9,7 @@ replace github.com/go-text/typesetting => github.com/kvit-s/kvit-ui/third_party/
 require (
 	github.com/ebitengine/purego v0.11.0
 	github.com/fsnotify/fsnotify v1.10.1
+	github.com/go-text/typesetting v0.3.5
 	github.com/kvit-s/kvit-ui v0.0.0-20261009034750-5968be9cb11e
 	github.com/richardwilkes/canvas v0.3.1
 	github.com/richardwilkes/toolbox/v2 v2.20.0
@@ -19,7 +20,6 @@ require (
 
 require (
 	github.com/HugoSmits86/nativewebp v1.3.0 // indirect
-	github.com/go-text/typesetting v0.3.5 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/yuin/goldmark v1.8.6 // indirect

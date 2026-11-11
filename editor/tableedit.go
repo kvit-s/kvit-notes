@@ -956,6 +956,9 @@ const tableGripWidth = 6
 
 // tableGripAt is the column left of the border under where, for resizing.
 func (e *Editor) tableGripAt(i int, g *grid, where geom.Point) (int, bool) {
+	if !e.inTableView(i, where) {
+		return 0, false
+	}
 	o := e.gridOrigin(i)
 	rel := where.Sub(o)
 	if rel.Y < 0 || rel.Y > g.height {
@@ -1019,8 +1022,9 @@ const (
 )
 
 // tableAddRects is the + Row and + Column buttons under block i's grid, in
-// the editor's coordinates, or false when no cell is live.
-func (e *Editor) tableAddRects(i int, g *grid, o geom.Point) (rowR, colR geom.Rect, ok bool) {
+// the editor's coordinates, or false when no cell is live. They stay at the
+// grid's left however far it is scrolled, under its scrollbar.
+func (e *Editor) tableAddRects(i int, g *grid) (rowR, colR geom.Rect, ok bool) {
 	if e.Doc.ReadOnly || !e.tableCellIn(e.Doc.Blocks[i].ID) {
 		return geom.Rect{}, geom.Rect{}, false
 	}
@@ -1030,7 +1034,8 @@ func (e *Editor) tableAddRects(i int, g *grid, o geom.Point) (rowR, colR geom.Re
 	cw, _ := e.label("+ Column", st).Size()
 	rw += 2 * e.px(tableAddPad)
 	cw += 2 * e.px(tableAddPad)
-	y := o.Y + g.height + e.px(4)
+	o := e.gridHome(i)
+	y := o.Y + g.height + e.tableBarRoom(i) + e.px(4)
 	rowR = geom.NewRect(o.X, y, rw, e.px(tableAddH))
 	colR = geom.NewRect(rowR.Right()+e.px(tableAddGap), y, cw, e.px(tableAddH))
 	return rowR, colR, true
@@ -1038,8 +1043,7 @@ func (e *Editor) tableAddRects(i int, g *grid, o geom.Point) (rowR, colR geom.Re
 
 // tableAddAt is the add control under block i's grid at where.
 func (e *Editor) tableAddAt(i int, g *grid, where geom.Point) gutterPart {
-	o := e.gridOrigin(i)
-	rowR, colR, ok := e.tableAddRects(i, g, o)
+	rowR, colR, ok := e.tableAddRects(i, g)
 	if !ok {
 		return partNone
 	}
@@ -1083,7 +1087,7 @@ func (e *Editor) drawTableDecor(gc *unison.Canvas, i int, g *grid, o geom.Point,
 		}
 	}
 	if e.tableCellIn(id) {
-		if rowR, colR, ok := e.tableAddRects(i, g, o); ok {
+		if rowR, colR, ok := e.tableAddRects(i, g); ok {
 			st := e.chrome(kvitui.RoleSmall, text.Regular, t.TextSecondary)
 			for _, b := range []struct {
 				r     geom.Rect
@@ -1098,7 +1102,8 @@ func (e *Editor) drawTableDecor(gc *unison.Canvas, i int, g *grid, o geom.Point,
 		}
 		if hint := e.tableHint(); hint != "" {
 			l := e.label(hint, e.chrome(kvitui.RoleSmall, text.Regular, t.TextFaint))
-			l.Draw(gc, o.X, o.Y+g.height+e.px(4+tableAddH+tableAddGap))
+			home := e.gridHome(i)
+			l.Draw(gc, home.X, home.Y+g.height+e.tableBarRoom(i)+e.px(4+tableAddH+tableAddGap))
 		}
 	}
 }

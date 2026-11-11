@@ -363,7 +363,7 @@ func (e *Editor) mouseDrag(where geom.Point, _ int, _ mod.Modifiers) bool {
 	case e.tableSweep != nil && e.tableSweep.sweeping:
 		if i := e.Doc.Index(e.tableSweep.blockID); i >= 0 {
 			if g, ok := e.gridFor(i); ok {
-				if row, col, ok := e.tableCellAt(i, g, where); ok {
+				if row, col, ok := e.tableCellAt(i, g, e.tableDragPoint(i, where)); ok {
 					e.extendTableSweep(i, row, col)
 				}
 			}
@@ -573,7 +573,7 @@ func (e *Editor) partAt(where geom.Point) (int, gutterPart) {
 		return i, partCopy
 	case b.Kind == Code && !e.tocShows(i) && where.In(e.languageButton(i)):
 		return i, partLanguage
-	case (b.Kind == Code || b.Kind == Raw) && e.codeBarAt(i, where):
+	case (b.Kind == Code || b.Kind == Raw || b.Kind == Table) && e.codeBarAt(i, where):
 		return i, partCodeBar
 	case e.tocShows(i) && e.tocEntryAt(i, where) >= 0:
 		return i, partTocEntry

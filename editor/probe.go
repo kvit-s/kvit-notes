@@ -77,8 +77,7 @@ func (e *Editor) PartRect(i int, part string) geom.Rect {
 		return geom.Rect{}
 	case "addrow", "addcol":
 		if g, ok := e.gridFor(i); ok {
-			o := e.gridOrigin(i)
-			rowR, colR, ok := e.tableAddRects(i, g, o)
+			rowR, colR, ok := e.tableAddRects(i, g)
 			if !ok {
 				return geom.Rect{}
 			}

@@ -117,8 +117,7 @@ func (e *Editor) describeBlock(b *unison.AccessibilityBuilder, i int) accessibil
 	}
 	if blk.Kind == Table && !d.ReadOnly {
 		if g, ok := e.gridFor(i); ok {
-			o := e.gridOrigin(i)
-			if rowR, colR, ok := e.tableAddRects(i, g, o); ok {
+			if rowR, colR, ok := e.tableAddRects(i, g); ok {
 				b.AddVirtualChildOf(id, partKey{blk.ID, partTableAddRow}, func(n *accessibility.Node) {
 					n.Role = role.Button
 					n.Name = "Add row"

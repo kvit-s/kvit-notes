@@ -395,7 +395,9 @@ func (e *Editor) width() float32 {
 const defaultWidth = 800
 
 // bodyLeft and bodyRight are the left and right edges of a row's body: the
-// part after the gutter and the focus bar, which is tinted on hover.
+// part after the gutter and the focus bar, which is tinted on hover. Under an
+// embedding's TextWidth, bodyRight is the text's right edge, and a wide table
+// or code panel reaches past it (wideblocks.go).
 func (e *Editor) bodyLeft() float32 {
 	if e.Printing {
 		return 0
@@ -406,7 +408,7 @@ func (e *Editor) bodyLeft() float32 {
 	return e.side() + e.px(gutterWidth+focusBar)
 }
 
-func (e *Editor) bodyRight() float32 { return e.width() - e.side() }
+func (e *Editor) bodyRight() float32 { return e.pageWidth() - e.side() }
 
 // focusColumn is the width focus mode keeps the text to when the reader has
 // set no limit of their own.
@@ -427,7 +429,7 @@ func (e *Editor) side() float32 {
 	if limit <= 0 {
 		return s
 	}
-	return s + max(0, float32(math.Floor(float64(e.width()-2*s-e.px(limit))/2)))
+	return s + max(0, float32(math.Floor(float64(e.pageWidth()-2*s-e.px(limit))/2)))
 }
 
 // gap is the space between rows: the reader's block spacing.
@@ -534,14 +536,16 @@ func (e *Editor) textOrigin(i int) geom.Point {
 	return geom.NewPoint(e.bodyLeft()+e.textLeft(b)-e.codeScrollDX(i), e.tops[i]+e.textTop(b))
 }
 
-// rowRect is block i's whole row, the gutter included.
+// rowRect is block i's whole row, the gutter included, as far right as a
+// table or a code panel may reach.
 func (e *Editor) rowRect(i int) geom.Rect {
-	return geom.NewRect(e.side(), e.tops[i], e.width()-2*e.side(), e.heights[i])
+	return geom.NewRect(e.side(), e.tops[i], max(e.width()-e.side(), e.wideRight())-e.side(), e.heights[i])
 }
 
-// bodyRect is block i's row after the gutter and the focus bar.
+// bodyRect is block i's row after the gutter and the focus bar, reaching
+// past the text's right edge as far as a wide table or code panel does.
 func (e *Editor) bodyRect(i int) geom.Rect {
-	return geom.NewRect(e.bodyLeft(), e.tops[i], e.bodyRight()-e.bodyLeft(), e.heights[i])
+	return geom.NewRect(e.bodyLeft(), e.tops[i], e.bodyRight()-e.bodyLeft()+e.wideExtra(i), e.heights[i])
 }
 
 // layout is block i's text laid out for the current caret and selection,
@@ -581,7 +585,7 @@ func (e *Editor) rowHeight(i int) float32 {
 		return e.px(dividerRow)
 	}
 	if g, ok := e.tableShowsGrid(i); ok {
-		h := e.px(codeRowTop+codeRowBottom) + g.height
+		h := e.px(codeRowTop+codeRowBottom) + g.height + e.tableBarRoom(i)
 		if e.tableCellIn(e.Doc.Blocks[i].ID) {
 			h += e.px(20 + tableAddH + tableAddGap)
 		}
