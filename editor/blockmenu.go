@@ -325,7 +325,7 @@ func (e *Editor) openTextMenu(at geom.Rect) {
 	}
 	if e.OnLink != nil {
 		link := e.OnLink
-		items = append(items, kvitui.MenuItem{Text: "Link…", Disabled: d.ReadOnly, OnSelect: func() { link() }})
+		items = append(items, kvitui.MenuItem{Text: "Link", Asks: true, Disabled: d.ReadOnly, OnSelect: func() { link() }})
 	}
 	if b := d.CaretBlock(); b != nil {
 		items = append(items, kvitui.MenuItem{Separator: true},
@@ -365,7 +365,7 @@ func (e *Editor) linkMenuItems(pos Pos) []kvitui.MenuItem {
 	if e.OnLink != nil && !ref.Wiki && sp.Start != sp.CStart {
 		link := e.OnLink
 		id, off := pos.Block, sp.CStart
-		items = append(items, kvitui.MenuItem{Text: "Edit link…", Disabled: e.Doc.ReadOnly, OnSelect: func() {
+		items = append(items, kvitui.MenuItem{Text: "Edit link", Asks: true, Disabled: e.Doc.ReadOnly, OnSelect: func() {
 			e.clearBlockSel()
 			e.Doc.SetCaret(id, off)
 			e.RequestFocus()

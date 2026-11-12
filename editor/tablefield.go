@@ -184,7 +184,7 @@ func (e *Editor) openTableField(i, row, col int, atStart bool) {
 
 	at := e.clipToTableView(i, e.cellRect(i, g, row, col))
 	root := e.RectToRoot(at)
-	hide = w.Show(&kvitui.Popup{Panel: field, Anchor: e,
+	hide = w.Show(&kvitui.Popup{Panel: field, Anchor: e, PressPasses: true,
 		OnEscape: func() {
 			done(false, nil)
 			e.tableActive = nil

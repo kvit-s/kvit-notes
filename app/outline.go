@@ -66,7 +66,8 @@ func NewOutline(ui *kvitui.UI, ed *editor.Editor) *Outline {
 	o := &Outline{ui: ui, ed: ed, Levels: 0xF, folded: map[int64]bool{}}
 	title := kvitui.NewLabel(ui, "Outline")
 	title.Role, title.Ink = kvitui.RoleStrong, kvitui.InkTextSecondary
-	levels := kvitui.NewButton(ui, "H…")
+	levels := kvitui.NewButton(ui, "H")
+	levels.Asks = true
 	levels.Form = kvitui.ButtonQuiet
 	levels.Explanation = "Heading levels shown"
 	levels.OnClick = func() { ui.ShowMenu(levels, "Heading levels", o.levelItems()) }

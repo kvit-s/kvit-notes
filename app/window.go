@@ -7,6 +7,7 @@ package app
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -349,6 +350,7 @@ func Open(ui *kvitui.UI, v *vault.Vault) (*Window, error) {
 	win.SetBody(body)
 	win.SidebarVisible = false
 	win.OnKeyDown = w.keyDown
+	w.keepFindKeys()
 	win.WillCloseCallback = chain(win.WillCloseCallback, func() {
 		w.forget()
 		w.saveNow()
@@ -509,6 +511,19 @@ func ground(ui *kvitui.UI, p *unison.Panel, ink func() kvitui.Ink) func(gc *unis
 	return func(gc *unison.Canvas, _ geom.Rect) {
 		r := p.ContentRect(true)
 		gc.DrawRect(r, kvitui.Color(ink().Of(ui)).Paint(gc, r, paintstyle.Fill))
+	}
+}
+
+// keepFindKeys gives Ctrl+F to the find bar. kvit-ui sends Find's keys,
+// Ctrl+F and Ctrl+E, to a window's search field, which here is the search
+// across notes. The find bar's command takes the first; while a popup is
+// open, the find bar itself among them, kvit-ui leaves the key to keyDown,
+// which opens the bar or puts the keyboard back in it. Ctrl+E stays the
+// editor's inline code while the editor has the keyboard, which the editor
+// asks of kvit-ui itself.
+func (w *Window) keepFindKeys() {
+	if err := w.Win.AddCommands(&kvitui.Command{Std: kvitui.StdFind, FindBar: true, Run: func() { w.openFind(false) }}); err != nil {
+		slog.Warn("the find bar's key was refused", "err", err)
 	}
 }
 

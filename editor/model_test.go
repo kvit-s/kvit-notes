@@ -996,7 +996,7 @@ func TestLinkMenuItems(t *testing.T) {
 		id = e.Doc.Blocks[0].ID
 		e.FollowLink = func(LinkRef) {}
 		e.OnLink = func() {}
-		if got := names(e.linkMenuItems(Pos{id, 8})); !slices.Equal(got, []string{"Open link", "Edit link…", "Remove link"}) {
+		if got := names(e.linkMenuItems(Pos{id, 8})); !slices.Equal(got, []string{"Open link", "Edit link", "Remove link"}) {
 			t.Errorf("markdown link: %q", got)
 		}
 		if got := names(e.linkMenuItems(Pos{id, 32})); !slices.Equal(got, []string{"Open link"}) {

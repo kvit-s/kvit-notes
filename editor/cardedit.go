@@ -225,7 +225,7 @@ func (e *Editor) editCardField(i, col, index int, which string) {
 
 	o := e.boardOrigin(i)
 	root := e.RectToRoot(geom.NewRect(at.X+o.X, at.Y+o.Y, at.Width, at.Height))
-	hide = w.Show(&kvitui.Popup{Panel: field, Anchor: e,
+	hide = w.Show(&kvitui.Popup{Panel: field, Anchor: e, PressPasses: true,
 		OnEscape:       func() { done(false, "") },
 		OnPressOutside: func() { done(true, "") },
 		Place: func(bounds geom.Rect, size geom.Size) geom.Rect {

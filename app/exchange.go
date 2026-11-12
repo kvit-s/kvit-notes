@@ -241,7 +241,8 @@ func (w *Window) openImport() {
 	ui := w.ui
 	folder, where := w.importFolder()
 	var d *kvitui.Dialog
-	files := kvitui.NewButton(ui, "Choose files…")
+	files := kvitui.NewButton(ui, "Choose files")
+	files.Asks = true
 	files.OnClick = func() {
 		dlg := unison.NewOpenDialog()
 		dlg.SetAllowedExtensions("md", "markdown", "txt")
@@ -256,7 +257,8 @@ func (w *Window) openImport() {
 			return export.ImportFiles(w.Vault.Root, paths, folder, export.ImportOptions{})
 		})
 	}
-	dir := kvitui.NewButton(ui, "Choose folder…")
+	dir := kvitui.NewButton(ui, "Choose folder")
+	dir.Asks = true
 	dir.OnClick = func() {
 		dlg := unison.NewOpenDialog()
 		dlg.SetCanChooseFiles(false)

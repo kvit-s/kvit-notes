@@ -138,7 +138,8 @@ func NewToolbar(ui *kvitui.UI, ed *editor.Editor, hooks ToolbarHooks) *Toolbar {
 		format = append(format, b)
 	}
 
-	insertBtn := kvitui.NewButton(ui, "+ Insert")
+	insertBtn := kvitui.NewButton(ui, "Insert")
+	insertBtn.Symbol = "plus"
 	insertBtn.Form = kvitui.ButtonFlat
 	insertBtn.Explanation = "Insert a block below the caret"
 	insertBtn.OnClick = func() { ui.ShowMenu(insertBtn, "Insert block", ed.InsertItems()) }

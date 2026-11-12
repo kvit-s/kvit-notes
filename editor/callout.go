@@ -289,7 +289,7 @@ func (e *Editor) editCalloutTitle(i int) {
 		return keys != nil && keys(key, mods, repeat)
 	}
 	at := e.RectToRoot(title)
-	hide = w.Show(&kvitui.Popup{Panel: field, Modal: false, Anchor: e,
+	hide = w.Show(&kvitui.Popup{Panel: field, Modal: false, Anchor: e, PressPasses: true,
 		OnEscape:       func() { done(false) },
 		OnPressOutside: func() { done(true) },
 		Place: func(bounds geom.Rect, size geom.Size) geom.Rect {

@@ -686,7 +686,7 @@ func (e *Editor) editBoardText(i int, part geom.Rect, name, current string, chan
 	}
 	o := e.boardOrigin(i)
 	at := e.RectToRoot(geom.NewRect(part.X+o.X, part.Y+o.Y, part.Width, part.Height))
-	hide = w.Show(&kvitui.Popup{Panel: field, Anchor: e,
+	hide = w.Show(&kvitui.Popup{Panel: field, Anchor: e, PressPasses: true,
 		OnEscape:       func() { done(false) },
 		OnPressOutside: func() { done(true) },
 		Place: func(bounds geom.Rect, size geom.Size) geom.Rect {

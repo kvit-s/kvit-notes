@@ -208,10 +208,13 @@ type cachedLayout struct {
 
 // New returns an editor showing doc.
 func New(ui *kvitui.UI, doc *Doc) *Editor {
-	e := &Editor{ui: ui, Doc: doc, Placeholder: "Type something...", layouts: map[int64]cachedLayout{},
+	e := &Editor{ui: ui, Doc: doc, Placeholder: "Type something…", layouts: map[int64]cachedLayout{},
 		blockSel: map[int64]bool{}, pictures: map[string]picture{}, grids: map[int64]cachedGrid{}, tableHold: map[int64]bool{}, tocHover: -1, queryHover: -1,
 		codeScroll: map[int64]float32{}, gapArmed: -1, gapHover: -1, dropIndex: -1, boardHoverCol: -1, boardHoverIdx: -1}
 	e.Self = e
+	// Ctrl+E is inline code here. kvit-ui sends that key to a window's
+	// search field unless the control with the keyboard keeps it.
+	kvitui.KeepsFindKey(e, kvitui.Keys(unison.KeyE, kvitui.ModPrimary))
 	e.SetFocusable(true)
 	e.SetSizer(e.sizes)
 	e.DrawCallback = e.draw

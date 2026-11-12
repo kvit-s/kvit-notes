@@ -150,7 +150,7 @@ func TestTheToolbarChangesAndInsertsBlocks(t *testing.T) {
 	if shown != "Heading 2" {
 		t.Errorf("the list should show the caret's kind: %q", shown)
 	}
-	s.press("+ Insert")
+	s.press("Insert")
 	s.press("Table")
 	// Inserting a table opens the grid-size picker, as Kvit's picker does;
 	// Enter takes its 3x3 default.
@@ -1397,5 +1397,23 @@ func TestInstalledFontsListed(t *testing.T) {
 	}
 	if len(options)-1 != len(unison.FontFamilies()) {
 		t.Errorf("%d options for %d families", len(options)-1, len(unison.FontFamilies()))
+	}
+}
+
+// Ctrl+E is the editor's inline code while the editor has the keyboard,
+// though kvit-ui gives the key to a window's search field.
+func TestCtrlEIsInlineCodeInTheEditor(t *testing.T) {
+	s := openVault(t, notes{"A.md": "some words here\n"})
+	s.do(func() {
+		s.w.Editor.FocusBlock(0, 0)
+		d := s.w.Editor.Doc
+		id := d.Blocks[0].ID
+		d.Anchor, d.Caret = editor.Pos{Block: id, Off: 5}, editor.Pos{Block: id, Off: 10}
+	})
+	s.screen.KeyPress(unison.KeyE, mod.Control)
+	var got string
+	s.do(func() { got = s.w.Editor.Doc.Blocks[0].Text })
+	if got != "some `words` here" {
+		t.Fatalf("Ctrl+E on a selection: %q", got)
 	}
 }

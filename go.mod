@@ -4,13 +4,13 @@ go 1.27.0
 
 toolchain go1.27.1
 
-replace github.com/go-text/typesetting => github.com/kvit-s/kvit-ui/third_party/typesetting v0.0.0-20261009034750-5968be9cb11e
+replace github.com/go-text/typesetting => github.com/kvit-s/kvit-ui/third_party/typesetting v0.0.0-20261112064851-5faae058d552
 
 require (
 	github.com/ebitengine/purego v0.11.0
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-text/typesetting v0.3.5
-	github.com/kvit-s/kvit-ui v0.0.0-20261009034750-5968be9cb11e
+	github.com/kvit-s/kvit-ui v0.0.0-20261112064851-5faae058d552
 	github.com/richardwilkes/canvas v0.3.1
 	github.com/richardwilkes/toolbox/v2 v2.20.0
 	github.com/richardwilkes/unison v0.108.1

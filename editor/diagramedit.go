@@ -615,7 +615,7 @@ func (e *Editor) openLabelEditor(i int, rename bool) {
 	at := e.RectToRoot(r)
 	width := e.px(220)
 	body := e.RectToRoot(e.bodyRect(i))
-	hide = w.Show(&kvitui.Popup{Panel: field, Modal: false, Anchor: e,
+	hide = w.Show(&kvitui.Popup{Panel: field, Modal: false, Anchor: e, PressPasses: true,
 		OnEscape:       closeField,
 		OnPressOutside: closeField,
 		Place: func(bounds geom.Rect, size geom.Size) geom.Rect {
@@ -687,8 +687,8 @@ func (e *Editor) diagramMenuItems(i int) []kvitui.MenuItem {
 	var items []kvitui.MenuItem
 	if flow {
 		items = append(items,
-			kvitui.MenuItem{Text: "&Rename id…", Disabled: !node, OnSelect: act(func(k int) { e.openLabelEditor(k, true) })},
-			kvitui.MenuItem{Text: "Edit &label…", Disabled: !node, OnSelect: act(func(k int) { e.openLabelEditor(k, false) })})
+			kvitui.MenuItem{Text: "&Rename id", Asks: true, Disabled: !node, OnSelect: act(func(k int) { e.openLabelEditor(k, true) })},
+			kvitui.MenuItem{Text: "Edit &label", Asks: true, Disabled: !node, OnSelect: act(func(k int) { e.openLabelEditor(k, false) })})
 	}
 	if seq {
 		items = append(items,

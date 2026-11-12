@@ -95,7 +95,8 @@ func (w *Window) openTemplatesAt(chosen string) {
 		w.message = "Saved the template " + chosen
 		w.update()
 	}
-	add := kvitui.NewButton(w.ui, "New…")
+	add := kvitui.NewButton(w.ui, "New")
+	add.Asks = true
 	add.OnClick = func() {
 		d.Accept()
 		w.askNameWith("New template", "", "Add", func(name string) {
@@ -119,7 +120,8 @@ func (w *Window) openTemplatesAt(chosen string) {
 		d.Accept()
 		reopen("")
 	}
-	fromNote := kvitui.NewButton(w.ui, "Save current note…")
+	fromNote := kvitui.NewButton(w.ui, "Save current note")
+	fromNote.Asks = true
 	fromNote.SetEnabled(w.open != nil)
 	fromNote.OnClick = func() {
 		if w.open == nil {
