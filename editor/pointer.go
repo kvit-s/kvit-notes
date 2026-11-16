@@ -85,7 +85,13 @@ func (e *Editor) mouseDown(where geom.Point, button, clickCount int, mods mod.Mo
 		}
 		if g, ok := e.tableShowsGrid(i); ok {
 			if row, col, ok := e.tableCellAt(i, g, where); ok {
-				e.tableCellMenu(i, row, col, geom.NewRect(where.X, where.Y, 0, 0))
+				at := geom.NewRect(where.X, where.Y, 0, 0)
+				if e.Doc.ReadOnly {
+					e.closeMenu()
+					e.ui.ShowMenuAt(e, at, "Table", e.readOnlyCellMenuItems(i, g, row, col, where))
+				} else {
+					e.tableCellMenu(i, row, col, at)
+				}
 				return true
 			}
 		}
@@ -363,7 +369,12 @@ func (e *Editor) mouseDrag(where geom.Point, _ int, _ mod.Modifiers) bool {
 	case e.tableSweep != nil && e.tableSweep.sweeping:
 		if i := e.Doc.Index(e.tableSweep.blockID); i >= 0 {
 			if g, ok := e.gridFor(i); ok {
-				if row, col, ok := e.tableCellAt(i, g, e.tableDragPoint(i, where)); ok {
+				p := e.tableDragPoint(i, where)
+				row, col, ok := e.tableCellAt(i, g, p)
+				if e.cellPick != nil && e.dragCellText(i, g, p, row, col, ok) {
+					return true
+				}
+				if ok {
 					e.extendTableSweep(i, row, col)
 				}
 			}
@@ -527,6 +538,10 @@ func (e *Editor) mouseExit() bool {
 
 func (e *Editor) cursor(where geom.Point) *unison.Cursor {
 	if _, part := e.partAt(where); part != partNone {
+		if e.Doc.ReadOnly && (part == partTableCell || part == partTableGrip) {
+			// A read-only table's cells select their characters.
+			return unison.TextCursor()
+		}
 		return unison.ArrowCursor()
 	}
 	if where.X >= e.bodyLeft() && e.rowAt(where) >= 0 {
@@ -653,6 +668,11 @@ func (e *Editor) posAtPoint(p geom.Point) (Pos, bool) {
 		// the end.
 		b := &d.Blocks[best]
 		return Pos{b.ID, len(runes(b.Text))}, true
+	}
+	if g, ok := e.tableShowsGrid(best); ok && d.ReadOnly {
+		// A sweep reaching a read-only table's grid ends in the cell it is
+		// over, as its characters are drawn.
+		return Pos{d.Blocks[best].ID, e.gridPos(best, g, p)}, true
 	}
 	l := e.layout(best)
 	o := e.textOrigin(best)

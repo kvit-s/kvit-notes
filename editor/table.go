@@ -29,10 +29,13 @@ const (
 // grid is a table laid out at a width: each column's width, each row's
 // height, and every cell's text.
 type grid struct {
-	cols   []float32
-	rowsH  []float32
-	cells  [][]*text.Layout // [row][col], the header first
-	projs  [][]projection   // what each cell draws, for its typeset math
+	cols  []float32
+	rowsH []float32
+	cells [][]*text.Layout // [row][col], the header first
+	projs [][]projection   // what each cell draws, for its typeset math
+	// spans are where each cell's characters are in the block's Markdown
+	// (tabletext.go), nil when they cannot be told.
+	spans  [][]cellSpan
 	align  []TableAlign
 	height float32
 }
@@ -85,6 +88,7 @@ func (e *Editor) gridFor(i int) (*grid, bool) {
 	var g *grid
 	if t.Valid && len(t.Headers) > 0 {
 		g = e.layOutGrid(t, width, fill, storedTableWidths(b), e.resizeOverride(b.ID))
+		g.spans = matchedCellSpans(b.Text, t)
 	}
 	e.grids[b.ID] = cachedGrid{key, g}
 	return g, g != nil
@@ -186,13 +190,14 @@ func (e *Editor) layOutGrid(t PipeTable, width, fill float32, stored []int, over
 // tableShowsGrid reports whether a table block is drawn as its grid: when it
 // reads as a table, away from the caret, with a live cell in it (a press
 // in the grid keeps the grid while the cell is edited), or with a swept
-// rectangle in it.
+// rectangle in it. A read-only document always draws it as its grid, since
+// its Markdown could not be edited there.
 func (e *Editor) tableShowsGrid(i int) (*grid, bool) {
 	b := &e.Doc.Blocks[i]
 	if b.Kind != Table {
 		return nil, false
 	}
-	if e.tableHold[b.ID] {
+	if e.tableHold[b.ID] || e.Doc.ReadOnly {
 		return e.gridFor(i)
 	}
 	if e.Doc.Focused && e.Doc.Caret.Block == b.ID && !e.tableCellIn(b.ID) {
@@ -353,15 +358,19 @@ func (e *Editor) drawGrid(gc *unison.Canvas, i int, g *grid) {
 			if e.TableCellSelected(id, r-1, c) {
 				e.fill(gc, geom.NewRect(x, y, w, h), t.SelectionTint)
 			}
+			x += w
+		}
+		y += h
+	}
+	// Washes and selected characters behind the text they mark.
+	e.drawCellMarks(gc, i, g)
+	y = o.Y
+	for r, h := range g.rowsH {
+		x := o.X
+		for c, w := range g.cols {
 			l := g.cells[r][c]
 			lw, _ := l.Size()
-			tx := x + e.px(cellPadX)
-			switch g.align[c] {
-			case TableAlignCenter:
-				tx = x + (w-lw)/2
-			case TableAlignRight:
-				tx = x + w - e.px(cellPadX) - lw
-			}
+			tx := e.cellTextX(x, w, lw, g.align[c])
 			l.Draw(gc, tx, y+e.px(cellPadY))
 			drawInlineMath(gc, l, g.projs[r][c], tx, y+e.px(cellPadY))
 			x += w

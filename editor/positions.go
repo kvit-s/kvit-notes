@@ -104,11 +104,15 @@ func displayToSource(b *Block, start, end int) (from, to int) {
 // CharRect is where a caret before Markdown offset off of block i is drawn:
 // its x, and the top and height of its line. It is what places something
 // beside a character, such as the actions offered at the end of a selection.
-// A block that draws no text answers its row; an index the document does not
-// hold answers an empty rectangle.
+// In a table drawn as its grid, an offset in a cell's text answers where
+// that character is in the cell. A block that draws no text answers its row;
+// an index the document does not hold answers an empty rectangle.
 func (e *Editor) CharRect(i, off int) geom.Rect {
 	if i < 0 || i >= len(e.tops) {
 		return geom.Rect{}
+	}
+	if r, ok := e.cellCaretRect(i, off); ok {
+		return r
 	}
 	if !e.rowDrawsText(i) {
 		return e.bodyRect(i)

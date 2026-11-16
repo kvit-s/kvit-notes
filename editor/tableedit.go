@@ -742,13 +742,21 @@ func (e *Editor) extendTableSweep(i, row, col int) {
 }
 
 // finishTableSweep ends the gesture: a sweep that reached another cell
-// keeps its rectangle; a press and release in one cell is a press into it.
+// keeps its rectangle; a press and release in one cell is a press into it,
+// which in a read-only document keeps the characters it selected, if any,
+// and leaves no live cell.
 func (e *Editor) finishTableSweep(i int) bool {
 	sw := e.tableSweep
 	if sw == nil || !sw.sweeping {
 		return false
 	}
 	sw.sweeping = false
+	e.cellPick = nil
+	if e.Doc.ReadOnly && !e.HasTableSelection() {
+		e.tableSweep = nil
+		e.changed()
+		return true
+	}
 	if e.HasTableSelection() {
 		e.commitTableField()
 		e.RequestFocus()
@@ -854,14 +862,24 @@ func (e *Editor) caretInTableGrid() bool {
 // tableGridKeys swallows the keys that would edit a table's Markdown while
 // its grid is showing: the source is not on screen, so there is nowhere
 // for the edit to be seen. Navigation, undo, copy and the find keys fall
-// through; Escape does nothing.
+// through; Escape drops a selection of a cell's characters and otherwise
+// does nothing. In a read-only document Shift with an arrow, Home or End
+// does nothing either, as it would carry a cell's selection through the
+// Markdown between the cells.
 func (e *Editor) tableGridKeys(key unison.KeyCode, ctrl, shift, alt bool) bool {
 	if !e.caretInTableGrid() {
 		return false
 	}
 	switch key {
 	case unison.KeyEscape:
+		if e.Doc.HasSelection() {
+			e.Doc.Anchor = e.Doc.Caret
+		}
 		return true
+	case unison.KeyLeft, unison.KeyRight, unison.KeyUp, unison.KeyDown, unison.KeyHome, unison.KeyEnd:
+		if shift && e.Doc.ReadOnly {
+			return true
+		}
 	case unison.KeyReturn, unison.KeyTab, unison.KeyBackspace, unison.KeyDelete:
 		return true
 	}
@@ -931,7 +949,7 @@ func (e *Editor) tableMouse(i int, g *grid, where geom.Point, button, clicks int
 	if button != unison.ButtonLeft {
 		return false
 	}
-	if col, ok := e.tableGripAt(i, g, where); ok {
+	if col, ok := e.tableGripAt(i, g, where); ok && !e.Doc.ReadOnly {
 		e.commitTableField()
 		e.clearTableSweep()
 		e.tableResize = &tableResizeState{blockID: e.Doc.Blocks[i].ID, col: col, startX: where.X, width: g.cols[col]}
@@ -940,6 +958,12 @@ func (e *Editor) tableMouse(i int, g *grid, where geom.Point, button, clicks int
 	row, col, ok := e.tableCellAt(i, g, where)
 	if !ok {
 		return false
+	}
+	if e.Doc.ReadOnly {
+		// Nothing can be edited or sorted: a press selects the cell's
+		// characters (tabletext.go), a drag to another cell the rectangle.
+		e.pressCellText(i, g, row, col, where, clicks)
+		return true
 	}
 	if row == -1 && clicks == 2 {
 		e.sortTableBy(i, col)
@@ -1075,8 +1099,9 @@ func (e *Editor) drawTableDecor(gc *unison.Canvas, i int, g *grid, o geom.Point,
 		r := e.cellRect(i, g, p.row, p.col)
 		e.stroke(gc, r, e.px(2), e.px(2), t.Accent)
 	}
-	// Resize grips: a short handle centred on each inner border's top.
-	if e.hover == id {
+	// Resize grips: a short handle centred on each inner border's top. A
+	// read-only table cannot keep a width, so it has none.
+	if e.hover == id && !e.Doc.ReadOnly {
 		x := o.X
 		for c, w := range g.cols {
 			x += w

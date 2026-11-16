@@ -18,6 +18,7 @@ import (
 
 	kvitui "github.com/kvit-s/kvit-ui"
 	"github.com/kvit-s/kvit-ui/palette"
+	"github.com/kvit-s/kvit-ui/text"
 	"github.com/richardwilkes/toolbox/v2/geom"
 	"github.com/richardwilkes/unison"
 	"github.com/richardwilkes/unison/enums/paintstyle"
@@ -242,8 +243,10 @@ func (d *Decorations) RemoveMarginItem(id string) bool {
 // AddSpan marks length characters of block block's display text from start,
 // painted in color through the channels style names. A run past the end of
 // the text is cut at its end, and a block with no text of its own shows
-// nothing. An empty style, a colour with no opacity or a length below 1
-// registers nothing and returns "".
+// nothing. A table drawn as its grid counts in its Markdown, which is its
+// display text, and shows the run over the characters its cells draw from
+// that part of it. An empty style, a colour with no opacity or a length
+// below 1 registers nothing and returns "".
 func (d *Decorations) AddSpan(owner string, block, start, length int, style SpanStyle, color unison.Color) string {
 	if style&(SpanWash|SpanOutline) == 0 || color.Alpha() == 0 || length <= 0 {
 		return ""
@@ -610,27 +613,40 @@ func (e *Editor) rowDrawsText(i int) bool {
 }
 
 // displayRangeRects is where length characters of block i's display text
-// from start are drawn: one rectangle for each line they cross.
+// from start are drawn: one rectangle for each line they cross. In a table
+// drawn as its grid, whose display text is its Markdown, they are the
+// characters its cells draw from that part of it, a rectangle for each line
+// of each cell.
 func (e *Editor) displayRangeRects(i, start, length int) []geom.Rect {
-	if i < 0 || i >= len(e.tops) || length <= 0 || !e.rowDrawsText(i) {
+	if i < 0 || i >= len(e.tops) || length <= 0 {
+		return nil
+	}
+	if g, ok := e.tableShowsGrid(i); ok {
+		return e.cellRangeRects(i, g, start, start+length)
+	}
+	if !e.rowDrawsText(i) {
 		return nil
 	}
 	b := &e.Doc.Blocks[i]
 	from, to := displayToSource(b, start, start+length)
 	l := e.layout(i)
-	a, c := l.drawn(from), l.drawn(to)
+	return lineRects(l.text, l.drawn(from), l.drawn(to), e.textOrigin(i))
+}
+
+// lineRects is where drawn offsets a to c of a text laid out at o are drawn:
+// one rectangle for each line they cross.
+func lineRects(l *text.Layout, a, c int, o geom.Point) []geom.Rect {
 	if a >= c {
 		return nil
 	}
-	o := e.textOrigin(i)
 	var out []geom.Rect
-	for k := 0; k < l.lines(); k++ {
-		ls, le, top, h := l.text.LineBounds(k)
+	for k := 0; k < l.LineCount(); k++ {
+		ls, le, top, h := l.LineBounds(k)
 		s, t := max(a, ls), min(c, le)
 		if s >= t {
 			continue
 		}
-		stops := l.text.LineStops(k)
+		stops := l.LineStops(k)
 		x0, x1 := stops[s-ls], stops[t-ls]
 		if x1 < x0 {
 			x0, x1 = x1, x0

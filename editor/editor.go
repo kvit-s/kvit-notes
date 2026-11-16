@@ -129,6 +129,9 @@ type Editor struct {
 	// place, or nil. Row -1 is the header row, 0.. the data rows.
 	tableActive *tableCellPos
 	tableSweep  *tableSweep
+	// cellPick is a press selecting a cell's characters in a read-only
+	// table, until it is let go (tabletext.go).
+	cellPick *cellPick
 	// tableHold keeps a table showing its grid while its caret is in it.
 	// The grid is for the pointer: keyboard entry (FocusBlock) shows the
 	// Markdown source instead and clears the hold.
@@ -252,6 +255,7 @@ func (e *Editor) SetDoc(doc *Doc) {
 	}
 	e.tableActive = nil
 	e.tableSweep = nil
+	e.cellPick = nil
 	e.tableResize = nil
 	clear(e.tableHold)
 	e.closeTablePicker()
@@ -762,6 +766,11 @@ func (e *Editor) caretRect() (geom.Rect, bool) {
 	i := d.Index(d.Caret.Block)
 	if !d.Focused || i < 0 || i >= len(e.tops) {
 		return geom.Rect{}, false
+	}
+	if r, ok := e.cellCaretRect(i, d.Caret.Off); ok {
+		// A caret in a cell's text of a table drawn as its grid.
+		r.Width = e.px(caretWidth)
+		return r, true
 	}
 	l := e.layout(i)
 	dr := l.drawn(d.Caret.Off)

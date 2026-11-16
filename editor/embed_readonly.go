@@ -140,7 +140,11 @@ func (d *Document) Decorations() *Decorations { return d.Editor.Decorations() }
 
 // The selection. The reader makes it by sweeping the pointer, by double or
 // triple clicking, or by Ctrl+A, which selects a block's text and then every
-// block.
+// block. In a table, the same gestures inside one cell select that cell's
+// characters, as offsets in the table block's Markdown; a sweep on into
+// another cell selects a rectangle of cells instead, which is not a text
+// selection and which the Editor's HasTableSelection and TableSelection
+// report.
 
 // HasSelection reports whether anything is selected.
 func (d *Document) HasSelection() bool { return d.Editor.HasSelection() }

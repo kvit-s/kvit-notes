@@ -104,7 +104,8 @@ func (d *Doc) RangeMarkdown() string {
 // writes it. Inside one block it is plain text: the characters drawn between
 // the selection's ends, without the block's fence, prefix or number and
 // without the markers of its inline spans, since none of them was on the
-// screen to select. Selected code comes back as it stands, a link as its
+// screen to select; inside one cell of a table, the characters the cell
+// draws. Selected code comes back as it stands, a link as its
 // words, and an inline formula, which is drawn as a picture, as its TeX
 // between $ signs. It is "" when nothing is selected.
 func (d *Doc) CopiedText() (text string, markdown bool) {
@@ -121,6 +122,12 @@ func (d *Doc) CopiedText() (text string, markdown bool) {
 	if from >= to {
 		return "", false
 	}
+	if blk.Kind == Table {
+		// Characters of one cell are what the cell draws.
+		if s, ok := tableCellCopy(blk, from, to); ok {
+			return s, false
+		}
+	}
 	if verbatim(blk.Kind) {
 		return string(src[from:to]), false
 	}
@@ -130,8 +137,14 @@ func (d *Doc) CopiedText() (text string, markdown bool) {
 
 // fragmentOf is the characters of block b's text src between Markdown
 // offsets from and to: as they stand in a block with no inline Markdown,
-// and with the markers of the spans they touch balanced in any other.
+// and with the markers of the spans they touch balanced in any other and in
+// one cell of a table.
 func fragmentOf(b Block, src []rune, from, to int) string {
+	if b.Kind == Table {
+		if s, ok := tableCellFragment(b, from, to); ok {
+			return s
+		}
+	}
 	if verbatim(b.Kind) {
 		return string(src[from:to])
 	}
