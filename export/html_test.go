@@ -288,6 +288,11 @@ func TestInlineHTML(t *testing.T) {
 		{"**[docs](https://x)**", `<strong><a href="https://x">docs</a></strong>`},
 		{"snake_case_name", "snake_case_name"},
 		{`\*not\*`, "*not*"},
+		{`history \$15, 2 \* 3`, "history $15, 2 * 3"},
+		{`Wait\! Really\, \(no\) \@me \<b\> \& \{x\}`, "Wait! Really, (no) @me &lt;b&gt; &amp; {x}"},
+		{`a \\ b and C:\Users\sk`, `a \ b and C:\Users\sk`},
+		{"`\\$x`", `<code>\$x</code>`},
+		{`\—not ASCII`, `\—not ASCII`},
 		{"a \"q\" & b", "a &quot;q&quot; &amp; b"},
 		{"it's", "it's"},
 	}

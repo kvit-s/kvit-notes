@@ -231,8 +231,9 @@ func TestAMarginItemSitsBesideItsLine(t *testing.T) {
 		if got := item.FrameRect(); got != geom.NewRect(e.laidWidth, line.Y, col, line.Height) || item.Hidden || item.block != last {
 			t.Errorf("the item is at %v (hidden %v), want beside %v", got, item.Hidden, line)
 		}
-		if past := d.LineGeometry(last, 1<<20); past.Y <= line.Y {
-			t.Errorf("a line past the last %v is not the last", past)
+		lines := e.layout(last).lines()
+		if past, final := d.LineGeometry(last, 1<<20), d.LineGeometry(last, lines-1); past != final {
+			t.Errorf("a line past the last %v is not the last of %d, %v", past, lines, final)
 		}
 		if div := d.LineGeometry(3, 0); div != e.bodyRect(3) {
 			t.Errorf("a divider's line %v is not its row %v", div, e.bodyRect(3))

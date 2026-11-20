@@ -35,6 +35,10 @@ const (
 	sSub   // ~sub~, likewise
 	sMath  // $x^2$, typeset away from the caret (mathinline.go)
 	sColor // <span style="color:VALUE">…</span>
+	// sEscape is a backslash before ASCII punctuation, CommonMark's escape:
+	// "\$" is a "$" that opens nothing. The backslash is its opening marker,
+	// the character its content, and it has no closing marker.
+	sEscape
 )
 
 // span is one formatted span in source rune offsets. [Start, CStart) and
@@ -107,6 +111,12 @@ func (p *iparser) at(i int) rune {
 func isSpace(r rune) bool { return r == 0 || unicode.IsSpace(r) }
 func isWord(r rune) bool  { return unicode.IsLetter(r) || unicode.IsDigit(r) }
 
+// isASCIIPunct reports whether a backslash before r escapes it: one of
+// CommonMark's ASCII punctuation characters.
+func isASCIIPunct(r rune) bool {
+	return r < 0x80 && strings.ContainsRune("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", r)
+}
+
 // matchAt tries to start a span at i that closes before `to`. It returns the
 // offset after the span. With record false it only measures, so the search
 // for a closing marker can skip over nested spans without recording them.
@@ -116,7 +126,13 @@ func (p *iparser) matchAt(i, to int, closing string, record bool) (int, bool) {
 	s := p.s
 	switch {
 	case s[i] == '\\':
-		return min(i+2, to), true
+		if i+1 >= to || !isASCIIPunct(s[i+1]) {
+			return 0, false // a backslash before anything else is a backslash
+		}
+		if record {
+			p.out = append(p.out, span{Kind: sEscape, Start: i, End: i + 2, CStart: i + 1, CEnd: i + 2})
+		}
+		return i + 2, true
 	case s[i] == '`':
 		n := 0
 		for i+n < to && s[i+n] == '`' {
@@ -540,15 +556,22 @@ func (p *projection) beforeNext(d int) int {
 
 // forClick maps a drawn offset the pointer hit to a source offset, putting
 // the caret next to the character that was clicked: inside the span on
-// that side rather than outside its hidden markers.
+// that side rather than outside its hidden markers. An escape is no span to
+// type into: a click before an escaped character puts the caret before its
+// backslash, since text typed between the two would undo the escape.
 func (p *projection) forClick(d int) int {
 	a, b := p.afterPrev(d), p.beforeNext(d)
 	if a == b {
 		return a
 	}
 	for _, sp := range p.Spans {
-		if sp.CEnd == a && sp.CEnd > sp.CStart {
+		if sp.Kind != sEscape && sp.CEnd == a && sp.CEnd > sp.CStart {
 			return a
+		}
+	}
+	for _, sp := range p.Spans {
+		if sp.Kind == sEscape && sp.CStart == b && sp.Start >= a {
+			return sp.Start
 		}
 	}
 	return b

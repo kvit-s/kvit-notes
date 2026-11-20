@@ -39,6 +39,8 @@ var textCases = []struct {
 	{"TodoMetadataSurvivesTheText", "- [ ] Ship it 📅 2026-07-15 ⏫", []string{"[ ] Ship it", "2026-07-15", "⏫"}, nil},
 	{"NumberedListsBeginAtTheirWrittenNumber", "1. a\n\npara\n\n2. b\n3. c",
 		[]string{"1. a", "2. b", "3. c"}, nil},
+	{"EscapesLoseTheirBackslash", "Wait\\! It costs \\$15, 2 \\* 3.",
+		[]string{"Wait! It costs $15, 2 * 3."}, []string{`\`}},
 	{"NestedNumberedListsRestartTheirNumbering", "1. one\n   1. sub one\n   2. sub two\n2. two",
 		[]string{"1. one", "  1. sub one", "  2. sub two", "2. two"}, nil},
 }

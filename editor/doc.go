@@ -294,14 +294,15 @@ var reLoneURL = regexp.MustCompile(`(?i)\A(https?://|www\.)[^\s<>"]+\z`)
 func IsLoneURL(s string) bool { return reLoneURL.MatchString(strings.TrimSpace(s)) }
 
 // displayLine is the display text of one pasted plain-text line: its inline
-// markers removed. Markers are hidden by projecting with no reveal, keeping
-// each span's content.
+// markers removed. Markers are hidden by projecting with only escapes
+// revealed, keeping each span's content, and each escape's backslash, so
+// "\*" stays a star rather than open italics.
 func displayLine(s string) string {
 	r := []rune(s)
 	if len(r) == 0 {
 		return s
 	}
-	return string(project(r, parseInline(r), nil).Disp)
+	return string(project(r, parseInline(r), func(sp span) bool { return sp.Kind == sEscape }).Disp)
 }
 
 // insert is InsertText and Paste. fences reads several lines opening a fence

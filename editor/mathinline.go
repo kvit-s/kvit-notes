@@ -48,8 +48,10 @@ func (e *Editor) inlineMathSize(st text.Style) int {
 
 // typesetInline replaces every $…$ span of p whose markers are hidden, and
 // whose TeX typesets, with one placeholder character, laid out as the
-// formula's box. base is the style of the text around the spans.
-func (e *Editor) typesetInline(p projection, base text.Style) projection {
+// formula's box. base is the style of the text around the spans; pitched
+// says the text is laid out at its pitch (text.Options.Pitch), as a block's
+// and a table cell's text are.
+func (e *Editor) typesetInline(p projection, base text.Style, pitched bool) projection {
 	if !mathtex.Available() {
 		return p
 	}
@@ -68,7 +70,7 @@ func (e *Editor) typesetInline(p projection, base text.Style) projection {
 		if err != nil || f.Width <= 0 {
 			continue
 		}
-		found = append(found, typeset{sp, &inlineBox{span: sp, formula: f, box: e.mathBox(f, base)}})
+		found = append(found, typeset{sp, &inlineBox{span: sp, formula: f, box: e.mathBox(f, base, pitched)}})
 	}
 	if len(found) == 0 {
 		return p
@@ -125,7 +127,11 @@ func (e *Editor) typesetInline(p projection, base text.Style) projection {
 // height. Otherwise the line is as tall as the text's font at the smallest
 // whole size whose ascent and descent hold the formula's, spaced by the
 // document's line height, and at least deep enough for the formula.
-func (e *Editor) mathBox(f *mathtex.Formula, st text.Style) text.Box {
+// pitched says the line is laid out at the text's pitch, which keeps its
+// own room under the baseline and grows by what a box needs beyond the
+// pitch (text.Box), so the box then asks for the rest of that height above
+// the baseline.
+func (e *Editor) mathBox(f *mathtex.Formula, st text.Style, pitched bool) text.Box {
 	ascent, descent := float32(f.Baseline), float32(f.Height-f.Baseline)
 	asc, desc := e.fontExtents(st)
 	size := st.Size
@@ -141,7 +147,13 @@ func (e *Editor) mathBox(f *mathtex.Formula, st text.Style) text.Box {
 	// face whose ascent takes most of the line, such as Segoe UI, the
 	// spacing alone left a fraction hanging into the line below.
 	lead := float32(e.lineHeight())
-	return text.Box{Width: float32(f.Width), Ascent: asc * p, Descent: max(p*lead-asc*p, descent)}
+	below := max(p*lead-asc*p, descent)
+	if !pitched {
+		return text.Box{Width: float32(f.Width), Ascent: asc * p, Descent: below}
+	}
+	tall := asc*p + below
+	below = max(e.pitch(st)-e.natural(st).ascent, descent)
+	return text.Box{Width: float32(f.Width), Ascent: max(ascent, tall-below), Descent: descent}
 }
 
 // fontExtent is a face's ascent and descent per em.
@@ -207,6 +219,6 @@ func drawInlineMath(gc *unison.Canvas, l *text.Layout, p projection, x, y float3
 // width; the projection is what drawInlineMath draws the formulas from.
 func (e *Editor) inlineText(src string, st text.Style, width float32) (*text.Layout, projection) {
 	r := []rune(src)
-	p := e.typesetInline(project(r, parseInline(r), nil), st)
+	p := e.typesetInline(project(r, parseInline(r), nil), st, false)
 	return e.ui.Fonts.Layout(e.runs(p, p.flags, st), text.Options{MaxWidth: max(1, width)}), p
 }

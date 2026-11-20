@@ -65,7 +65,7 @@ func (e *Editor) cellText(src string, header bool, width float32) (*text.Layout,
 	if header {
 		base.Weight = text.Bold
 	}
-	proj := e.typesetInline(project(r, parseInline(r), nil), base)
+	proj := e.typesetInline(project(r, parseInline(r), nil), base, true)
 	return e.ui.Fonts.Layout(e.runs(proj, proj.flags, base), text.Options{MaxWidth: width, Pitch: e.pitch(base)}), proj
 }
 

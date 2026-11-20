@@ -251,13 +251,16 @@ func TestTallInlineMathGrowsItsLine(t *testing.T) {
 				bx.formula.Baseline, base, bx.formula.Height-bx.formula.Baseline, top, top+tall)
 		}
 		// The tall line's height: the text's face at the smallest whole
-		// size holding the formula, spaced by the document's line height.
+		// size holding the formula, spaced by the document's line height,
+		// and at least deep enough for the formula.
 		asc, desc := e.fontExtents(l.style)
 		p := math.Round(float64(l.style.Size))
-		for asc*float32(p) < float32(bx.formula.Baseline) || desc*float32(p) < float32(bx.formula.Height-bx.formula.Baseline) {
+		depth := float32(bx.formula.Height - bx.formula.Baseline)
+		for asc*float32(p) < float32(bx.formula.Baseline) || desc*float32(p) < depth {
 			p++
 		}
-		if want := float32(p) * float32(e.ui.Typography.LineHeight()); math.Abs(float64(tall-want)) > 1.5 {
+		want := max(float32(p)*float32(e.lineHeight()), asc*float32(p)+depth)
+		if math.Abs(float64(tall-want)) > 1.5 {
 			t.Errorf("the line is %v tall, Kvit's rule gives %v", tall, want)
 		}
 	})

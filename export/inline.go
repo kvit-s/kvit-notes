@@ -4,10 +4,9 @@ package export
 // wiki-link grammar, the HTML each span is written as, and the text with
 // every marker removed.
 //
-// The editor package has its own span parser, which knows fewer span types
-// (no superscript, subscript, colour, inline maths or escapes). An export
-// writes every span type as HTML, so this package has a parser of its own
-// for all of them.
+// The editor package has its own span parser, for drawing and editing a
+// note. An export writes every span type as HTML, so this package has a
+// parser of its own for all of them.
 
 import (
 	"strings"
@@ -446,7 +445,10 @@ func wikiMatch(md []rune, pos int) (length, targetLen int, target string, alias,
 // trimSpace trims white space, as isSpace has it, from both ends of s.
 func trimSpace(s string) string { return strings.TrimFunc(s, isSpace) }
 
-const escapable = "*_~^=+`[]\\$#->|"
+// escapable is what a backslash escapes: CommonMark's ASCII punctuation, as
+// the editor reads it (editor.isASCIIPunct), so an export shows a note's
+// characters as the editor draws them.
+const escapable = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"
 
 func matchTypeAt(d spanDef, md []rune, pos int, sp *fspan, st *parseState, runs *codeRunScan) bool {
 	if st.exhausted() {

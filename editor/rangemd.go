@@ -194,11 +194,18 @@ func (d *Doc) markdownOf(r TextRange) string {
 // to as Markdown of their own. Marker characters in the range never count: a
 // span whose visible text is wholly inside the range is written as it stands,
 // nested markers and all, and one only partly inside has its markers written
-// around each piece of it, so every piece parses on its own.
+// around each piece of it, so every piece parses on its own. An escaped
+// character is written with its backslash wherever it is.
 func inlineFragment(src []rune, from, to int) string {
-	spans := parseInline(src)
 	marker := make([]bool, len(src))
-	for _, sp := range spans {
+	escaped := make([]bool, len(src))
+	var spans []span
+	for _, sp := range parseInline(src) {
+		if sp.Kind == sEscape {
+			marker[sp.Start], escaped[sp.CStart] = true, true
+			continue
+		}
+		spans = append(spans, sp)
 		for k := sp.Start; k < sp.CStart; k++ {
 			marker[k] = true
 		}
@@ -265,6 +272,12 @@ func inlineFragment(src []rune, from, to int) string {
 		}
 		open = target
 	}
+	writeChar := func(k int) {
+		if escaped[k] {
+			out.WriteRune('\\')
+		}
+		out.WriteRune(src[k])
+	}
 	lastWhole := -1
 	for k := from; k < to; k++ {
 		if marker[k] {
@@ -273,7 +286,7 @@ func inlineFragment(src []rune, from, to int) string {
 		o := owner(k)
 		if o < 0 {
 			sync(nil)
-			out.WriteRune(src[k])
+			writeChar(k)
 			continue
 		}
 		top := root(o)
@@ -291,7 +304,7 @@ func inlineFragment(src []rune, from, to int) string {
 			chain = append([]int{j}, chain...)
 		}
 		sync(chain)
-		out.WriteRune(src[k])
+		writeChar(k)
 	}
 	sync(nil)
 	return out.String()

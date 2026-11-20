@@ -177,7 +177,7 @@ func (e *Editor) layOut(b *Block, width float32, caret, selA, selB int) *blockLa
 		a, c := selA, selB
 		reveal = func(sp span) bool { return revealed(sp, caret, a, c) }
 	}
-	proj := e.typesetInline(project(src, spans, reveal), e.blockStyle(b))
+	proj := e.typesetInline(project(src, spans, reveal), e.blockStyle(b), true)
 	fl := proj.flags
 	if b.Kind == Code && b.Lang != "" {
 		// Syntax colours, a class to a run.
